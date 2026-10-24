@@ -51,6 +51,19 @@ class TestClaudeOSPlayer(TempHome):
         self.assertFalse(music.player_command("keystroke")["ok"])
         self.assertFalse(music.player_command("play", catalog_id="1; rm -rf ~")["ok"])
 
+    def test_failed_player_leaves_music_alone(self):
+        from cos import music
+        calls = []
+        orig_cmd, orig_tell = music.player_command, music._tell
+        music.player_command = lambda *a, **k: {"ok": False, "error": "token"}
+        music._tell = lambda body, timeout=10: calls.append(body)
+        try:
+            res = music.play_with_player({"id": "123", "url": ""})
+        finally:
+            music.player_command, music._tell = orig_cmd, orig_tell
+        self.assertFalse(res["ok"])
+        self.assertEqual(calls, [], "Music must not be paused when our player didn't start")
+
     def test_catalog_id_from_song_links(self):
         from cos import music
         self.assertEqual(music._id_from_url("https://music.apple.com/us/album/x/123?i=456"), "456")

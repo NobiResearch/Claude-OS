@@ -135,10 +135,46 @@ else
     SIGN_LABEL="the identity named in COS_SIGN_IDENTITY"
 fi
 
-# A real identity never asks a timestamp server, so offline builds work.
+# --- provisioning profile (MusicKit) ---------------------------------------------------
+# MusicKit mints its developer token for apps it can identify: an application-identifier
+# entitlement, backed by an embedded profile for an App ID with the MusicKit service. The
+# profile is personal (team id, device), so it lives in ~/.claude-os, never in the repo.
+PROFILE="${COS_PROVISIONING_PROFILE:-$HOME/.claude-os/ClaudeOS.provisionprofile}"
+ENTITLEMENTS=""
+if [ -f "$PROFILE" ] && [ "$SIGN_ID" != "-" ]; then
+    if security cms -D -i "$PROFILE" > build/profile.plist 2>/dev/null &&
+       /usr/bin/env python3 - build/profile.plist "$BUNDLE_ID" build/entitlements.plist <<'PY'
+import plistlib
+import sys
+
+profile = plistlib.load(open(sys.argv[1], "rb"))
+team = (profile.get("TeamIdentifier") or [""])[0]
+app_id = (profile.get("Entitlements") or {}).get("com.apple.application-identifier", "")
+if app_id != "%s.%s" % (team, sys.argv[2]):
+    sys.exit("build.sh: the provisioning profile is for %s, not %s" % (app_id.split(".", 1)[-1], sys.argv[2]))
+with open(sys.argv[3], "wb") as f:
+    plistlib.dump({"com.apple.application-identifier": app_id, "com.apple.developer.team-identifier": team}, f)
+PY
+    then
+        cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+        ENTITLEMENTS="build/entitlements.plist"
+        echo "==> embedding the provisioning profile (MusicKit)"
+    else
+        echo "⚠ couldn't use $PROFILE; building without it (MusicKit won't work)" >&2
+    fi
+    rm -f build/profile.plist
+fi
+
+# A real identity never asks a timestamp server, so offline builds work. Ad hoc can't
+# carry restricted entitlements (macOS would refuse to launch it), so it never gets them.
 sign_bundles() {
     local args=(--force --sign "$1")
-    [ "$1" = "-" ] || args+=(--timestamp=none)
+    if [ "$1" != "-" ]; then
+        args+=(--timestamp=none)
+        [ -n "$ENTITLEMENTS" ] && args+=(--entitlements "$ENTITLEMENTS")
+    else
+        rm -f "$APP/Contents/embedded.provisionprofile"
+    fi
     codesign "${args[@]}" "$APP" || return 1
 }
 

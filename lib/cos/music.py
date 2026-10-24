@@ -291,11 +291,11 @@ def play_with_player(item):
     catalog_id = item.get("id") or _id_from_url(item.get("url"))
     if not catalog_id:
         return {"ok": False, "error": "no catalog id for that song"}
-    if core.app_running("Music") and now().get("state") == "playing":
-        _tell("pause", timeout=5)  # one thing playing at a time
     res = player_command("play", catalog_id)
     if not res.get("ok"):
-        return res
+        return res  # nothing changed: Music keeps playing whatever it was playing
+    if core.app_running("Music"):
+        _tell("pause", timeout=5)  # ours started; now make it the only thing playing
     st = res["state"]
     return {"ok": True, "matched": True, "now": {
         "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
@@ -350,10 +350,9 @@ def play_via_shortcut(query, expect=None):
     changed = n.get("track") != before.get("track") or before.get("state") != "playing"
     if n.get("state") != "playing" or not changed:
         return {"ok": False, "error": "the shortcut ran, but Music isn't playing anything new"}
-    matched = None
-    if expect:
-        matched = fold(expect) in fold(n.get("track")) or fold(n.get("track")) in fold(expect)
-    return {"ok": True, "now": n, "matched": matched if matched is not None else True}
+    if expect and not (fold(expect) in fold(n.get("track")) or fold(n.get("track")) in fold(expect)):
+        return {"ok": False, "error": "the shortcut ran, but Music is playing %s, not %s" % (n.get("track"), expect)}
+    return {"ok": True, "now": n, "matched": True}
 
 
 # ---------------------------------------------------------------- helpers
