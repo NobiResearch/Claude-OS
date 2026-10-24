@@ -75,6 +75,8 @@ import sys
 out, version, root, path, bundle_id = sys.argv[1:6]
 location = ("Claude OS shows the weather for where you are. "
             "Your location is rounded to about a kilometre and stays on this Mac.")
+calendar = "Claude OS shows today's events on your desktop and in your morning brief. It only reads; it never changes your calendar."
+reminders = "Claude OS shows the reminders that are due on your desktop and in your morning brief. It only reads them."
 info = {
     "CFBundleIconFile": "AppIcon",
     "CFBundlePackageType": "APPL",
@@ -92,6 +94,10 @@ info = {
     "NSLocationUsageDescription": location,
     "NSLocationWhenInUseUsageDescription": location,
     "NSAppleMusicUsageDescription": "Claude OS plays the Apple Music songs you ask for.",
+    "NSCalendarsFullAccessUsageDescription": calendar,
+    "NSCalendarsUsageDescription": calendar,
+    "NSRemindersFullAccessUsageDescription": reminders,
+    "NSRemindersUsageDescription": reminders,
     # claude-os://music/play?id=… lets `cos` drive the built-in player (see Player.swift).
     "CFBundleURLTypes": [{"CFBundleURLName": "Claude OS", "CFBundleURLSchemes": ["claude-os"]}],
     "ClaudeOSRoot": root,

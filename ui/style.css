@@ -84,6 +84,10 @@ button.mb-item:hover { background: var(--hover); }
 .today-weather:hover .muted { color: var(--text); }
 .wx-symbol { font-size: 20px; }
 .wx-temp { font: 300 26px var(--display); }
+.today-agenda { margin-top: 12px; display: flex; flex-direction: column; gap: 4px; max-width: 420px; }
+.ag-row { display: flex; gap: 12px; font-size: 13.5px; }
+.ag-when { flex: none; width: 92px; color: var(--accent-2); font-variant-numeric: tabular-nums; }
+.ag-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .today-line { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12.5px; }
 .today-line span::before { content: "◆ "; color: var(--accent); font-size: 9px; vertical-align: 1px; }
 .today-chips { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }

@@ -155,6 +155,12 @@ def pulse():
         feeds.refresh(force=True)
     except Exception as e:
         core.journal("daemon", "pulse: feeds failed: %s" % e, daemon="pulse")
+    try:
+        from . import weather
+        if weather.location():
+            weather.forecast()  # keeps the weather alert signal fresh
+    except Exception as e:
+        core.journal("daemon", "pulse: weather failed: %s" % e, daemon="pulse")
     if not core.cache_get("updates", max_age=20 * 3600):
         updates.check(fetch=False)
     if not core.cache_get("clean", max_age=24 * 3600):

@@ -20,6 +20,7 @@ let package = Package(
                 .linkedFramework("Carbon"),
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("MusicKit"),
+                .linkedFramework("EventKit"),
             ]
         ),
     ]

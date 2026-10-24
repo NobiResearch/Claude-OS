@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config", "serve", "app", "weather",
+    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal",
 }
 
 INTRO = """\
@@ -98,6 +98,11 @@ def build_parser():
     wxs = wxsub.add_parser("set", help="set the place by city name")
     wxs.add_argument("place", nargs="+")
     wxsub.add_parser("clear", help="turn weather off and forget the place")
+
+    ca_ = cmd("cal", "today's events and due reminders")
+    ca_.add_argument("--refresh", action="store_true")
+    ca_sub = ca_.add_subparsers(dest="cal_cmd")
+    ca_sub.add_parser("connect", help="let Claude OS read your calendar and reminders")
 
     f = cmd("feeds", "RSS/Atom headlines")
     f.add_argument("--all", action="store_true", help="include already-read items")
@@ -317,6 +322,9 @@ def main(argv=None):
     if c == "weather":
         from . import weather
         return weather.main(args)
+    if c == "cal":
+        from . import cal
+        return cal.main(args)
     if c in ("log", "friction", "remember", "memory"):
         from . import mem
         return getattr(mem, c + "_main" if c != "log" else "log_main")(args)

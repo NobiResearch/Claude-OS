@@ -147,7 +147,22 @@ WEATHER = {"configured": True, "place": "Lisbon, Portugal", "source": "city", "u
            "today": {"max": 22.0, "min": 14.0, "precip_pct": 10, "summary": "Mostly clear", "symbol": "🌤"},
            "tomorrow": {"max": 21.0, "min": 13.0, "precip_pct": 40, "summary": "Showers", "symbol": "🌦"}}
 
-SETTINGS = {"music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
+def _at(hour, minute=0, days=0):
+    import datetime as _dt
+    d = _dt.datetime.now().replace(hour=hour, minute=minute, second=0, microsecond=0) + _dt.timedelta(days=days)
+    return d.timestamp()
+
+
+AGENDA = {"connected": True, "reminders": [{"title": "Renew passport", "list": "Errands", "due": _at(9), "overdue": False}],
+          "today": [{"title": "Design review", "calendar": "Work", "all_day": False, "start": _at(10), "end": _at(11),
+                     "location": "", "when": "10:00–11:00", "past": False},
+                    {"title": "Lunch with Sam", "calendar": "Home", "all_day": False, "start": _at(12, 30), "end": _at(13, 30),
+                     "location": "", "when": "12:30–13:30", "past": False}],
+          "tomorrow": [{"title": "Dentist", "calendar": "Home", "all_day": False, "start": _at(9, 15, 1), "end": _at(10, 0, 1),
+                        "location": "", "when": "09:15–10:00", "past": False}]}
+
+SETTINGS = {"calendar": "connected",
+            "music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
             "weather": {"name": "Lisbon, Portugal", "source": "city"}}
 
 GETS = {
@@ -171,6 +186,7 @@ GETS = {
     "/api/chats": [],
     "/api/weather": WEATHER,
     "/api/settings": SETTINGS,
+    "/api/agenda": AGENDA,
 }
 
 

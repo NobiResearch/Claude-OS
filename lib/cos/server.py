@@ -258,6 +258,8 @@ def make_handler(app):
                 self._json({"name": demo.WEATHER["place"], "source": "city"})
             elif path.startswith("/api/settings"):
                 self._json(demo.SETTINGS["music"])
+            elif path.startswith("/api/agenda"):
+                self._json(demo.AGENDA)
             elif path.endswith(("/apply", "/merge", "/discard", "/install", "/uninstall")):
                 self._json(demo.fake_job("demo"))
             else:
@@ -371,7 +373,10 @@ def make_handler(app):
         cfg = core.config()
         st = music.player_state() or {}
         place = weather.location() or {}
-        h._json({"music": {"apple_music": bool(cfg["music"].get("apple_music")),
+        from . import cal
+        cs = cal.state() or {}
+        h._json({"calendar": cs.get("calendar", "not connected"), "calendars": cs.get("calendars"),
+                 "music": {"apple_music": bool(cfg["music"].get("apple_music")),
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},
                  "weather": {"name": place.get("name"), "source": place.get("source")}})
@@ -417,6 +422,15 @@ def make_handler(app):
         from . import weather
         weather.clear()
         h._json({"name": None})
+
+    def r_agenda(h, q, b):
+        from . import cal
+        h._json(cal.day_view(cal.agenda(refresh=bool(q.get("refresh")))))
+
+    def r_agenda_connect(h, q, b):
+        from . import cal
+        core.journal("action", "calendar connect requested", via="app")
+        h._json(cal.day_view(cal.connect() or {}))
 
     def r_trends(h, q, b):
         from . import status
@@ -596,6 +610,8 @@ def make_handler(app):
         ("POST", "/api/updates/apply"): r_updates_apply,
         ("GET", "/api/trends"): r_trends,
         ("GET", "/api/settings"): r_settings,
+        ("GET", "/api/agenda"): r_agenda,
+        ("POST", "/api/agenda/connect"): r_agenda_connect,
         ("POST", "/api/settings/music"): r_settings_music,
         ("GET", "/api/weather"): r_weather,
         ("POST", "/api/weather/city"): r_weather_city,

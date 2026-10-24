@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     static let summonNotification = Notification.Name("local.claude-os.desktop.summon")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        Task { @MainActor in Agenda.shared.start() }  // only reads if the human connected it before
         config = AppConfig.load()
         NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self)
 
@@ -57,10 +58,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
-    /// claude-os://music/… commands for the built-in Apple Music player.
+    /// claude-os:// commands: music/… for the built-in player, calendar/… for the agenda.
     func application(_ application: NSApplication, open urls: [URL]) {
-        for url in urls {
-            Task { @MainActor in Player.shared.handle(url) }
+        for url in urls where url.scheme == "claude-os" {
+            Task { @MainActor in
+                switch url.host {
+                case "music": Player.shared.handle(url)
+                case "calendar": Agenda.shared.handle(url)
+                default: log("ignored an unknown claude-os:// link")
+                }
+            }
         }
     }
 

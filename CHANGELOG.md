@@ -4,6 +4,19 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.5.0 — 2026-10-25
+
+Your day.
+
+- **Calendar & Reminders** (decision 0002's deferred B): Claude OS.app reads today's and
+  tomorrow's events (recurring ones expanded, via EventKit) and due reminders, only after
+  you click **Connect** in Settings. Read-only. `cos cal`, the Today panel, the brief.
+- **Weather alerts:** the forecast adds an hourly outlook ("rain likely around 15:00",
+  "rain easing around 04:00", thunderstorms first); alerts become signals everywhere.
+- **Like the right song:** `cos music like` loves the song playing in Claude OS's own player
+  through the Apple Music ratings API, and only touches the Music app when that's what's
+  playing (it used to heart whatever was paused in Music).
+
 ## 0.4.0 — 2026-10-25
 
 Permissions when the human asks for them ([0003](docs/decisions/0003-permissions-on-request.md)).

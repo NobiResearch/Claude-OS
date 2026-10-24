@@ -10,14 +10,16 @@ import MusicKit
 ///   claude-os://music/authorize          ask macOS for Media & Apple Music access
 ///   claude-os://music/play?id=<digits>   play a catalog song by its Apple Music id
 ///   claude-os://music/pause | resume | stop
+///   claude-os://music/love               love the current song in the human's Apple Music
 /// Every command rewrites ~/.claude-os/state/player.json, which `cos music now` reads.
-/// The worst a stray link can do is play or pause a song.
+/// The worst a stray link can do is play or pause a song, or favorite the one playing.
 @MainActor
 final class Player {
     static let shared = Player()
 
     private let player = ApplicationMusicPlayer.shared
     private var current: Song?
+    private var lovedID: String?
     private var lastError: String?
     private var ticker: Timer?
 
@@ -37,9 +39,10 @@ final class Player {
             switch command {
             case "authorize": await authorize()
             case "play" where !id.isEmpty && id.allSatisfy(\.isNumber): await play(id: id)
-            case "pause": player.pause(); ticker?.invalidate(); await settledWrite()
-            case "resume": try? await player.play(); startTicking(); await settledWrite()
-            case "stop": player.stop(); ticker?.invalidate(); current = nil; await settledWrite()
+            case "pause": player.pause(); ticker?.invalidate(); lastError = nil; await settledWrite()
+            case "resume": try? await player.play(); startTicking(); lastError = nil; await settledWrite()
+            case "stop": player.stop(); ticker?.invalidate(); current = nil; lastError = nil; await settledWrite()
+            case "love": await love()
             default: lastError = "unknown music command"; write()
             }
         }
@@ -76,6 +79,29 @@ final class Player {
         write()
     }
 
+    /// "Love" the current song in the human's Apple Music (the same as ♥ in Music), via the
+    /// Apple Music API's ratings endpoint. MusicDataRequest adds both tokens itself.
+    private func love() async {
+        guard let song = current else {
+            lastError = "nothing is playing in Claude OS"
+            write()
+            return
+        }
+        do {
+            let id = song.id.rawValue
+            var request = URLRequest(url: URL(string: "https://api.music.apple.com/v1/me/ratings/songs/\(id)")!)
+            request.httpMethod = "PUT"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONSerialization.data(withJSONObject: ["type": "rating", "attributes": ["value": 1]])
+            _ = try await MusicDataRequest(urlRequest: request).response()
+            lovedID = id
+            lastError = nil
+        } catch {
+            lastError = "couldn't love it: \(error.localizedDescription)"
+        }
+        write()
+    }
+
     /// Keep player.json fresh while something plays (position, end of song).
     private func startTicking() {
         ticker?.invalidate()
@@ -108,6 +134,7 @@ final class Player {
             state["duration"] = song.duration ?? 0
             state["position"] = player.playbackTime
             state["artwork"] = song.artwork?.url(width: 600, height: 600)?.absoluteString ?? ""
+            state["loved"] = lovedID == song.id.rawValue
         }
         if let error = lastError { state["error"] = error }
         do {

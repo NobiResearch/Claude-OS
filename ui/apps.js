@@ -812,6 +812,23 @@
             h("div", { class: "small" }, "Play any song from Apple Music, not just your library. Claude OS becomes a small player using your subscription. macOS calls this Media & Apple Music. Turn off anytime."),
             h("div", { class: "muted small" }, musicState)),
           musicToggle));
+        // Calendar & Reminders (decision 0002): read-only, only after the human clicks Connect.
+        const calOn = s.calendar === "connected";
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Calendar & Reminders", calOn ? pill("ok", "connected") : pill("note", "off")),
+            h("div", { class: "small" }, "Show today's events and due reminders on Today and in your brief. Claude OS only reads them; it never changes your calendar."),
+            h("div", { class: "muted small" }, calOn ? "Connected" + (s.calendars != null ? " · " + s.calendars + " calendar" + (s.calendars === 1 ? "" : "s") : "") + ". To disconnect, untick Claude OS under Privacy & Security › Calendars and Reminders."
+              : s.calendar === "denied" ? "macOS says no: allow Claude OS under Privacy & Security › Calendars."
+              : "Off until you connect it.")),
+          calOn ? null : btn("Connect", async (e) => {
+            e.target.disabled = true;
+            toast("macOS will ask to let Claude OS see your calendar and reminders", "accent");
+            try { const v = await api("/api/agenda/connect", { body: {} }); toast(v.connected ? "Calendar connected" : "Calendar not connected", v.connected ? "ok" : "bad"); }
+            catch (err) { toast(err.message, "bad"); }
+            draw(); COS.refreshAgenda && COS.refreshAgenda();
+          }, "primary small")));
+
         // Weather: a city, or this Mac's location (rounded to ~1 km, stays on this Mac).
         const w = s.weather;
         const city = h("input", { class: "search", placeholder: "City for weather, e.g. Lisbon" });
@@ -901,10 +918,27 @@
     };
     COS.refreshWeather();
     setInterval(COS.refreshWeather, 30 * 60 * 1000);
+    const agenda = h("div", { class: "today-agenda" });
+    COS.refreshAgenda = async () => {
+      try {
+        const v = await api("/api/agenda");
+        clear(agenda);
+        if (!v.connected) return;
+        const upcoming = v.today.filter((e) => !e.past);
+        upcoming.slice(0, 4).forEach((e) => agenda.appendChild(h("div", { class: "ag-row" },
+          h("span", { class: "ag-when" }, e.when), h("span", { class: "ag-title" }, e.title))));
+        if (!upcoming.length) agenda.appendChild(h("div", { class: "ag-row muted" }, v.today.length ? "Nothing more today." : "Nothing on the calendar today."));
+        if (v.reminders.length) agenda.appendChild(h("div", { class: "ag-row" }, h("span", { class: "ag-when" }, "☐"),
+          h("span", { class: "ag-title" }, v.reminders.length === 1 ? v.reminders[0].title : v.reminders.length + " reminders due")));
+      } catch (e) { clear(agenda); }
+    };
+    COS.refreshAgenda();
+    setInterval(COS.refreshAgenda, 5 * 60 * 1000);
     clear(today).appendChild(h("div", null,
       h("div", { class: "today-greet" }, greet),
       h("div", { class: "today-date" }, new Date().toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" })),
       wx,
+      agenda,
       line,
       h("div", { class: "today-chips" }, ["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
         .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s)))));
