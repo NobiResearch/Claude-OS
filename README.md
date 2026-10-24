@@ -6,6 +6,28 @@ Claude OS doesn't replace macOS. It gives Claude a body on your Mac: syscalls to
 touch the machine, apps that encode good judgment, colleagues to argue with, a memory of
 who you are, and a nightly habit of making itself a little better.
 
+It comes two ways: **Claude OS.app**, a desktop with windows, a dock and Claude at the
+center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
+
+## The desktop
+
+`cos app` builds and opens **Claude OS.app**: a native Mac app (menu bar item, global
+hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable windows.
+
+- **Claude**: talk to Claude about your Mac. Replies stream in; every tool call shows as a
+  chip you can expand. When Claude wants to change something, you get a real **Allow /
+  Deny** card with the exact command. Your click is the answer, and it's journaled.
+- **Vitals**: disk, memory, battery health, load, security posture, top processes.
+- **Storage**: what's reclaimable, by safety level, with one-click reclaim (after a confirm).
+- **Updates**: macOS, Homebrew, npm and friends; major versions unticked by default.
+- **Music**: now playing with artwork, search your library and Apple Music, or let Claude DJ.
+- **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary.
+- **Evolution**: friction, evolve branches (review / merge / discard), the board, the roadmap.
+- **Journal**, **Memory**, **Settings** (turn background jobs on and off).
+
+⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
+`cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token.
+
 ```
 $ cos
 ◆ Claude OS 0.1.0 · Saturday 24 Oct 2026, 08:02
@@ -23,13 +45,15 @@ $ cos
 ## Boot it
 
 Requirements: macOS, [Claude Code](https://claude.com/claude-code), git. Nothing else:
-the syscalls are Python standard library, and macOS ships Python.
+the syscalls are Python standard library, and macOS ships Python. Building the app needs
+the Xcode command line tools (Swift).
 
 ```sh
 git clone https://github.com/markusskov/Claude-OS.git && cd Claude-OS
 bin/cos install     # links `cos` into ~/.local/bin, enables the privacy guard, starts the free pulse daemon
 cos doctor          # checks the wiring
 cos                 # boots Claude Code inside Claude OS
+cos app             # builds, installs and opens Claude OS.app
 ```
 
 `cos <anything>` boots straight into a question (`cos find me a chill song`), and
@@ -39,6 +63,7 @@ cos                 # boots Claude Code inside Claude OS
 
 | layer | where | what |
 |---|---|---|
+| desktop | `app/`, `ui/`, `lib/cos/server.py` | Claude OS.app: native shell, web desktop, local API, Claude bridge |
 | kernel | `CLAUDE.md` | the laws Claude follows here, and the syscall table |
 | syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
 | apps | `.claude/skills/` | `/music` `/tidy` `/update` `/brief` `/board` `/lab` `/evolve` |

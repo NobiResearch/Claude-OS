@@ -14,3 +14,7 @@ __pycache__/
 
 # Review artifacts
 .lavish/
+
+# Native app (app/build.sh)
+build/
+app/.build/

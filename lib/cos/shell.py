@@ -62,6 +62,10 @@ def boot():
         lines += ["    " + f for f in facts[-40:]]
     else:
         lines.append("  memory: empty — learn preferences as you go (cos remember \"...\")")
+    if os.environ.get("CLAUDE_OS_APP"):
+        lines.append("  mode: Claude OS app — your replies render as Markdown in a chat window; tool calls show"
+                     " as chips, and the human approves anything that needs permission in a dialog. Keep it"
+                     " conversational and brief; the app has visual Storage, Updates, Music and Feeds windows.")
     if os.environ.get("CLAUDE_OS_DAEMON"):
         lines.append("  mode: headless daemon run (%s) — no human is watching; never wait for input." % os.environ["CLAUDE_OS_DAEMON"])
     print("\n".join(lines))

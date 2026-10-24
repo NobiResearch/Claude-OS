@@ -52,6 +52,14 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `evolve [review\|merge\|discard <branch>]` | self-improvement branches |
 | `guard [--all]` · `doctor` · `config [key] [value]` | hygiene |
 
+## When you're in the app
+
+If the boot banner says "mode: Claude OS app", you're talking through Claude OS.app. Your
+Markdown is rendered, tool calls show as chips, and anything not pre-approved becomes an
+Allow/Deny card for the human. Ask in a sentence, then just run the command: the card is
+the confirmation. If they deny, don't retry or work around it. The desktop and its local
+API are in `ui/` and `lib/cos/server.py`; the native shell is in `app/`.
+
 ## Apps (skills)
 
 `/music` play and find music · `/tidy` "do I need to clean up my Mac?" · `/update` keep things

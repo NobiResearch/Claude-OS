@@ -67,6 +67,22 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **zsh doesn't word-split unquoted variables.** `cmd $args` passes one argument. Use arrays
   or `eval "set -- $args"` when testing command lines from a list.
 
+## The app
+
+- **Claude Code's permission bridge:** run `claude -p` with `--input-format stream-json
+  --output-format stream-json --permission-prompt-tool stdio`, send an `initialize`
+  control request first, and prompts arrive as `control_request` / `can_use_tool`. Answer
+  with `control_response` → `{"behavior": "allow", "updatedInput": …}` or `"deny"`.
+  Without the initialize handshake, `--permission-prompts host` just auto-denies.
+- **Secrets in argv leak.** Any same-user process can read another's arguments with `ps`.
+  Hand tokens over a pipe the parent owns.
+- **A random port is a new origin** every launch, so localStorage resets. `cos serve`
+  prefers port 7357 and falls back to a free one.
+- **`Object.assign(el.style, {"--x": 1})` silently does nothing**; CSS custom properties
+  need `style.setProperty`.
+- **Focusing an input inside an `overflow: hidden` container still scrolls it.** Use
+  `focus({preventScroll: true})` and pin the desktop's scroll position.
+
 ## Hardware
 
 - **Battery health on Apple Silicon:** `ioreg -rn AppleSmartBattery` reports

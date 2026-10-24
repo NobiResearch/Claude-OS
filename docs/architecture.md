@@ -33,6 +33,29 @@ everything here is what that kernel boots into.
                               launchd: com.claude-os.{pulse,morning,evolve,board}
 ```
 
+## The desktop
+
+```
+ Claude OS.app (app/, AppKit)          cos serve (lib/cos/server.py, 127.0.0.1 only)
+ ┌───────────────────────────┐  READY  ┌─────────────────────────────────────────────┐
+ │ window: WKWebView ────────┼── http ─▶ ui/  (menu bar, dock, windows, apps)       │
+ │ status item, ⌃⌥Space      │  token  │ /api/*  → syscalls (reads) and jobs (cos … --yes)│
+ │ child process + stdin pipe┼────────▶│ /api/chat → chat.Session ──stdin/stdout──▶ claude -p
+ └───────────────────────────┘         │            can_use_tool ⇄ Allow/Deny card      │
+                                       └─────────────────────────────────────────────┘
+```
+
+The app launches `cos serve --exit-on-stdin-eof`; the server generates a token and prints it
+only on its READY line, to the pipe the app owns, so other processes can't read it from
+`ps` or the environment. The web desktop sends it as a header on every API call. A human
+click on Reclaim/Upgrade/Merge is the approval: the server runs the same `cos … --yes`
+command a terminal would, as a background job, and journals it.
+
+Claude sessions are `claude -p --input-format stream-json --output-format stream-json
+--permission-prompt-tool stdio` in this repo. Pre-approved tools (read-only syscalls) just
+run; everything else arrives as a `can_use_tool` control request, becomes a card in the
+chat, and the human's click goes back as the `control_response`.
+
 ## Layers
 
 **Syscalls** (`lib/cos/*.py`, exposed as `bin/cos`). Mechanics only: measure, list,

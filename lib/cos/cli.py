@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config",
+    "uninstall", "doctor", "version", "config", "serve", "app",
 }
 
 INTRO = """\
@@ -30,6 +30,7 @@ syscalls (what Claude uses; you can too):
   notify "msg" · say "text" · brief         talk back
   daemon list|install|run   background jobs (pulse, morning, evolve, board)
   evolve                    review what Claude OS changed about itself
+  app [build|install|open]  the desktop: Claude OS.app · serve --open: same desktop in a browser
   guard · doctor · install · uninstall · config
 """ % __version__
 
@@ -170,6 +171,12 @@ def build_parser():
     cmd("uninstall", "remove daemons, link and hook", json_flag=False)
     cmd("doctor", "check that everything is wired up", json_flag=False)
     cmd("version", "print version", json_flag=False)
+    sv = cmd("serve", "local server for Claude OS.app (or a browser)", json_flag=False)
+    sv.add_argument("--port", type=int, default=0)
+    sv.add_argument("--open", action="store_true", help="open the desktop in your browser")
+    sv.add_argument("--exit-on-stdin-eof", action="store_true", help=argparse.SUPPRESS)
+    ap = cmd("app", "build, install or open Claude OS.app", json_flag=False)
+    ap.add_argument("app_cmd", choices=["build", "install", "open"], nargs="?", default="open")
     cf = cmd("config", "get or set preferences", json_flag=False)
     cf.add_argument("key", nargs="?")
     cf.add_argument("value", nargs="?")
@@ -204,6 +211,15 @@ def brief():
     return 0
 
 
+def app_cmd(action):
+    bundle = os.path.expanduser("~/Applications/Claude OS.app")
+    if action == "open" and os.path.isdir(bundle):
+        return core.run(["open", bundle], timeout=20).rc
+    script = str(core.ROOT / "app" / "build.sh")
+    flags = {"build": [], "install": ["--install"], "open": ["--install", "--open"]}[action]
+    return subprocess.call([script] + flags, cwd=str(core.ROOT))
+
+
 def config_cmd(args):
     import json
     if args.key is None:
@@ -230,11 +246,12 @@ def config_cmd(args):
 #    `ask` rules always match them;
 #  * they never run inside a headless daemon session.
 MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("daemon", "uninstall"),
-            ("daemon", "run"), ("evolve", "merge"), ("evolve", "discard"), ("install",), ("uninstall",)}
+            ("daemon", "run"), ("evolve", "merge"), ("evolve", "discard"), ("install",), ("uninstall",),
+            ("app", "install"), ("app", "open")}
 
 
 def mutation(args):
-    sub = {"clean": "clean_cmd", "update": "update_cmd", "daemon": "daemon_cmd", "evolve": "evolve_cmd"}
+    sub = {"clean": "clean_cmd", "update": "update_cmd", "daemon": "daemon_cmd", "evolve": "evolve_cmd", "app": "app_cmd"}
     key = (args.cmd, getattr(args, sub[args.cmd], None)) if args.cmd in sub else (args.cmd,)
     return key if key in MUTATING else None
 
@@ -244,7 +261,7 @@ def check_mutation(key, argv):
         core.die("`cos %s` is not allowed in a headless daemon run; a human must do this." % " ".join(key), 3)
     if key == ("daemon", "run") and os.environ.get("CLAUDE_OS_DAEMON"):
         core.die("daemons can't start other daemons", 3)
-    if tuple(argv[:len(key)]) != key:
+    if tuple(argv[:len(key)]) != key and argv != ["app"]:
         core.die("write it as `cos %s …` with options after, so permission rules can see it." % " ".join(key), 2)
 
 
@@ -316,6 +333,11 @@ def main(argv=None):
     if c == "version":
         print("Claude OS %s" % __version__)
         return 0
+    if c == "serve":
+        from . import server
+        return server.main(args)
+    if c == "app":
+        return app_cmd(args.app_cmd)
     if c == "config":
         return config_cmd(args)
     print(INTRO)

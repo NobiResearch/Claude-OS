@@ -4,6 +4,21 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.2.0 — 2026-10-24
+
+The desktop.
+
+- **Claude OS.app** (`app/`): native AppKit shell with a WKWebView desktop, menu bar
+  status item, global hotkey ⌃⌥Space, crash-restarting server, ad-hoc signed; `cos app`.
+- **The desktop** (`ui/`, no build step): menu bar, dock, draggable/resizable windows,
+  ⌘K palette, boot screen, and apps: Claude, Vitals, Storage, Updates, Music, Feeds,
+  Evolution, Journal, Memory, Settings.
+- **Claude in the app** (`lib/cos/chat.py`): headless Claude Code over stream-json;
+  permission prompts become Allow/Deny cards answered by the human; approvals journaled.
+- **`cos serve`** (`lib/cos/server.py`): loopback-only API with a per-launch token
+  (never in argv or env), Host-header check, CSP, background jobs for approved actions.
+- Music search results carry album artwork.
+
 ## 0.1.0 — 2026-10-24
 
 The founding release.

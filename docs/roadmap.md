@@ -6,6 +6,9 @@ what, where, and how we'll know it works.
 
 ## Next
 
+0. **Demo mode for the desktop** (`cos serve --demo`): fake vitals, library and feeds, so
+   screenshots for the README never show anyone's real machine.
+
 1. **`cos cal`**: today's Calendar events and due Reminders via AppleScript (with timeouts),
    read-only. Add a "Today" line to `/brief`. Accept: works with no calendars, one, many.
 2. **Trends in pulse**: append a daily snapshot (disk free, battery health, update count) to

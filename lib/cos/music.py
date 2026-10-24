@@ -177,7 +177,8 @@ def parse_catalog_item(r):
             "album": r.get("collectionName"), "genre": r.get("primaryGenreName"),
             "year": (r.get("releaseDate") or "")[:4], "url": url,
             "track_number": r.get("trackNumber"), "track_count": r.get("trackCount"),
-            "duration": (r.get("trackTimeMillis") or 0) / 1000.0, "source": "catalog"}
+            "duration": (r.get("trackTimeMillis") or 0) / 1000.0, "source": "catalog",
+            "artwork": (r.get("artworkUrl100") or "").replace("100x100bb", "600x600bb") or None}
 
 
 def best_catalog_pick(results):
