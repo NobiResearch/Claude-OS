@@ -6,16 +6,18 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **"Leave in 10 minutes"**: a pulse notification before calendar events with a location,
-   using travel time. Needs a board look: it's the first proactive interruption.
+0. **Native notifications** (board 0004's next): Claude OS.app posts them with its own icon.
+   Text goes through an outbox in `~/.claude-os`, never a URL; permission on a click.
+1. **"Leave in 10 minutes"**: a notification before calendar events with a location, using
+   travel time. After native notifications, once the calendar has events (0004).
 2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **One player**: route library songs through MusicKit too (`MusicLibraryRequest`), so
-   Claude OS plays everything itself and the AppleScript path becomes a fallback.
+3. **Playlists in the one player**: `MusicLibraryRequest<Playlist>`, so "play my Deep Work
+   playlist" plays in Claude OS too.
 4. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
    so the human's own automations become syscalls.
 5. **Brief at a time that fits the calendar**: the morning daemon runs before the first event.
-6. **Startup audit** `cos startup`: login items, LaunchAgents and LaunchDaemons, with
-   what each one is and whether it's signed. Read-only.
+6. **`cos shortcuts`** (vetoed as first proposed, 0004): `list` free; `run` only as a
+   mutation (ask rule, refused in daemons).
 
 ## Research (for `/lab`)
 
@@ -42,3 +44,4 @@ what, where, and how we'll know it works.
 - v0.4: permissions on request (0003): Claude OS's own Apple Music player, weather +
   location, stable signing.
 - v0.5: calendar & reminders, weather alerts, loving the right song.
+- v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).

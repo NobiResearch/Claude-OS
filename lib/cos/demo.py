@@ -187,6 +187,7 @@ GETS = {
     "/api/weather": WEATHER,
     "/api/settings": SETTINGS,
     "/api/agenda": AGENDA,
+    "/api/startup": {"count": 34, "enabled": 22, "flagged": 1, "error": None},
 }
 
 

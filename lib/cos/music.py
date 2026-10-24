@@ -121,6 +121,17 @@ return out
 
 
 def play_library(track):
+    if player_enabled():
+        res = player_command("play-library", library={"title": track["name"], "artist": track.get("artist")})
+        if res.get("ok"):
+            if core.app_running("Music"):
+                _tell("pause", timeout=5)  # one player at a time
+            st = res["state"]
+            return {"ok": True, "matched": fold(st.get("track")) == fold(track["name"]), "now": {
+                "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
+                "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
+                "player": "Claude OS"}}
+        # otherwise fall back to the Music app below
     body = 'play (first track of library playlist 1 whose persistent ID is %s)' % core.applescript_str(track["id"])
     r = _tell(body, timeout=10)
     if not r.ok:
@@ -262,14 +273,19 @@ def player_enabled():
     return bool(core.config()["music"].get("apple_music"))
 
 
-def player_command(command, catalog_id=None, wait=12):
+def player_command(command, catalog_id=None, wait=12, library=None):
     """Send a command to Claude OS's player and wait for it to report back."""
-    if command not in ("authorize", "play", "pause", "resume", "stop", "love"):
+    if command not in ("authorize", "play", "play-library", "pause", "resume", "stop", "love", "unlove"):
         return {"ok": False, "error": "unknown player command"}
     if catalog_id is not None and not str(catalog_id).isdigit():
         return {"ok": False, "error": "bad catalog id"}
     before = (player_state() or {}).get("ts", 0)
-    url = "claude-os://music/%s%s" % (command, "?id=%s" % catalog_id if catalog_id else "")
+    query = ""
+    if catalog_id:
+        query = "?id=%s" % catalog_id
+    elif library:
+        query = "?" + urllib.parse.urlencode({k: v for k, v in library.items() if v})
+    url = "claude-os://music/%s%s" % (command, query)
     r = core.run(["open", "-g", url], timeout=15)
     if not r.ok:
         return {"ok": False, "error": "couldn't reach Claude OS (is the app installed?): %s" % r.err[:200]}
@@ -280,7 +296,9 @@ def player_command(command, catalog_id=None, wait=12):
         state = player_state()
         # The app's 2 s ticker also rewrites the file, so "fresh" isn't "answered": wait for
         # the thing this command changes (or an error).
-        done = {"play": lambda s: s.get("status") == "playing", "love": lambda s: s.get("loved")}.get(command)
+        playing = lambda s: s.get("status") == "playing"
+        done = {"play": playing, "play-library": playing, "love": lambda s: s.get("loved"),
+                "unlove": lambda s: s.get("loved") is False}.get(command)
         if state and state.get("ts", 0) > before and (done is None or done(state) or state.get("error")):
             break
     if not state or state.get("ts", 0) <= before:
@@ -502,6 +520,21 @@ def like():
     return 0
 
 
+def unlike():
+    own = player_state(max_age=30)
+    if not (own and own.get("track") and own.get("status") in ("playing", "paused")):
+        print("✗ unlike works on what's playing in Claude OS")
+        return 1
+    res = player_command("unlove", wait=10)
+    if not res.get("ok"):
+        print("✗ couldn't unlike it: %s" % res.get("error"))
+        return 1
+    name = "%s — %s" % (own["track"], own.get("artist") or "?")
+    core.journal("music", "unliked %s" % name, track=name, player="Claude OS")
+    print("♡ %s" % name)
+    return 0
+
+
 def history(days):
     rows = core.read_journal(days=days, kind="music")
     for e in rows[-40:]:
@@ -555,6 +588,8 @@ def main(args):
         return 0
     if c == "like":
         return like()
+    if c == "unlike":
+        return unlike()
     if c == "history":
         return history(args.days)
     if c == "setup":

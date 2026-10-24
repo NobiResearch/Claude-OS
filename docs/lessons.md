@@ -102,6 +102,9 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   provisioning profile (App ID + certificate + this Mac) and the
   `com.apple.application-identifier` entitlement in its signature. Ad-hoc signing can't
   carry that entitlement (macOS refuses to launch it).
+- **MusicKit library songs differ from catalog songs:** `duration` comes back in
+  milliseconds, and their ids are library ids (`i.…`) with their own ratings endpoint
+  (`/v1/me/ratings/library-songs/…`).
 - **`MusicPlayer.State.playbackStatus` lags commands** by a few hundred milliseconds; wait
   before reporting state.
 - **Ad-hoc signatures change every build**, and grants are tied to the signature, so they
@@ -113,6 +116,12 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   `open`'s exit code; the helper lingers 100 ms before exiting.
 - **Turning a feature off doesn't revoke a macOS grant.** Only the human can, in System
   Settings; open the pane for them.
+
+## System
+
+- **`sfltool dumpbtm`** (no sudo needed) is the login-items database behind System Settings.
+  It writes home folders as `/Users/<uid>/…` and some executable paths relative to their
+  bundle; map both before checking that files exist.
 
 ## Hardware
 

@@ -23,5 +23,6 @@ let package = Package(
                 .linkedFramework("EventKit"),
             ]
         ),
+        .testTarget(name: "ClaudeOSTests", dependencies: ["ClaudeOS"], path: "Tests/ClaudeOSTests"),
     ]
 )

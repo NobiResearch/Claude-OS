@@ -32,8 +32,14 @@ final class WebBridge: NSObject, WKScriptMessageHandlerWithReply {
     }
 
     private func isFromDesktop(_ message: WKScriptMessage) -> Bool {
-        guard let port = port, message.frameInfo.isMainFrame else { return false }
         let origin = message.frameInfo.securityOrigin
-        return origin.protocol == "http" && origin.host == "127.0.0.1" && origin.port == port
+        return Self.allows(mainFrame: message.frameInfo.isMainFrame, scheme: origin.protocol,
+                           host: origin.host, port: origin.port, serverPort: port)
+    }
+
+    /// Only the desktop's own main frame: http://127.0.0.1:<the live server port>.
+    static func allows(mainFrame: Bool, scheme: String, host: String, port: Int, serverPort: Int?) -> Bool {
+        guard let serverPort = serverPort, mainFrame else { return false }
+        return scheme == "http" && host == "127.0.0.1" && port == serverPort
     }
 }

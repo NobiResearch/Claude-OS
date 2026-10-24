@@ -432,6 +432,13 @@ def make_handler(app):
         core.journal("action", "calendar connect requested", via="app")
         h._json(cal.day_view(cal.connect() or {}))
 
+    def r_startup(h, q, b):
+        from . import startup
+        cached = core.cache_get("startup", max_age=600)
+        d = cached["data"] if cached else core.cache_put("startup", startup.audit())["data"]
+        h._json({"count": len(d.get("items", [])), "enabled": d.get("enabled", 0), "flagged": d.get("flagged", 0),
+                 "error": d.get("error")})
+
     def r_trends(h, q, b):
         from . import status
         rows = status.trends()
@@ -611,6 +618,7 @@ def make_handler(app):
         ("GET", "/api/trends"): r_trends,
         ("GET", "/api/settings"): r_settings,
         ("GET", "/api/agenda"): r_agenda,
+        ("GET", "/api/startup"): r_startup,
         ("POST", "/api/agenda/connect"): r_agenda_connect,
         ("POST", "/api/settings/music"): r_settings_music,
         ("GET", "/api/weather"): r_weather,

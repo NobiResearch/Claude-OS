@@ -46,6 +46,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `feeds [--since H] [--category C] [--all] [--mark-read]` | unread headlines; `feeds list\|add <url>\|mute <url>\|mark-read` |
 | `weather` · `weather set "<city>"` · `weather clear` | forecast + alerts for the place the human chose (off until they do) |
 | `cal [--refresh]` · `cal connect` | today's events and due reminders (read-only; off until connected) |
+| `startup` | what starts with the Mac (login items, agents, daemons), odd ones first (read-only) |
 | `log [--days N] [--kind K]` · `log add "…"` | the journal |
 | `friction` · `friction add "…" --area A` · `friction close N --note "…"` | friction log |
 | `remember "…"` · `memory [--forget "…"]` | facts about the human |
@@ -65,7 +66,7 @@ API are in `ui/` and `lib/cos/server.py`; the native shell is in `app/`.
 ## Apps (skills)
 
 `/music` play and find music · `/tidy` "do I need to clean up my Mac?" · `/update` keep things
-current · `/brief` the daily briefing · `/board` convene the board on a decision ·
+current · `/startup` what starts with the Mac · `/brief` the daily briefing · `/board` convene the board on a decision ·
 `/lab` research a question · `/evolve` improve Claude OS itself.
 
 ## Driving the Mac beyond syscalls
