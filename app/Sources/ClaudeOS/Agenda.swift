@@ -78,6 +78,7 @@ final class Agenda {
         let endOfTomorrow = cal.date(byAdding: .day, value: 2, to: startOfToday)!
 
         if Self.eventsAuthorized {
+            state["calendars"] = store.calendars(for: .event).count
             let predicate = store.predicateForEvents(withStart: startOfToday, end: endOfTomorrow, calendars: nil)
             state["events"] = store.events(matching: predicate)
                 .filter { $0.status != .canceled }
@@ -95,6 +96,7 @@ final class Agenda {
                 }
         }
         if Self.remindersAuthorized {
+            state["reminder_lists"] = store.calendars(for: .reminder).count
             let predicate = store.predicateForIncompleteReminders(withDueDateStarting: nil, ending: endOfTomorrow, calendars: nil)
             let reminders: [EKReminder] = await withCheckedContinuation { cont in
                 store.fetchReminders(matching: predicate) { cont.resume(returning: $0 ?? []) }

@@ -818,7 +818,7 @@
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Calendar & Reminders", calOn ? pill("ok", "connected") : pill("note", "off")),
             h("div", { class: "small" }, "Show today's events and due reminders on Today and in your brief. Claude OS only reads them; it never changes your calendar."),
-            h("div", { class: "muted small" }, calOn ? "Connected. To disconnect, untick Claude OS under Privacy & Security › Calendars and Reminders."
+            h("div", { class: "muted small" }, calOn ? "Connected" + (s.calendars != null ? " · " + s.calendars + " calendar" + (s.calendars === 1 ? "" : "s") : "") + ". To disconnect, untick Claude OS under Privacy & Security › Calendars and Reminders."
               : s.calendar === "denied" ? "macOS says no: allow Claude OS under Privacy & Security › Calendars."
               : "Off until you connect it.")),
           calOn ? null : btn("Connect", async (e) => {

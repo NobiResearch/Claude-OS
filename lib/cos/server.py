@@ -374,7 +374,8 @@ def make_handler(app):
         st = music.player_state() or {}
         place = weather.location() or {}
         from . import cal
-        h._json({"calendar": (cal.state() or {}).get("calendar", "not connected"),
+        cs = cal.state() or {}
+        h._json({"calendar": cs.get("calendar", "not connected"), "calendars": cs.get("calendars"),
                  "music": {"apple_music": bool(cfg["music"].get("apple_music")),
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},

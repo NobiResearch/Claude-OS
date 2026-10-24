@@ -53,7 +53,8 @@ def day_view(s, now=None):
     now = now or time.time()
     today = dt.datetime.fromtimestamp(now).date()
     tomorrow = today + dt.timedelta(days=1)
-    out = {"connected": connected(s), "today": [], "tomorrow": [], "reminders": []}
+    out = {"connected": connected(s), "today": [], "tomorrow": [], "reminders": [],
+           "calendars": (s or {}).get("calendars"), "reminder_lists": (s or {}).get("reminder_lists")}
     for e in (s or {}).get("events") or []:
         start = dt.datetime.fromtimestamp(e["start"])
         end = dt.datetime.fromtimestamp(e["end"])
