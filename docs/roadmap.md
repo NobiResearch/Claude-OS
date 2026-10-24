@@ -6,8 +6,6 @@ what, where, and how we'll know it works.
 
 ## Next
 
-0. **Native notifications** (board 0004's next): Claude OS.app posts them with its own icon.
-   Text goes through an outbox in `~/.claude-os`, never a URL; permission on a click.
 1. **"Leave in 10 minutes"**: a notification before calendar events with a location, using
    travel time. After native notifications, once the calendar has events (0004).
 2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.

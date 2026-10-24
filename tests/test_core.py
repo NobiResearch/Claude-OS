@@ -54,6 +54,37 @@ class TestCore(TempHome):
 
 
 
+class TestNotifications(TempHome):
+    def test_native_notifications_use_the_outbox_not_the_url(self):
+        import os
+        core.config_set("notify.native", True)
+        core.save_json(core.home("state", "notify.json"), {"authorization": "authorized", "ts": 1})
+        calls = []
+        orig_run, orig_running = core.run, core.app_running
+        core.run = lambda cmd, **k: calls.append(cmd) or core.Result(0, "", "")
+        core.app_running = lambda name: name == "ClaudeOS"
+        try:
+            core.notify("Rain likely around 15:00", subtitle="Pulse")
+        finally:
+            core.run, core.app_running = orig_run, orig_running
+        self.assertEqual(calls, [["open", "-g", "claude-os://notify/flush"]], "the link carries no text")
+        outbox = core.home("state", "outbox")
+        files = os.listdir(str(outbox))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(oct(os.stat(str(outbox / files[0])).st_mode & 0o777), "0o600")
+        self.assertEqual(core.load_json(outbox / files[0])["body"], "Rain likely around 15:00")
+
+    def test_falls_back_when_the_app_is_not_running(self):
+        core.config_set("notify.native", True)
+        core.save_json(core.home("state", "notify.json"), {"authorization": "authorized", "ts": 1})
+        orig = core.app_running
+        core.app_running = lambda name: False
+        try:
+            self.assertFalse(core.native_notifications())
+        finally:
+            core.app_running = orig
+
+
 class TestTrends(TempHome):
     def test_one_line_per_day_and_weekly_rate(self):
         from cos import status

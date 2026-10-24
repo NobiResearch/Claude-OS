@@ -4,6 +4,13 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Notifications from Claude OS** (decision 0004): with the new setting on, alerts and the
+  morning brief arrive with Claude OS's own name and icon, and clicking one opens the
+  desktop. The text goes through a private outbox in `~/.claude-os`; the link that wakes the
+  app carries nothing, so no web page can make Claude OS say anything. Permission is asked
+  only when you flip the switch; without it (or with the app closed) notifications fall back
+  to AppleScript.
+
 ## 0.6.0 — 2026-10-25
 
 One player ([0004](docs/decisions/0004-v0.6-one-player.md)).

@@ -21,6 +21,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Task { @MainActor in Agenda.shared.start() }  // only reads if the human connected it before
+        Task { @MainActor [weak self] in
+            Notifier.shared.onOpen = { self?.summon() }
+            Notifier.shared.start()
+        }
         config = AppConfig.load()
         NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self)
 
@@ -65,6 +69,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
                 switch url.host {
                 case "music": Player.shared.handle(url)
                 case "calendar": Agenda.shared.handle(url)
+                case "notify": Notifier.shared.handle(url)
                 default: log("ignored an unknown claude-os:// link")
                 }
             }

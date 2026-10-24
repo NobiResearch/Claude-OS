@@ -161,7 +161,7 @@ AGENDA = {"connected": True, "reminders": [{"title": "Renew passport", "list": "
           "tomorrow": [{"title": "Dentist", "calendar": "Home", "all_day": False, "start": _at(9, 15, 1), "end": _at(10, 0, 1),
                         "location": "", "when": "09:15–10:00", "past": False}]}
 
-SETTINGS = {"calendar": "connected",
+SETTINGS = {"calendar": "connected", "notify": {"native": True, "authorization": "authorized"},
             "music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
             "weather": {"name": "Lisbon, Portugal", "source": "city"}}
 
