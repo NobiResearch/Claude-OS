@@ -11,5 +11,7 @@ jobs:
         run: /usr/bin/python3 -m unittest discover -s tests -v
       - name: Guard (no private data in the tree)
         run: /usr/bin/python3 bin/cos guard --all
+      - name: Swift tests
+        run: swift test --package-path app
       - name: Build Claude OS.app
         run: app/build.sh

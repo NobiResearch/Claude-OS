@@ -4,6 +4,21 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.6.0 — 2026-10-25
+
+One player ([0004](docs/decisions/0004-v0.6-one-player.md)).
+
+- **One player:** with Apple Music on, library songs play in Claude OS too (MusicKit
+  `MusicLibraryRequest`), so now-playing, pause and love work the same for everything;
+  the Music app is the fallback. `cos music unlike` removes a rating.
+- **`cos startup`** and `/startup`: what starts with this Mac, from macOS's own login-items
+  list plus code signatures, odd ones first (missing programs, unsigned code, unused for
+  months). Read-only. A "Starts with your Mac" card in Vitals.
+- **Swift tests:** the app's link parsing, the native bridge's origin check and the
+  server's ready line are tested, in CI.
+- Fixed: library songs reported durations in milliseconds; loving a library song used the
+  catalog endpoint. README screenshots refreshed.
+
 ## 0.5.0 — 2026-10-25
 
 Your day.

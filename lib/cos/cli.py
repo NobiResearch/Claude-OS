@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal",
+    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup",
 }
 
 INTRO = """\
@@ -73,7 +73,7 @@ def build_parser():
     mp.add_argument("query", nargs="*")
     mp.add_argument("--source", choices=["auto", "library", "shortcut", "catalog"], default="auto")
     mp.add_argument("--pick", type=int, default=0, help="play the Nth result instead of the best")
-    for t in ("pause", "resume", "toggle", "next", "prev", "stop", "like"):
+    for t in ("pause", "resume", "toggle", "next", "prev", "stop", "like", "unlike"):
         msub.add_parser(t)
     mv = msub.add_parser("vol")
     mv.add_argument("level", type=int, nargs="?")
@@ -99,6 +99,7 @@ def build_parser():
     wxs.add_argument("place", nargs="+")
     wxsub.add_parser("clear", help="turn weather off and forget the place")
 
+    cmd("startup", "what starts with this Mac (read-only)")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
     ca_sub = ca_.add_subparsers(dest="cal_cmd")
@@ -325,6 +326,9 @@ def main(argv=None):
     if c == "cal":
         from . import cal
         return cal.main(args)
+    if c == "startup":
+        from . import startup
+        return startup.main(args)
     if c in ("log", "friction", "remember", "memory"):
         from . import mem
         return getattr(mem, c + "_main" if c != "log" else "log_main")(args)

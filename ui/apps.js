@@ -303,6 +303,16 @@
             ["filevault", "sip", "firewall", "gatekeeper"].map((k) => h("span", { class: "sec " + (sec[k] ? "on" : sec[k] === false ? "off" : "") }, { filevault: "FileVault", sip: "SIP", firewall: "Firewall", gatekeeper: "Gatekeeper" }[k])))),
         ));
         root.appendChild(card("Signals", ...signals));
+        const startupBody = h("div", { class: "muted" }, "Checking what starts with this Mac…");
+        root.appendChild(card("Starts with your Mac", startupBody));
+        api("/api/startup").then((st) => {
+          clear(startupBody);
+          if (st.error) { startupBody.appendChild(h("span", null, st.error)); return; }
+          startupBody.appendChild(h("div", { class: "kv-big" }, String(st.enabled), h("span", { class: "muted" }, " of " + st.count + " items on")));
+          startupBody.appendChild(h("div", { class: st.flagged ? "warn-text small" : "muted small" },
+            st.flagged ? st.flagged + " worth a look" : "Nothing unusual."));
+          startupBody.appendChild(h("div", { class: "row" }, btn("Ask Claude to review", () => COS.ask("/startup"), "ghost small")));
+        }).catch(() => { startupBody.textContent = "Couldn't read the login items."; });
         if (s.top) {
           const table = (rows, val) => h("table", { class: "mini" }, h("tbody", null, rows.map((p) => h("tr", null, h("td", null, p.name), h("td", { class: "num" }, val(p))))));
           root.appendChild(h("div", { class: "grid2" },
