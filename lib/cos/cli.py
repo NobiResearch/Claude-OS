@@ -71,7 +71,7 @@ def build_parser():
     msub.add_parser("now")
     mp = msub.add_parser("play")
     mp.add_argument("query", nargs="*")
-    mp.add_argument("--source", choices=["auto", "library", "catalog"], default="auto")
+    mp.add_argument("--source", choices=["auto", "library", "shortcut", "catalog"], default="auto")
     mp.add_argument("--pick", type=int, default=0, help="play the Nth result instead of the best")
     for t in ("pause", "resume", "toggle", "next", "prev", "stop", "like"):
         msub.add_parser(t)
@@ -88,6 +88,7 @@ def build_parser():
     ml.add_argument("--shuffle", action="store_true")
     ms = msub.add_parser("shuffle")
     ms.add_argument("state", choices=["on", "off"])
+    msub.add_parser("setup", help="set up full Apple Music catalog playback")
     mh = msub.add_parser("history")
     mh.add_argument("--days", type=int, default=30)
 
@@ -174,6 +175,7 @@ def build_parser():
     sv = cmd("serve", "local server for Claude OS.app (or a browser)", json_flag=False)
     sv.add_argument("--port", type=int, default=0)
     sv.add_argument("--open", action="store_true", help="open the desktop in your browser")
+    sv.add_argument("--demo", action="store_true", help="a fictional Mac: fixtures only, nothing real is read or changed")
     sv.add_argument("--exit-on-stdin-eof", action="store_true", help=argparse.SUPPRESS)
     ap = cmd("app", "build, install or open Claude OS.app", json_flag=False)
     ap.add_argument("app_cmd", choices=["build", "install", "open"], nargs="?", default="open")

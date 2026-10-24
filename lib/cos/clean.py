@@ -161,6 +161,45 @@ def measure_unavailable_sims(t):
     return sum(d["bytes"] for d in details), details
 
 
+def _version(v):
+    return tuple(int(x) for x in re.findall(r"\d+", str(v or ""))[:3])
+
+
+def pick_old_runtimes(data):
+    """Runtimes older than the newest of their platform. The newest always stays."""
+    newest = {}
+    for rt in data.values():
+        plat = rt.get("platformIdentifier")
+        newest[plat] = max(newest.get(plat, ()), _version(rt.get("version")))
+    old = [dict(rt, id=rid) for rid, rt in data.items()
+           if rt.get("deletable") and _version(rt.get("version")) < newest[rt.get("platformIdentifier")]]
+    return sorted(old, key=lambda rt: -(rt.get("sizeBytes") or 0))
+
+
+def old_runtimes():
+    r = core.run(["xcrun", "simctl", "runtime", "list", "-j"], timeout=60)
+    try:
+        return pick_old_runtimes(json.loads(r.out or "{}"))
+    except (ValueError, AttributeError):
+        return []
+
+
+def measure_old_runtimes(t):
+    plat = lambda p: {"com.apple.platform.iphonesimulator": "iOS", "com.apple.platform.appletvsimulator": "tvOS",
+                      "com.apple.platform.watchsimulator": "watchOS", "com.apple.platform.xrsimulator": "visionOS"}.get(p, p)
+    details = [{"name": "%s %s (%s)" % (plat(rt.get("platformIdentifier")), rt.get("version"), rt.get("build")),
+                "bytes": rt.get("sizeBytes") or 0, "last_used": (rt.get("lastUsedAt") or "")[:10]}
+               for rt in old_runtimes()]
+    return sum(d["bytes"] for d in details), details
+
+
+def apply_old_runtimes(t):
+    for rt in old_runtimes():
+        r = core.run(["xcrun", "simctl", "runtime", "delete", rt["id"]], timeout=600)
+        if not r.ok:
+            print("  couldn't delete %s %s: %s" % (rt.get("platformIdentifier"), rt.get("version"), (r.err or r.out)[:200]))
+
+
 def measure_brew(t):
     r = core.run(["brew", "cleanup", "-n", "--prune=all"], timeout=120,
                  env={"HOMEBREW_NO_AUTO_UPDATE": "1"})
@@ -327,6 +366,9 @@ TARGETS = [
     Target("simulators-stale", "Stale simulators",
            "Simulators on an older runtime than the newest installed. Deleting loses their app data; keep any you test against.",
            "review", requires="xcrun", measure=measure_stale_sims, apply=apply_stale_sims),
+    Target("simulator-runtimes-old", "Old simulator runtimes",
+           "Simulator OS images older than the newest one per platform. Their simulators stop working; re-download from Xcode if you still test on them.",
+           "review", requires="xcrun", measure=measure_old_runtimes, apply=apply_old_runtimes),
     Target("simulator-caches", "Simulator caches", "Dyld and runtime caches; regenerated on boot.",
            "safe", ["~/Library/Developer/CoreSimulator/Caches"]),
     Target("xcode-archives", "Xcode archives",

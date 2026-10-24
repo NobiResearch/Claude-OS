@@ -36,6 +36,20 @@ script is hit-and-miss.
 | MusicKit helper app (Swift) | high | high | needs an Apple Developer account and signing; adds a binary |
 | A Shortcuts action that plays catalog items | low if it exists | unknown | needs research: which actions accept catalog items? |
 
+## Update (v0.3): Music's App Intents
+
+`/System/Applications/Music.app/Contents/Resources/Metadata.appintents/extract.actionsdata`
+lists what Music offers Shortcuts: `PlayMusicItemSiriIntent` (plays a song, album, artist,
+playlist or station entity), `AddMusicItemToLibrarySiriIntent`, `SearchMusicSiriIntent`, and
+an `AudioEntityIntentValueQuery` that turns a Siri audio search into those entities. That's
+the path "Hey Siri, play X" takes into the catalog. The `shortcuts` CLI can run shortcuts but
+not create them, and the plist format of App Intent actions isn't documented, so the human
+makes a two-step "Claude OS Play" shortcut once (`cos music setup`) and `cos music play`
+hands it the request. The board vetoed the alternative (Accessibility + a Return keypress):
+it would grant every Claude session the app spawns system-wide keystrokes. (verified:
+intents list; unverified until the human builds the shortcut: whether text input resolves to
+catalog songs.)
+
 ## Recommendation
 
 Keep library-first. For catalog picks, research the Shortcuts route first: it's free, it

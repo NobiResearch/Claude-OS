@@ -364,8 +364,8 @@
 
   function clock() {
     const now = new Date();
-    document.getElementById("mb-clock").textContent = now.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) +
-      "  " + now.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    document.getElementById("mb-clock").textContent = now.toLocaleDateString(navigator.language, { weekday: "short", day: "numeric", month: "short" }) +
+      "  " + now.toLocaleTimeString(navigator.language, { hour: "2-digit", minute: "2-digit" });
   }
 
   const state = { status: null, music: null };

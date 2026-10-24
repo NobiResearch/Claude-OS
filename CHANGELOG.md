@@ -4,6 +4,20 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.3.0 — 2026-10-24
+
+Decided by the board's first meeting ([0002](docs/decisions/0002-v0.3-priorities.md)).
+
+- **Music:** catalog playback through a "Claude OS Play" shortcut (Music's Play App
+  Intent, no new permissions): `cos music setup`, `--source shortcut`; verifies what plays.
+- **Clean:** `simulator-runtimes-old` target (older simulator OS images, newest per platform
+  always kept, safety review), with last-used dates.
+- **Trends:** pulse logs one snapshot a day (`~/.claude-os/trends.jsonl`); `cos status`
+  shows the weekly disk trend once there's a week of data; `/api/trends`.
+- **Demo mode:** `cos serve --demo`, a fictional Mac from one fixtures module with a
+  scripted chat; README screenshots come from it.
+- Dates in the desktop follow the browser's language.
+
 ## 0.2.0 — 2026-10-24
 
 The desktop.

@@ -131,9 +131,14 @@ def latest_run(name):
 # ---------------------------------------------------------------- the handler
 
 class App:
-    def __init__(self, token):
+    def __init__(self, token, demo=False):
         self.token = token
-        self.chats = chat.Registry()
+        self.demo = demo
+        if demo:
+            from . import demo as demo_mod
+            self.chats = chat.Registry(factory=demo_mod.DemoSession)
+        else:
+            self.chats = chat.Registry()
         self.jobs = {}
         self.port = None
 
@@ -213,6 +218,8 @@ def make_handler(app):
             body = self._body() if method == "POST" else {}
             if body is None:
                 return self._error(400, "bad json")
+            if app.demo and self._demo(method, path, body):
+                return
             try:
                 route = ROUTES.get((method, path))
                 if route:
@@ -227,6 +234,31 @@ def make_handler(app):
                 return self._error(404, "no such endpoint")
             except Exception as e:  # keep the server alive; tell the UI what broke
                 return self._error(500, "%s: %s" % (type(e).__name__, e))
+
+        def _demo(self, method, path, body):
+            """Demo mode: answer from fixtures and never touch the machine. Chat (scripted)
+            and the public docs fall through to the normal handlers."""
+            from . import demo
+            if path.startswith("/api/chat") or path.startswith("/api/doc"):
+                return False
+            if method == "GET":
+                if path == "/api/board":
+                    self._json({"latest": None, "decisions": decisions()})
+                elif path.startswith("/api/jobs/"):
+                    self._json(demo.fake_job("demo"))
+                else:
+                    fixture = demo.handle_get(path)
+                    self._json(fixture if fixture is not None else {})
+                return True
+            if path.startswith("/api/music/"):
+                self._json(dict(demo.MUSIC_NOW, ok=True, now=demo.MUSIC_NOW, source="library"))
+            elif path.startswith("/api/memory"):
+                self._json(demo.GETS["/api/memory"])
+            elif path.endswith(("/apply", "/merge", "/discard", "/install", "/uninstall")):
+                self._json(demo.fake_job("demo"))
+            else:
+                self._json({"ok": True, "demo": True, "id": 0, "text": body.get("text"), "marked": 0})
+            return True
 
         def _static(self, path):
             if path in ("", "/"):
@@ -329,6 +361,11 @@ def make_handler(app):
         names = [n for n in b.get("names") or [] if re.match(r"^[\w@./+-]+$", n)]
         argv = ["update", "apply", source] + names + ([] if source == "macos" else ["--yes"])
         h._json(app.job(argv, "Update %s %s" % (source, " ".join(names) or "(all)")))
+
+    def r_trends(h, q, b):
+        from . import status
+        rows = status.trends()
+        h._json({"rows": rows[-90:], "disk_per_week": status.disk_trend(rows)})
 
     def r_music_now(h, q, b):
         from . import music
@@ -501,6 +538,7 @@ def make_handler(app):
         ("POST", "/api/clean/apply"): r_clean_apply,
         ("GET", "/api/updates"): r_updates,
         ("POST", "/api/updates/apply"): r_updates_apply,
+        ("GET", "/api/trends"): r_trends,
         ("GET", "/api/music/now"): r_music_now,
         ("GET", "/api/music/search"): r_music_search,
         ("GET", "/api/music/playlists"): r_music_playlists,
@@ -546,8 +584,8 @@ def bind(port, handler):
     return ThreadingHTTPServer(("127.0.0.1", port), handler)
 
 
-def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None):
-    app = App(token or secrets.token_urlsafe(24))
+def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=False):
+    app = App(token or secrets.token_urlsafe(24), demo=demo)
     httpd = bind(port, make_handler(app))
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
@@ -574,4 +612,4 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None):
 
 
 def main(args):
-    return serve(port=args.port, open_browser=args.open, exit_on_stdin_eof=args.exit_on_stdin_eof)
+    return serve(port=args.port, open_browser=args.open, exit_on_stdin_eof=args.exit_on_stdin_eof, demo=args.demo)

@@ -111,3 +111,30 @@ class TestChatEvents(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestDemoMode(TempHome):
+    def test_demo_never_reads_or_changes_the_real_machine(self):
+        from cos import demo
+        app = server.App("t", demo=True)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(app))
+        app.port = httpd.server_address[1]
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            def call(method, path, body=None):
+                conn = http.client.HTTPConnection("127.0.0.1", app.port, timeout=10)
+                conn.request(method, path, body=json.dumps(body) if body is not None else None,
+                             headers={"Host": "127.0.0.1:%d" % app.port, "X-COS-Token": "t", "Content-Type": "application/json"})
+                res = conn.getresponse()
+                return res.status, json.loads(res.read())
+            self.assertEqual(call("GET", "/api/status")[1]["system"]["model"], "Mac16,8")
+            self.assertEqual(call("POST", "/api/clean/apply", {"ids": ["logs"]})[1]["output"], "(demo mode: nothing was changed)")
+            self.assertEqual(call("POST", "/api/friction", {"text": "x"})[1]["demo"], True)
+            from cos import mem
+            self.assertEqual(mem.frictions(), [], "demo writes must not reach ~/.claude-os")
+            status, s = call("POST", "/api/chat", {"text": "do I need to clean up?"})
+            self.assertEqual(status, 200)
+            self.assertIsInstance(app.chats.get(s["id"]), demo.DemoSession)
+        finally:
+            httpd.shutdown()
+            httpd.server_close()

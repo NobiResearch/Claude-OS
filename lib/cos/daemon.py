@@ -144,6 +144,7 @@ def pulse():
     from . import status as st, feeds, updates, clean
     s = st.collect(include_slow=False)
     core.cache_put("status", s)
+    st.record_trend(s)
     warn = [x["msg"] for x in s["signals"] if x["level"] == "warn"]
     state_path = core.home("state", "pulse.json")
     state = core.load_json(state_path, {}) or {}
