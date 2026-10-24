@@ -1,0 +1,3 @@
+#!/bin/sh
+# The Guardian. This repository is public: block secrets and personal data.
+exec "$(git rev-parse --show-toplevel)/bin/cos" guard --quiet

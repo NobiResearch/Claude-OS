@@ -1,0 +1,13 @@
+name: test
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests (system Python)
+        run: /usr/bin/python3 -m unittest discover -s tests -v
+      - name: Guard (no private data in the tree)
+        run: /usr/bin/python3 bin/cos guard --all

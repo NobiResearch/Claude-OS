@@ -1,0 +1,16 @@
+# Private state never lives here (it's in ~/.claude-os), but just in case:
+.claude-os/
+var/
+.env*
+*.pem
+
+# Local-only Claude Code settings
+.claude/settings.local.json
+
+# Python / macOS
+__pycache__/
+*.pyc
+.DS_Store
+
+# Review artifacts
+.lavish/

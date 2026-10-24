@@ -1,0 +1,88 @@
+{
+  "pulse": {
+    "description": "Every 2 hours: refresh vitals, feeds, update and cleanup caches; alert on low disk. No LLM, no cost.",
+    "schedule": {
+      "every_minutes": 120
+    },
+    "builtin": "pulse"
+  },
+  "morning": {
+    "description": "08:00 daily: Claude writes your morning brief and sends a notification.",
+    "schedule": {
+      "hour": 8,
+      "minute": 0
+    },
+    "prompt": "/brief",
+    "budget_usd": 1.5,
+    "timeout_minutes": 10,
+    "permission_mode": "dontAsk",
+    "allowed_tools": [
+      "Bash(bin/cos *)",
+      "Read",
+      "Grep",
+      "Glob"
+    ]
+  },
+  "evolve": {
+    "description": "03:30 daily: one small, tested improvement to Claude OS, committed on a local evolve/* branch in its own sandboxed worktree. Never pushes, never touches your checkout.",
+    "schedule": {
+      "hour": 3,
+      "minute": 30
+    },
+    "prompt": "/evolve nightly",
+    "budget_usd": 5,
+    "timeout_minutes": 40,
+    "worktree": true,
+    "permission_mode": "acceptEdits",
+    "allowed_tools": [
+      "Bash(bin/cos *)",
+      "Bash(python3 -m unittest *)",
+      "Bash(git status*)",
+      "Bash(git diff*)",
+      "Bash(git log*)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git show *)",
+      "Read",
+      "Edit",
+      "Write",
+      "Grep",
+      "Glob",
+      "Agent"
+    ],
+    "disallowed_tools": [
+      "Bash(git commit*--no-verify*)",
+      "Bash(git commit*-n *)",
+      "Bash(git checkout*)",
+      "Bash(git switch*)",
+      "Bash(git merge*)",
+      "Bash(git reset*)",
+      "Bash(git rebase*)",
+      "Bash(git branch*)",
+      "Bash(git worktree*)",
+      "Bash(rm *)",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "sandbox": true
+  },
+  "board": {
+    "description": "Sundays 10:00: the board reviews the week (evolve branches, friction, roadmap) and sets next week's priorities.",
+    "schedule": {
+      "weekday": 0,
+      "hour": 10,
+      "minute": 0
+    },
+    "prompt": "/board weekly",
+    "budget_usd": 3,
+    "timeout_minutes": 20,
+    "permission_mode": "dontAsk",
+    "allowed_tools": [
+      "Bash(bin/cos *)",
+      "Read",
+      "Grep",
+      "Glob",
+      "Agent"
+    ]
+  }
+}

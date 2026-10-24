@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "Bash(bin/cos)",
+      "Bash(bin/cos *)",
+      "Bash(./bin/cos *)",
+      "Bash(cos *)",
+      "Bash(python3 -m unittest *)",
+      "Bash(git status*)",
+      "Bash(sw_vers*)",
+      "Bash(pmset -g*)",
+      "Bash(mdfind *)",
+      "Bash(shortcuts list*)"
+    ],
+    "ask": [
+      "Bash(bin/cos clean apply*)",
+      "Bash(./bin/cos clean apply*)",
+      "Bash(cos clean apply*)",
+      "Bash(bin/cos update apply*)",
+      "Bash(./bin/cos update apply*)",
+      "Bash(cos update apply*)",
+      "Bash(bin/cos daemon install*)",
+      "Bash(./bin/cos daemon install*)",
+      "Bash(cos daemon install*)",
+      "Bash(bin/cos daemon uninstall*)",
+      "Bash(./bin/cos daemon uninstall*)",
+      "Bash(cos daemon uninstall*)",
+      "Bash(bin/cos daemon run*)",
+      "Bash(./bin/cos daemon run*)",
+      "Bash(cos daemon run*)",
+      "Bash(bin/cos evolve merge*)",
+      "Bash(./bin/cos evolve merge*)",
+      "Bash(cos evolve merge*)",
+      "Bash(bin/cos evolve discard*)",
+      "Bash(./bin/cos evolve discard*)",
+      "Bash(cos evolve discard*)",
+      "Bash(bin/cos install*)",
+      "Bash(./bin/cos install*)",
+      "Bash(cos install*)",
+      "Bash(bin/cos uninstall*)",
+      "Bash(./bin/cos uninstall*)",
+      "Bash(cos uninstall*)",
+      "Bash(git push*)"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos boot",
+            "timeout": 15
+          }
+        ]
+      }
+    ]
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos statusline",
+    "padding": 0
+  }
+}

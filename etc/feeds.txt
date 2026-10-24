@@ -1,0 +1,37 @@
+# Claude OS curated feeds. One feed per line: <url>  # <name>
+# Personal feeds go in ~/.claude-os/feeds.txt (private); mute these with `cos feeds mute <url>`.
+# Curation rule: high signal, low volume, written by people who think carefully.
+
+## tech
+https://hnrss.org/best  # Hacker News — best
+https://lobste.rs/rss  # Lobsters
+https://simonwillison.net/atom/everything/  # Simon Willison
+https://jvns.ca/atom.xml  # Julia Evans
+https://github.blog/feed/  # The GitHub Blog
+https://feeds.arstechnica.com/arstechnica/index  # Ars Technica
+
+## ai
+https://karpathy.bearblog.dev/feed/  # Andrej Karpathy
+https://lilianweng.github.io/index.xml  # Lil'Log
+
+## mac
+https://eclecticlight.co/feed/  # The Eclectic Light Company
+https://daringfireball.net/feeds/main  # Daring Fireball
+https://www.macstories.net/feed/  # MacStories
+https://9to5mac.com/feed/  # 9to5Mac
+
+## science
+https://www.quantamagazine.org/feed/  # Quanta Magazine
+https://nautil.us/feed/  # Nautilus
+
+## ideas
+https://www.themarginalian.org/feed/  # The Marginalian
+https://www.experimental-history.com/feed  # Experimental History
+https://www.noemamag.com/feed/  # Noema
+https://aeon.co/feed.rss  # Aeon
+https://publicdomainreview.org/rss.xml  # The Public Domain Review
+https://solar.lowtechmagazine.com/posts/index.xml  # Low-tech Magazine
+
+## fun
+https://xkcd.com/atom.xml  # xkcd
+https://feeds.kottke.org/main  # kottke.org
