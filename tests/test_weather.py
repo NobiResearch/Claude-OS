@@ -64,6 +64,24 @@ class TestClaudeOSPlayer(TempHome):
         self.assertFalse(res["ok"])
         self.assertEqual(calls, [], "Music must not be paused when our player didn't start")
 
+    def test_like_loves_the_song_in_our_player_not_musics(self):
+        import io, time
+        from contextlib import redirect_stdout
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Awake", "artist": "Tycho"})
+        sent, told = [], []
+        orig_cmd, orig_tell = music.player_command, music._tell
+        music.player_command = lambda cmd, **k: sent.append(cmd) or {"ok": True, "state": {"loved": True}}
+        music._tell = lambda body, timeout=10: told.append(body)
+        try:
+            with redirect_stdout(io.StringIO()) as out:
+                rc = music.like()
+        finally:
+            music.player_command, music._tell = orig_cmd, orig_tell
+        self.assertEqual((rc, sent, told), (0, ["love"], []), "the Music app must not be touched")
+        self.assertIn("Awake — Tycho", out.getvalue())
+
     def test_catalog_id_from_song_links(self):
         from cos import music
         self.assertEqual(music._id_from_url("https://music.apple.com/us/album/x/123?i=456"), "456")

@@ -264,7 +264,7 @@ def player_enabled():
 
 def player_command(command, catalog_id=None, wait=12):
     """Send a command to Claude OS's player and wait for it to report back."""
-    if command not in ("authorize", "play", "pause", "resume", "stop"):
+    if command not in ("authorize", "play", "pause", "resume", "stop", "love"):
         return {"ok": False, "error": "unknown player command"}
     if catalog_id is not None and not str(catalog_id).isdigit():
         return {"ok": False, "error": "bad catalog id"}
@@ -278,8 +278,10 @@ def player_command(command, catalog_id=None, wait=12):
     while time.time() < deadline:
         time.sleep(0.5)
         state = player_state()
-        if state and state.get("ts", 0) > before and (command != "play" or state.get("status") == "playing"
-                                                       or state.get("error")):
+        # The app's 2 s ticker also rewrites the file, so "fresh" isn't "answered": wait for
+        # the thing this command changes (or an error).
+        done = {"play": lambda s: s.get("status") == "playing", "love": lambda s: s.get("loved")}.get(command)
+        if state and state.get("ts", 0) > before and (done is None or done(state) or state.get("error")):
             break
     if not state or state.get("ts", 0) <= before:
         return {"ok": False, "error": "Claude OS didn't answer; is it running?"}
@@ -476,6 +478,20 @@ def volume(level):
 
 
 def like():
+    # Love what's actually playing: Claude OS's own player first, the Music app otherwise.
+    own = player_state(max_age=30)
+    if own and own.get("track") and own.get("status") in ("playing", "paused"):
+        res = player_command("love", wait=10)
+        if not res.get("ok") or not res["state"].get("loved"):
+            print("✗ couldn't love it: %s" % (res.get("error") or "Apple Music didn't confirm"))
+            return 1
+        name = "%s — %s" % (own["track"], own.get("artist") or "?")
+        core.journal("music", "liked %s" % name, liked=True, track=name, player="Claude OS")
+        print("♥ %s" % name)
+        return 0
+    if not core.app_running("Music") or now().get("state") not in ("playing", "paused"):
+        print("✗ nothing is playing to love")
+        return 1
     r = _tell("try\nset favorited of current track to true\non error\nset loved of current track to true\nend try\n"
               "return (name of current track) & \" — \" & (artist of current track)")
     if not r.ok:

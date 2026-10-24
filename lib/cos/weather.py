@@ -95,6 +95,31 @@ def clear():
     core.journal("action", "weather location cleared")
 
 
+RAIN = {51, 53, 55, 56, 57, 61, 63, 65, 66, 67, 80, 81, 82}
+SNOW = {71, 73, 75, 77, 85, 86}
+STORM = {95, 96, 99}
+
+
+def outlook(hours, current_code):
+    """One alert for the next six hours, or None: storms beat snow beat rain."""
+    hours = hours[:6]
+    for h in hours:
+        if h["code"] in STORM:
+            return {"level": "warn", "msg": "thunderstorm likely around %s" % h["time"]}
+    for h in hours:
+        if h["code"] in SNOW:
+            return {"level": "note", "msg": "snow likely around %s" % h["time"]}
+    if current_code in RAIN:
+        for h in hours:
+            if (h["pp"] or 0) < 30 and h["code"] not in RAIN:
+                return {"level": "note", "msg": "rain easing around %s" % h["time"]}
+        return {"level": "note", "msg": "rain for the next few hours"}
+    for h in hours:
+        if (h["pp"] or 0) >= 70 or h["code"] in RAIN and (h["pp"] or 0) >= 50:
+            return {"level": "note", "msg": "rain likely around %s (%d%%)" % (h["time"], h["pp"] or 0)}
+    return None
+
+
 def parse_forecast(data, place):
     cur = data.get("current") or {}
     daily = data.get("daily") or {}
@@ -108,8 +133,14 @@ def parse_forecast(data, place):
         except (KeyError, IndexError, TypeError):
             return None
 
+    hourly = data.get("hourly") or {}
+    hours = []
+    for t, pp, code in zip(hourly.get("time") or [], hourly.get("precipitation_probability") or [],
+                           hourly.get("weather_code") or []):
+        hours.append({"time": t[-5:], "pp": pp, "code": code})
     desc, symbol = describe(cur.get("weather_code"))
     return {"place": place.get("name"), "source": place.get("source"),
+            "alert": outlook(hours, cur.get("weather_code")), "hours": hours[:12],
             "now": {"temp": cur.get("temperature_2m"), "feels": cur.get("apparent_temperature"),
                     "wind": cur.get("wind_speed_10m"), "summary": desc, "symbol": symbol},
             "today": day(0), "tomorrow": day(1), "units": "°C, km/h"}
@@ -126,6 +157,7 @@ def forecast(force=False):
         "latitude": place["lat"], "longitude": place["lon"], "timezone": "auto", "forecast_days": 2,
         "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",
         "daily": "weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max",
+        "hourly": "precipitation_probability,weather_code", "forecast_hours": 12,
     })
     with core.http_get(FORECAST + params, timeout=10) as resp:
         data = parse_forecast(json.load(resp), place)
@@ -145,6 +177,8 @@ def line(f):
         out += " · today %s°/%s°" % (_r(t["max"]), _r(t["min"]))
         if t.get("precip_pct"):
             out += ", %d%% rain" % t["precip_pct"]
+    if f.get("alert"):
+        out += " · " + f["alert"]["msg"]
     return out + "  (%s)" % f["place"]
 
 
