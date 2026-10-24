@@ -293,7 +293,7 @@ input[type="checkbox"]:not(.switch) { accent-color: var(--accent); }
 .md code { font: 11.5px var(--mono); padding: 1px 5px; border-radius: 5px; background: var(--raise); }
 .md pre.md-code { margin: 8px 0; padding: 10px 12px; border-radius: 9px; background: var(--bg); border: 1px solid var(--line); overflow: auto; }
 .md pre.md-code code { padding: 0; background: none; font-size: 11.5px; line-height: 1.5; }
-.md blockquote { margin: 8px 0; padding-left: 12px; border-left: 3px solid var(--accent); color: var(--muted); }
+.md blockquote { margin: 8px 0; padding-left: 12px; border-left: 1px solid var(--line-2); color: var(--muted); font-style: italic; }
 .md hr { border: 0; border-top: 1px solid var(--line-2); margin: 12px 0; }
 .md-table { overflow-x: auto; margin: 8px 0; border: 1px solid var(--line); border-radius: 9px; }
 .md table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
