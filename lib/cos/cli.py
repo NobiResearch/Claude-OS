@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config", "serve", "app",
+    "uninstall", "doctor", "version", "config", "serve", "app", "weather",
 }
 
 INTRO = """\
@@ -91,6 +91,13 @@ def build_parser():
     msub.add_parser("setup", help="set up full Apple Music catalog playback")
     mh = msub.add_parser("history")
     mh.add_argument("--days", type=int, default=30)
+
+    wx = cmd("weather", "the forecast for a place you chose")
+    wx.add_argument("--refresh", action="store_true")
+    wxsub = wx.add_subparsers(dest="weather_cmd")
+    wxs = wxsub.add_parser("set", help="set the place by city name")
+    wxs.add_argument("place", nargs="+")
+    wxsub.add_parser("clear", help="turn weather off and forget the place")
 
     f = cmd("feeds", "RSS/Atom headlines")
     f.add_argument("--all", action="store_true", help="include already-read items")
@@ -307,6 +314,9 @@ def main(argv=None):
     if c == "feeds":
         from . import feeds
         return feeds.main(args)
+    if c == "weather":
+        from . import weather
+        return weather.main(args)
     if c in ("log", "friction", "remember", "memory"):
         from . import mem
         return getattr(mem, c + "_main" if c != "log" else "log_main")(args)

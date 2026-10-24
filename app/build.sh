@@ -1,16 +1,26 @@
 #!/bin/bash
-# Builds "build/Claude OS.app", the native shell around `cos serve`.
+# Builds "build/Claude OS.app", the native shell around `cos serve`, with
+# a built-in Apple Music player (MusicKit, "Media & Apple Music" permission).
 #
-#   app/build.sh             build and ad-hoc sign build/Claude OS.app
+#   app/build.sh             build and sign build/Claude OS.app
 #   app/build.sh --install   also copy it to ~/Applications/Claude OS.app
 #   app/build.sh --open      also open it (the installed copy with --install)
 #
 # The bundle's Info.plist bakes in this checkout's absolute path and your current $PATH
 # (apps started from Finder don't get your shell's PATH). Both are machine-specific, so
 # they live only in the built bundle; build/ is git-ignored. Rebuild if the repo moves.
+#
+# Signing: macOS ties privacy grants (Apple Music, Location) to the code signature. An
+# ad-hoc signature is new on every build, so grants reset; an Apple Development identity
+# keeps them. The identity is chosen at build time and never written to any file:
+#   COS_SIGN_IDENTITY=adhoc        ad hoc
+#   COS_SIGN_IDENTITY=<sha1|name>  that identity
+#   CLAUDE_OS_DAEMON set           ad hoc (a headless run must never meet a keychain prompt)
+#   otherwise                      the first valid "Apple Development" identity, by SHA-1
+#                                  (ad hoc if there is none)
 set -euo pipefail
 
-usage() { sed -n '2,10s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '2,21s/^# \{0,1\}//p' "$0"; }
 
 INSTALL=0
 OPEN=0
@@ -37,7 +47,10 @@ swift build -c release --package-path app
 BIN_DIR="$(swift build -c release --package-path app --show-bin-path)"
 
 APP="build/Claude OS.app"
-echo "==> assembling $APP ($VERSION)"
+# MusicKit only works for a bundle id registered (with the MusicKit service) in the signing
+# team's developer account. Anyone building their own copy sets COS_BUNDLE_ID to theirs.
+BUNDLE_ID="${COS_BUNDLE_ID:-local.claude-os.desktop}"
+echo "==> assembling $APP ($VERSION, $BUNDLE_ID)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/ClaudeOS" "$APP/Contents/MacOS/ClaudeOS"
@@ -55,25 +68,32 @@ fi
 cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
 
 # plistlib does the XML escaping, so odd characters in paths can't break the plist.
-/usr/bin/env python3 - "$APP/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" <<'PY'
+/usr/bin/env python3 - "$APP/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" "$BUNDLE_ID" <<'PY'
 import plistlib
 import sys
 
-out, version, root, path = sys.argv[1:5]
+out, version, root, path, bundle_id = sys.argv[1:6]
+location = ("Claude OS shows the weather for where you are. "
+            "Your location is rounded to about a kilometre and stays on this Mac.")
 info = {
-    "CFBundleName": "Claude OS",
-    "CFBundleDisplayName": "Claude OS",
-    "CFBundleIdentifier": "local.claude-os.desktop",
-    "CFBundleExecutable": "ClaudeOS",
     "CFBundleIconFile": "AppIcon",
     "CFBundlePackageType": "APPL",
     "CFBundleInfoDictionaryVersion": "6.0",
     "CFBundleShortVersionString": version,
     "CFBundleVersion": version,
-    "LSMinimumSystemVersion": "13.0",
+    "LSMinimumSystemVersion": "14.0",
+    "CFBundleName": "Claude OS",
+    "CFBundleDisplayName": "Claude OS",
+    "CFBundleIdentifier": bundle_id,
+    "CFBundleExecutable": "ClaudeOS",
     "NSHighResolutionCapable": True,
     "NSPrincipalClass": "NSApplication",
     "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
+    "NSLocationUsageDescription": location,
+    "NSLocationWhenInUseUsageDescription": location,
+    "NSAppleMusicUsageDescription": "Claude OS plays the Apple Music songs you ask for.",
+    # claude-os://music/play?id=… lets `cos` drive the built-in player (see Player.swift).
+    "CFBundleURLTypes": [{"CFBundleURLName": "Claude OS", "CFBundleURLSchemes": ["claude-os"]}],
     "ClaudeOSRoot": root,
     "ClaudeOSPath": path,
 }
@@ -82,9 +102,99 @@ with open(out, "wb") as f:
 PY
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
-echo "==> signing (ad hoc)"
-codesign --force --deep -s - "$APP"
-codesign --verify --deep "$APP"
+# --- signing -------------------------------------------------------------------------
+# SIGN_ID is what codesign gets ("-" is ad hoc); SIGN_LABEL is what we print, and never
+# includes the certificate's name (that's the human's name).
+SIGN_AUTO=0
+if [ -n "${COS_SIGN_IDENTITY:-}" ]; then
+    case "$COS_SIGN_IDENTITY" in
+        adhoc|-) SIGN_ID="-" ;;
+        *) SIGN_ID="$COS_SIGN_IDENTITY" ;;
+    esac
+elif [ -n "${CLAUDE_OS_DAEMON:-}" ]; then
+    SIGN_ID="-"
+else
+    # Lines look like:  1) <40 hex> "Apple Development: <name> (<team>)"
+    # (`find-identity` only lists certificates; it never touches a private key or prompts.)
+    IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    SIGN_ID="$(printf '%s\n' "$IDENTITIES" | awk '/"Apple Development: / && !found { print $2; found = 1 }')"
+    if [[ "$SIGN_ID" =~ ^[0-9A-F]{40}$ ]]; then
+        SIGN_AUTO=1
+    else
+        SIGN_ID="-"
+    fi
+fi
+
+if [ "$SIGN_ID" = "-" ]; then
+    SIGN_LABEL="ad hoc"
+elif [ "$SIGN_AUTO" = 1 ]; then
+    SIGN_LABEL="Apple Development identity ${SIGN_ID:0:8}…"
+elif [[ "$SIGN_ID" =~ ^[0-9A-Fa-f]{40}$ ]]; then
+    SIGN_LABEL="identity ${SIGN_ID:0:8}… (COS_SIGN_IDENTITY)"
+else
+    SIGN_LABEL="the identity named in COS_SIGN_IDENTITY"
+fi
+
+# --- provisioning profile (MusicKit) ---------------------------------------------------
+# MusicKit mints its developer token for apps it can identify: an application-identifier
+# entitlement, backed by an embedded profile for an App ID with the MusicKit service. The
+# profile is personal (team id, device), so it lives in ~/.claude-os, never in the repo.
+PROFILE="${COS_PROVISIONING_PROFILE:-$HOME/.claude-os/ClaudeOS.provisionprofile}"
+ENTITLEMENTS=""
+if [ -f "$PROFILE" ] && [ "$SIGN_ID" != "-" ]; then
+    if security cms -D -i "$PROFILE" > build/profile.plist 2>/dev/null &&
+       /usr/bin/env python3 - build/profile.plist "$BUNDLE_ID" build/entitlements.plist <<'PY'
+import plistlib
+import sys
+
+profile = plistlib.load(open(sys.argv[1], "rb"))
+team = (profile.get("TeamIdentifier") or [""])[0]
+app_id = (profile.get("Entitlements") or {}).get("com.apple.application-identifier", "")
+if app_id != "%s.%s" % (team, sys.argv[2]):
+    sys.exit("build.sh: the provisioning profile is for %s, not %s" % (app_id.split(".", 1)[-1], sys.argv[2]))
+with open(sys.argv[3], "wb") as f:
+    plistlib.dump({"com.apple.application-identifier": app_id, "com.apple.developer.team-identifier": team}, f)
+PY
+    then
+        cp "$PROFILE" "$APP/Contents/embedded.provisionprofile"
+        ENTITLEMENTS="build/entitlements.plist"
+        echo "==> embedding the provisioning profile (MusicKit)"
+    else
+        echo "⚠ couldn't use $PROFILE; building without it (MusicKit won't work)" >&2
+    fi
+    rm -f build/profile.plist
+fi
+
+# A real identity never asks a timestamp server, so offline builds work. Ad hoc can't
+# carry restricted entitlements (macOS would refuse to launch it), so it never gets them.
+sign_bundles() {
+    local args=(--force --sign "$1")
+    if [ "$1" != "-" ]; then
+        args+=(--timestamp=none)
+        [ -n "$ENTITLEMENTS" ] && args+=(--entitlements "$ENTITLEMENTS")
+    else
+        rm -f "$APP/Contents/embedded.provisionprofile"
+    fi
+    codesign "${args[@]}" "$APP" || return 1
+}
+
+echo "==> signing with $SIGN_LABEL"
+if ! sign_bundles "$SIGN_ID"; then
+    if [ "$SIGN_AUTO" != 1 ]; then
+        echo "build.sh: codesign failed with $SIGN_LABEL" >&2
+        exit 1
+    fi
+    # A locked keychain or a declined prompt shouldn't stop the build.
+    echo "build.sh: codesign failed with $SIGN_LABEL; falling back to ad hoc" >&2
+    SIGN_ID="-"
+    sign_bundles "$SIGN_ID"
+fi
+codesign --verify --strict --deep "$APP"
+if [ "$SIGN_ID" = "-" ]; then
+    echo "⚠ ad-hoc signed: macOS permissions (Apple Music, Location) reset on every rebuild, and MusicKit won't work" >&2
+else
+    echo "==> signed with $SIGN_LABEL"
+fi
 
 TARGET="$APP"
 if [ "$INSTALL" = 1 ]; then

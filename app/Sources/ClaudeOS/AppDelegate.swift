@@ -57,6 +57,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
 
+    /// claude-os://music/… commands for the built-in Apple Music player.
+    func application(_ application: NSApplication, open urls: [URL]) {
+        for url in urls {
+            Task { @MainActor in Player.shared.handle(url) }
+        }
+    }
+
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         windowController.show()
         return true

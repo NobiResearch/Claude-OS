@@ -54,6 +54,12 @@ return out
 
 
 def now():
+    own = player_state(max_age=30)
+    if own and own.get("status") == "playing" and own.get("track"):
+        return {"running": True, "state": "playing", "track": own["track"], "artist": own.get("artist"),
+                "album": own.get("album"), "duration": own.get("duration", 0), "position": own.get("position", 0),
+                "volume": None, "shuffle": False, "repeat": "off", "player": "Claude OS",
+                "artwork": own.get("artwork") or None}
     if not core.app_running("Music"):
         return {"running": False}
     r = _tell(NOW_SCRIPT, timeout=6)
@@ -85,7 +91,8 @@ def render_now(n):
         return
     pos = "%d:%02d / %d:%02d" % (n["position"] // 60, n["position"] % 60, n["duration"] // 60, n["duration"] % 60)
     print("%s %s — %s" % ("▶" if n["state"] == "playing" else "❚❚", n["track"], n["artist"] or "?"))
-    print("  %s · %s · vol %d%s" % (n["album"] or "", pos, n["volume"], " · shuffle" if n["shuffle"] else ""))
+    where = "in Claude OS" if n.get("player") == "Claude OS" else "vol %d" % (n.get("volume") or 0)
+    print("  %s · %s · %s%s" % (n["album"] or "", pos, where, " · shuffle" if n.get("shuffle") else ""))
 
 
 # ---------------------------------------------------------------- library
@@ -179,7 +186,8 @@ def parse_catalog_item(r):
             "year": (r.get("releaseDate") or "")[:4], "url": url,
             "track_number": r.get("trackNumber"), "track_count": r.get("trackCount"),
             "duration": (r.get("trackTimeMillis") or 0) / 1000.0, "source": "catalog",
-            "artwork": (r.get("artworkUrl100") or "").replace("100x100bb", "600x600bb") or None}
+            "artwork": (r.get("artworkUrl100") or "").replace("100x100bb", "600x600bb") or None,
+            "id": str(r["trackId"]) if r.get("trackId") else None}
 
 
 def best_catalog_pick(results):
@@ -233,6 +241,74 @@ def play_catalog(item):
     return {"ok": True, "now": n, "matched": bool(n.get("track"))}
 
 
+# ---------------------------------------------------------------- Claude OS player (0003, amended)
+#
+# Catalog songs AppleScript can't reach play in Claude OS.app itself, through MusicKit's
+# ApplicationMusicPlayer and the narrow "Media & Apple Music" permission. `cos` drives it
+# with claude-os://music/... URLs (handled by the app, see app/Sources/ClaudeOS/Player.swift)
+# and reads what it's doing from ~/.claude-os/state/player.json.
+
+MEDIA_PANE = "x-apple.systempreferences:com.apple.preference.security?Privacy_Media"
+
+
+def player_state(max_age=None):
+    state = core.load_json(core.home("state", "player.json"), None)
+    if state and max_age is not None and time.time() - state.get("ts", 0) > max_age:
+        return None
+    return state
+
+
+def player_enabled():
+    return bool(core.config()["music"].get("apple_music"))
+
+
+def player_command(command, catalog_id=None, wait=12):
+    """Send a command to Claude OS's player and wait for it to report back."""
+    if command not in ("authorize", "play", "pause", "resume", "stop"):
+        return {"ok": False, "error": "unknown player command"}
+    if catalog_id is not None and not str(catalog_id).isdigit():
+        return {"ok": False, "error": "bad catalog id"}
+    before = (player_state() or {}).get("ts", 0)
+    url = "claude-os://music/%s%s" % (command, "?id=%s" % catalog_id if catalog_id else "")
+    r = core.run(["open", "-g", url], timeout=15)
+    if not r.ok:
+        return {"ok": False, "error": "couldn't reach Claude OS (is the app installed?): %s" % r.err[:200]}
+    deadline = time.time() + wait
+    state = None
+    while time.time() < deadline:
+        time.sleep(0.5)
+        state = player_state()
+        if state and state.get("ts", 0) > before and (command != "play" or state.get("status") == "playing"
+                                                       or state.get("error")):
+            break
+    if not state or state.get("ts", 0) <= before:
+        return {"ok": False, "error": "Claude OS didn't answer; is it running?"}
+    if state.get("error"):
+        return {"ok": False, "error": state["error"], "state": state}
+    return {"ok": True, "state": state}
+
+
+def play_with_player(item):
+    catalog_id = item.get("id") or _id_from_url(item.get("url"))
+    if not catalog_id:
+        return {"ok": False, "error": "no catalog id for that song"}
+    res = player_command("play", catalog_id)
+    if not res.get("ok"):
+        return res  # nothing changed: Music keeps playing whatever it was playing
+    if core.app_running("Music"):
+        _tell("pause", timeout=5)  # ours started; now make it the only thing playing
+    st = res["state"]
+    return {"ok": True, "matched": True, "now": {
+        "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
+        "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
+        "player": "Claude OS"}}
+
+
+def _id_from_url(url):
+    m = re.search(r"[?&]i=(\d+)", url or "")
+    return m.group(1) if m else None
+
+
 # ---------------------------------------------------------------- shortcut route
 
 SHORTCUT = "Claude OS Play"
@@ -240,8 +316,8 @@ SETUP_STEPS = """\
 Catalog playback through Shortcuts (one-time, no new permissions):
 
   1. Open the Shortcuts app and make a new shortcut named exactly:  %s
-  2. Add Music's "Play" action (search the action list for Music and pick Play).
-  3. In that action, set the music item to "Shortcut Input".
+  2. Add "Get Text from Input" (the input arrives as a file).
+  3. Add Music's "Play" action and set its music item to the Text from step 2.
   4. Save. Then try:  cos music play "sunset lover petit biscuit" --source shortcut
 
 Siri's music search resolves the text, so it reaches the whole Apple Music catalog.
@@ -275,10 +351,9 @@ def play_via_shortcut(query, expect=None):
     changed = n.get("track") != before.get("track") or before.get("state") != "playing"
     if n.get("state") != "playing" or not changed:
         return {"ok": False, "error": "the shortcut ran, but Music isn't playing anything new"}
-    matched = None
-    if expect:
-        matched = fold(expect) in fold(n.get("track")) or fold(n.get("track")) in fold(expect)
-    return {"ok": True, "now": n, "matched": matched if matched is not None else True}
+    if expect and not (fold(expect) in fold(n.get("track")) or fold(n.get("track")) in fold(expect)):
+        return {"ok": False, "error": "the shortcut ran, but Music is playing %s, not %s" % (n.get("track"), expect)}
+    return {"ok": True, "now": n, "matched": True}
 
 
 # ---------------------------------------------------------------- helpers
@@ -315,6 +390,15 @@ def play(query, source="auto", pick=0):
             res = play_library(track)
             res.update(source="library", chosen=track)
             return res
+    if source in ("auto", "catalog") and player_enabled():
+        cat = catalog_search(query, limit=8)
+        if cat["results"]:
+            item = cat["results"][min(pick, len(cat["results"]) - 1)] if pick else best_catalog_pick(cat["results"])
+            res = play_with_player(item)
+            res.update(source="claude-os", chosen=item)
+            if res.get("ok") or source == "catalog":
+                return res
+            tried.append("claude-os player: %s" % res.get("error"))
     if source in ("auto", "shortcut") and (source == "shortcut" or shortcut_installed()):
         tried.append("shortcut")
         cat = catalog_search(query, limit=3)
@@ -359,6 +443,13 @@ def report(res, query=None):
 
 
 def transport(cmd):
+    own = player_state(max_age=30)
+    if own and own.get("track") and own.get("status") in ("playing", "paused") and cmd in ("pause", "resume", "toggle", "stop"):
+        if cmd == "toggle":
+            cmd = "pause" if own["status"] == "playing" else "resume"
+        res = player_command(cmd, wait=4)
+        print(("%s (Claude OS player)" % cmd) if res.get("ok") else "✗ %s" % res.get("error"))
+        return 0 if res.get("ok") else 1
     scripts = {"pause": "pause", "resume": "play", "toggle": "playpause", "next": "next track",
                "prev": "back track", "stop": "stop"}
     r = _tell(scripts[cmd], timeout=6)
@@ -451,7 +542,20 @@ def main(args):
     if c == "history":
         return history(args.days)
     if c == "setup":
+        st = player_state() or {}
+        print("Apple Music in Claude OS: %s" % ("on" if player_enabled() else "off"))
+        print("  Media & Apple Music access: %s" % st.get("authorization", "not asked yet"))
+        if st.get("error"):
+            print("  last error: %s" % st["error"])
+        print("  turn it on in Claude OS › Settings › Permissions")
+        if not os.path.exists(os.path.expanduser("~/.claude-os/ClaudeOS.provisionprofile")):
+            print("  one-time developer setup (MusicKit needs it):")
+            print("    1. developer.apple.com › Identifiers: App ID %s with the MusicKit service" % "local.claude-os.desktop")
+            print("    2. Devices: add this Mac (System Information › Hardware › Provisioning UDID)")
+            print("    3. Profiles: macOS App Development for that App ID and this Mac; save it as")
+            print("       ~/.claude-os/ClaudeOS.provisionprofile, then: cos app install")
+        print()
         print(SETUP_STEPS)
-        print("Status: %s" % ("installed ✓" if shortcut_installed() else "not installed yet"))
+        print("Shortcut: %s" % ("installed ✓" if shortcut_installed() else "not installed"))
         return 0
     core.die("unknown music command %r" % c)

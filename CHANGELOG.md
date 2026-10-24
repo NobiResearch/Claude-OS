@@ -4,6 +4,24 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-25
+
+Permissions when the human asks for them ([0003](docs/decisions/0003-permissions-on-request.md)).
+
+- **Settings › Permissions:** "Apple Music in Claude OS" and "Weather", both off by default.
+- **Claude OS plays Apple Music itself:** MusicKit's ApplicationMusicPlayer under the narrow
+  "Media & Apple Music" permission plays any catalog song; `cos music play` drives it via
+  `claude-os://music/…` URLs and `cos music now` shows it. (An Accessibility-based helper
+  was tried first and removed: see the amendment in 0003.) Needs macOS 14+, an App ID with
+  the MusicKit service, and a macOS development profile in `~/.claude-os` (`cos music setup`).
+- **Weather:** `cos weather` (Open-Meteo, no key), on the Today panel and in the brief. Pick a
+  city, or "Use my location" in the app (CoreLocation, rounded to ~1 km, stays on this Mac;
+  the place joins the Guardian's private terms).
+- **Signing:** local builds are signed with your own Apple Development identity when there
+  is one, so macOS grants survive rebuilds; ad-hoc (loudly) otherwise and under daemons.
+  `COS_BUNDLE_ID` sets the bundle id (MusicKit needs one registered in your account).
+- **MIT license.** Shortcut setup now includes "Get Text from Input".
+
 ## 0.3.0 — 2026-10-24
 
 Decided by the board's first meeting ([0002](docs/decisions/0002-v0.3-priorities.md)).

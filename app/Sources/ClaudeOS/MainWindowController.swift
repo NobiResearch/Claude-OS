@@ -7,6 +7,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
     let window: NSWindow
     let webView: WKWebView
 
+    private let bridge: WebBridge
     private var endpoint: ServerEndpoint?
     private var pageLoaded = false
     private var pendingSummon = false
@@ -20,6 +21,9 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
         wkConfig.websiteDataStore = .default()
         wkConfig.applicationNameForUserAgent = "ClaudeOS/\(config.version)"
         wkConfig.preferences.javaScriptCanOpenWindowsAutomatically = false
+        let bridge = WebBridge()  // the page's window.webkit.messageHandlers.cos (WebBridge.swift)
+        wkConfig.userContentController.addScriptMessageHandler(bridge, contentWorld: .page, name: WebBridge.name)
+        self.bridge = bridge
 
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 1280, height: 820), configuration: wkConfig)
         webView.setValue(false, forKey: "drawsBackground")  // no white flash before the page paints
@@ -83,6 +87,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
 
     func load(_ ep: ServerEndpoint) {
         endpoint = ep
+        bridge.port = ep.port
         pageLoaded = false
         loadRetries = 0
         webView.load(URLRequest(url: ep.desktopURL))
@@ -90,6 +95,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
 
     func serverWentAway() {
         endpoint = nil
+        bridge.port = nil
         pageLoaded = false
     }
 

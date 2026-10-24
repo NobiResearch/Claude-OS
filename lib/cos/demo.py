@@ -142,6 +142,14 @@ BOOT = ["◆ Claude OS (demo) · a fictional Mac, for screenshots",
         "  daemons: pulse ●  morning ●  evolve ●  board –",
         "  memory: 3 things you've taught me"]
 
+WEATHER = {"configured": True, "place": "Lisbon, Portugal", "source": "city", "units": "°C, km/h", "fetched": NOW,
+           "now": {"temp": 19.4, "feels": 18.9, "wind": 11.0, "summary": "Mostly clear", "symbol": "🌤"},
+           "today": {"max": 22.0, "min": 14.0, "precip_pct": 10, "summary": "Mostly clear", "symbol": "🌤"},
+           "tomorrow": {"max": 21.0, "min": 13.0, "precip_pct": 40, "summary": "Showers", "symbol": "🌦"}}
+
+SETTINGS = {"music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
+            "weather": {"name": "Lisbon, Portugal", "source": "city"}}
+
 GETS = {
     "/api/boot": {"version": "demo", "lines": BOOT},
     "/api/status": STATUS,
@@ -161,6 +169,8 @@ GETS = {
     "/api/brief": BRIEF,
     "/api/trends": {"rows": [], "disk_per_week": None},
     "/api/chats": [],
+    "/api/weather": WEATHER,
+    "/api/settings": SETTINGS,
 }
 
 

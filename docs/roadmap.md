@@ -10,11 +10,12 @@ what, where, and how we'll know it works.
    behind a user-initiated "Connect Calendar" button so the permission prompt is expected.
    Recurring events must expand correctly (AppleScript doesn't; consider EventKit).
 2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **Verify the Shortcuts music route** with the human, then make it the default.
+3. **One player**: route library songs through MusicKit too (`MusicLibraryRequest`), so
+   Claude OS plays everything itself and the AppleScript path becomes a fallback.
 4. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
    so the human's own automations become syscalls.
-5. **Weather in the brief**: Open-Meteo (no key), only after the human sets a location in
-   `cos config`. No default from IP or timezone (board 0002).
+5. **Weather alerts**: a pulse signal for rain/snow/storm in the next hours (weather shipped
+   in v0.4; see 0003).
 6. **Startup audit** `cos startup`: login items, LaunchAgents and LaunchDaemons, with
    what each one is and whether it's signed. Read-only.
 
@@ -40,3 +41,4 @@ what, where, and how we'll know it works.
   plumbing, guard, board, lab.
 - v0.2: Claude OS.app, the desktop, Claude chat with Allow/Deny cards, `cos serve`.
 - v0.3: Shortcuts music route, old simulator runtimes, trend logging, demo mode.
+- v0.4: permissions on request (0003): Music Helper, weather + location, stable signing.

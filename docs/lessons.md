@@ -86,6 +86,34 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **`toLocaleDateString(undefined)` follows the OS, not the browser language.** Pass
   `navigator.language` when output must match the page (e.g. English screenshots).
 
+## Permissions (TCC)
+
+- **macOS charges privacy permissions to the "responsible" app**, and everything an app
+  launches inherits its grants. Give a capability its own small app, started with `open`,
+  when only that code should have it (decision 0003).
+- **An Accessibility grant didn't take** for a dev-signed `LSUIElement` helper on macOS 27:
+  switched on in System Settings, valid signature, yet `AXIsProcessTrusted()` stayed false
+  from every launch path. Unexplained; prefer narrower, purpose-built permissions anyway.
+- **MusicKit on macOS:** `ApplicationMusicPlayer` (macOS 14+) and catalog requests work;
+  `SystemMusicPlayer` and `MusicLibrary.add` don't exist on macOS. iTunes Search API
+  `trackId`s are Apple Music catalog ids.
+- **"Failed to request developer token"** means MusicKit can't identify the app. An App ID
+  with the MusicKit service isn't enough: the app also needs an embedded macOS development
+  provisioning profile (App ID + certificate + this Mac) and the
+  `com.apple.application-identifier` entitlement in its signature. Ad-hoc signing can't
+  carry that entitlement (macOS refuses to launch it).
+- **`MusicPlayer.State.playbackStatus` lags commands** by a few hundred milliseconds; wait
+  before reporting state.
+- **Ad-hoc signatures change every build**, and grants are tied to the signature, so they
+  silently reset. Sign local builds with a stable identity.
+- **`shortcuts run --input-path` hands the shortcut a file, not text.** Actions expecting
+  text or entities need "Get Text from Input" first.
+- **`open -W` always exits 0** and can return early ("Unable to block on application")
+  when the app exits within milliseconds. Read the app's own output (`--stdout`), not
+  `open`'s exit code; the helper lingers 100 ms before exiting.
+- **Turning a feature off doesn't revoke a macOS grant.** Only the human can, in System
+  Settings; open the pane for them.
+
 ## Hardware
 
 - **Battery health on Apple Silicon:** `ioreg -rn AppleSmartBattery` reports
