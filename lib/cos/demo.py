@@ -147,7 +147,7 @@ WEATHER = {"configured": True, "place": "Lisbon, Portugal", "source": "city", "u
            "today": {"max": 22.0, "min": 14.0, "precip_pct": 10, "summary": "Mostly clear", "symbol": "🌤"},
            "tomorrow": {"max": 21.0, "min": 13.0, "precip_pct": 40, "summary": "Showers", "symbol": "🌦"}}
 
-SETTINGS = {"music": {"full_control": True, "helper_installed": True, "trusted": True, "shortcut": False},
+SETTINGS = {"music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
             "weather": {"name": "Lisbon, Portugal", "source": "city"}}
 
 GETS = {

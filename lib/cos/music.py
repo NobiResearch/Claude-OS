@@ -54,6 +54,12 @@ return out
 
 
 def now():
+    own = player_state(max_age=30)
+    if own and own.get("status") == "playing" and own.get("track"):
+        return {"running": True, "state": "playing", "track": own["track"], "artist": own.get("artist"),
+                "album": own.get("album"), "duration": own.get("duration", 0), "position": own.get("position", 0),
+                "volume": None, "shuffle": False, "repeat": "off", "player": "Claude OS",
+                "artwork": own.get("artwork") or None}
     if not core.app_running("Music"):
         return {"running": False}
     r = _tell(NOW_SCRIPT, timeout=6)
@@ -179,7 +185,8 @@ def parse_catalog_item(r):
             "year": (r.get("releaseDate") or "")[:4], "url": url,
             "track_number": r.get("trackNumber"), "track_count": r.get("trackCount"),
             "duration": (r.get("trackTimeMillis") or 0) / 1000.0, "source": "catalog",
-            "artwork": (r.get("artworkUrl100") or "").replace("100x100bb", "600x600bb") or None}
+            "artwork": (r.get("artworkUrl100") or "").replace("100x100bb", "600x600bb") or None,
+            "id": str(r["trackId"]) if r.get("trackId") else None}
 
 
 def best_catalog_pick(results):
@@ -205,13 +212,9 @@ def play_catalog(item):
     # Give the page time to load, press play once, then be patient: streams
     # can take several seconds to start, and re-pressing play restarts them.
     n = {}
-    pressed = None
     for attempt in range(2):
         time.sleep(2.5)
-        if full_control():
-            pressed = helper("press-play")
-        if not (pressed and pressed.get("ok")):
-            _tell("play", timeout=6)
+        _tell("play", timeout=6)
         n = _wait_playing(10)
         if n.get("state") == "playing":
             break
@@ -237,66 +240,72 @@ def play_catalog(item):
     return {"ok": True, "now": n, "matched": bool(n.get("track"))}
 
 
-# ---------------------------------------------------------------- the helper (decision 0003)
+# ---------------------------------------------------------------- Claude OS player (0003, amended)
 #
-# "Full Music control" is a tiny separate app, Claude OS Music Helper, that holds its own
-# Accessibility grant. It's started with `open`, so macOS charges the permission to the
-# helper alone: Claude OS.app and the Claude sessions it spawns never get it. The helper
-# only knows fixed commands and presses Music's own controls through the accessibility
-# API; it never types keys.
+# Catalog songs AppleScript can't reach play in Claude OS.app itself, through MusicKit's
+# ApplicationMusicPlayer and the narrow "Media & Apple Music" permission. `cos` drives it
+# with claude-os://music/... URLs (handled by the app, see app/Sources/ClaudeOS/Player.swift)
+# and reads what it's doing from ~/.claude-os/state/player.json.
 
-HELPER = "Claude OS Music Helper.app"
-ACCESSIBILITY_PANE = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+MEDIA_PANE = "x-apple.systempreferences:com.apple.preference.security?Privacy_Media"
 
 
-def helper_path():
-    for base in (os.path.expanduser("~/Applications/Claude OS.app"), str(core.ROOT / "build" / "Claude OS.app")):
-        path = os.path.join(base, "Contents", "Helpers", HELPER)
-        if os.path.isdir(path):
-            return path
-    return None
+def player_state(max_age=None):
+    state = core.load_json(core.home("state", "player.json"), None)
+    if state and max_age is not None and time.time() - state.get("ts", 0) > max_age:
+        return None
+    return state
 
 
-def helper(command, timeout=20):
-    if command not in ("status", "request", "inspect", "press-play"):
-        return {"ok": False, "error": "unknown helper command"}
-    if os.environ.get("CLAUDE_OS_DAEMON"):
-        return {"ok": False, "error": "the music helper never runs from background jobs"}
-    path = helper_path()
-    if not path:
-        return {"ok": False, "error": "the music helper isn't installed (cos app install)"}
-    import tempfile
-    with tempfile.TemporaryDirectory(prefix="cos-helper-") as tmp:
-        out, err = os.path.join(tmp, "out"), os.path.join(tmp, "err")
-        r = core.run(["open", "-n", "-g", "-W", "--stdout", out, "--stderr", err, path, "--args", command],
-                     timeout=timeout)
-        text = _read(out).strip().splitlines()
-        if not text:
-            return {"ok": False, "error": (r.err or _read(err) or "no answer from the helper")[:300]}
-        try:
-            res = json.loads(text[-1])
-        except ValueError:
-            return {"ok": False, "error": "unreadable answer from the helper"}
-    res.setdefault("ok", r.ok)
-    return res
+def player_enabled():
+    return bool(core.config()["music"].get("apple_music"))
 
 
-def _read(path):
-    try:
-        with open(path) as f:
-            return f.read()
-    except OSError:
-        return ""
+def player_command(command, catalog_id=None, wait=12):
+    """Send a command to Claude OS's player and wait for it to report back."""
+    if command not in ("authorize", "play", "pause", "resume", "stop"):
+        return {"ok": False, "error": "unknown player command"}
+    if catalog_id is not None and not str(catalog_id).isdigit():
+        return {"ok": False, "error": "bad catalog id"}
+    before = (player_state() or {}).get("ts", 0)
+    url = "claude-os://music/%s%s" % (command, "?id=%s" % catalog_id if catalog_id else "")
+    r = core.run(["open", "-g", url], timeout=15)
+    if not r.ok:
+        return {"ok": False, "error": "couldn't reach Claude OS (is the app installed?): %s" % r.err[:200]}
+    deadline = time.time() + wait
+    state = None
+    while time.time() < deadline:
+        time.sleep(0.5)
+        state = player_state()
+        if state and state.get("ts", 0) > before and (command != "play" or state.get("status") == "playing"
+                                                       or state.get("error")):
+            break
+    if not state or state.get("ts", 0) <= before:
+        return {"ok": False, "error": "Claude OS didn't answer; is it running?"}
+    if state.get("error"):
+        return {"ok": False, "error": state["error"], "state": state}
+    return {"ok": True, "state": state}
 
 
-def full_control():
-    """On only when the human turned it on *and* macOS has granted the helper."""
-    if not core.config()["music"].get("full_control"):
-        return False
-    cached = core.cache_get("music-helper", max_age=60)
-    if cached is None:
-        cached = core.cache_put("music-helper", bool(helper("status").get("trusted")))
-    return bool(cached["data"])
+def play_with_player(item):
+    catalog_id = item.get("id") or _id_from_url(item.get("url"))
+    if not catalog_id:
+        return {"ok": False, "error": "no catalog id for that song"}
+    if core.app_running("Music") and now().get("state") == "playing":
+        _tell("pause", timeout=5)  # one thing playing at a time
+    res = player_command("play", catalog_id)
+    if not res.get("ok"):
+        return res
+    st = res["state"]
+    return {"ok": True, "matched": True, "now": {
+        "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
+        "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
+        "player": "Claude OS"}}
+
+
+def _id_from_url(url):
+    m = re.search(r"[?&]i=(\d+)", url or "")
+    return m.group(1) if m else None
 
 
 # ---------------------------------------------------------------- shortcut route
@@ -381,6 +390,15 @@ def play(query, source="auto", pick=0):
             res = play_library(track)
             res.update(source="library", chosen=track)
             return res
+    if source in ("auto", "catalog") and player_enabled():
+        cat = catalog_search(query, limit=8)
+        if cat["results"]:
+            item = cat["results"][min(pick, len(cat["results"]) - 1)] if pick else best_catalog_pick(cat["results"])
+            res = play_with_player(item)
+            res.update(source="claude-os", chosen=item)
+            if res.get("ok") or source == "catalog":
+                return res
+            tried.append("claude-os player: %s" % res.get("error"))
     if source in ("auto", "shortcut") and (source == "shortcut" or shortcut_installed()):
         tried.append("shortcut")
         cat = catalog_search(query, limit=3)
@@ -425,6 +443,13 @@ def report(res, query=None):
 
 
 def transport(cmd):
+    own = player_state(max_age=30)
+    if own and own.get("track") and own.get("status") in ("playing", "paused") and cmd in ("pause", "resume", "toggle", "stop"):
+        if cmd == "toggle":
+            cmd = "pause" if own["status"] == "playing" else "resume"
+        res = player_command(cmd, wait=4)
+        print(("%s (Claude OS player)" % cmd) if res.get("ok") else "✗ %s" % res.get("error"))
+        return 0 if res.get("ok") else 1
     scripts = {"pause": "pause", "resume": "play", "toggle": "playpause", "next": "next track",
                "prev": "back track", "stop": "stop"}
     r = _tell(scripts[cmd], timeout=6)
@@ -517,12 +542,12 @@ def main(args):
     if c == "history":
         return history(args.days)
     if c == "setup":
-        on = core.config()["music"].get("full_control")
-        trusted = helper("status").get("trusted") if helper_path() else None
-        print("Full Music control: %s" % ("on" if on else "off"))
-        print("  helper: %s" % ("not installed (cos app install)" if trusted is None else
-                                "allowed in Accessibility ✓" if trusted else "not yet allowed in Accessibility"))
-        print("  turn it on in Claude OS › Settings, or: cos config music.full_control true\n")
+        st = player_state() or {}
+        print("Apple Music in Claude OS: %s" % ("on" if player_enabled() else "off"))
+        print("  Media & Apple Music access: %s" % st.get("authorization", "not asked yet"))
+        if st.get("error"):
+            print("  last error: %s" % st["error"])
+        print("  turn it on in Claude OS › Settings › Permissions\n")
         print(SETUP_STEPS)
         print("Shortcut: %s" % ("installed ✓" if shortcut_installed() else "not installed"))
         return 0

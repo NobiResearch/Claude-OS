@@ -91,6 +91,13 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **macOS charges privacy permissions to the "responsible" app**, and everything an app
   launches inherits its grants. Give a capability its own small app, started with `open`,
   when only that code should have it (decision 0003).
+- **An Accessibility grant didn't take** for a dev-signed `LSUIElement` helper on macOS 27:
+  switched on in System Settings, valid signature, yet `AXIsProcessTrusted()` stayed false
+  from every launch path. Unexplained; prefer narrower, purpose-built permissions anyway.
+- **MusicKit on macOS:** `ApplicationMusicPlayer` (macOS 14+) and catalog requests work;
+  `SystemMusicPlayer` and `MusicLibrary.add` don't exist on macOS. The developer token is
+  automatic once the bundle id has the MusicKit service in the developer account. iTunes
+  Search API `trackId`s are Apple Music catalog ids.
 - **Ad-hoc signatures change every build**, and grants are tied to the signature, so they
   silently reset. Sign local builds with a stable identity.
 - **`shortcuts run --input-path` hands the shortcut a file, not text.** Actions expecting

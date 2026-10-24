@@ -44,20 +44,27 @@ class TestWeather(TempHome):
         self.assertIsNone(weather.location())
 
 
-class TestMusicHelperGuards(TempHome):
-    def test_helper_refuses_unknown_commands_and_daemons(self):
-        import os
+class TestClaudeOSPlayer(TempHome):
+    def test_off_by_default_and_rejects_bad_commands(self):
         from cos import music
-        self.assertFalse(music.helper("keystroke").get("ok"))
-        os.environ["CLAUDE_OS_DAEMON"] = "evolve"
-        try:
-            self.assertIn("background", music.helper("press-play")["error"])
-        finally:
-            del os.environ["CLAUDE_OS_DAEMON"]
+        self.assertFalse(music.player_enabled())
+        self.assertFalse(music.player_command("keystroke")["ok"])
+        self.assertFalse(music.player_command("play", catalog_id="1; rm -rf ~")["ok"])
 
-    def test_full_control_is_off_by_default(self):
+    def test_catalog_id_from_song_links(self):
         from cos import music
-        self.assertFalse(music.full_control())
+        self.assertEqual(music._id_from_url("https://music.apple.com/us/album/x/123?i=456"), "456")
+        self.assertIsNone(music._id_from_url("https://music.apple.com/us/album/x/123"))
+
+    def test_now_reports_our_player_while_it_plays(self):
+        import time
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Weightless", "artist": "Marconi Union"})
+        n = music.now()
+        self.assertEqual((n["track"], n["player"]), ("Weightless", "Claude OS"))
+        core.save_json(core.home("state", "player.json"), {"ts": time.time() - 3600, "status": "playing", "track": "Old"})
+        self.assertNotEqual(music.now().get("track"), "Old", "stale player state is ignored")
 
 
 if __name__ == "__main__":

@@ -369,24 +369,24 @@ def make_handler(app):
     def r_settings(h, q, b):
         from . import music, weather
         cfg = core.config()
-        installed = bool(music.helper_path())
-        trusted = music.helper("status").get("trusted") if installed else None
+        st = music.player_state() or {}
         place = weather.location() or {}
-        h._json({"music": {"full_control": bool(cfg["music"].get("full_control")), "helper_installed": installed,
-                           "trusted": trusted, "shortcut": music.shortcut_installed()},
+        h._json({"music": {"apple_music": bool(cfg["music"].get("apple_music")),
+                           "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
+                           "shortcut": music.shortcut_installed()},
                  "weather": {"name": place.get("name"), "source": place.get("source")}})
 
     def r_settings_music(h, q, b):
         from . import music
-        on = bool(b.get("full_control"))
-        core.config_set("music.full_control", on)
-        core.run(["rm", "-f", str(core.home("cache", "music-helper.json"))])
-        core.journal("action", "full music control turned %s" % ("on" if on else "off"), via="app")
+        on = bool(b.get("apple_music"))
+        core.config_set("music.apple_music", on)
+        core.journal("action", "Apple Music in Claude OS turned %s" % ("on" if on else "off"), via="app")
         if on:
-            res = music.helper("request")  # macOS shows its own prompt; the human decides there
-            return h._json({"full_control": True, "trusted": res.get("trusted"), "error": res.get("error")})
-        core.run(["open", music.ACCESSIBILITY_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
-        h._json({"full_control": False})
+            res = music.player_command("authorize", wait=60)  # macOS shows its own prompt; the human decides
+            st = res.get("state") or {}
+            return h._json({"apple_music": True, "authorization": st.get("authorization"), "error": res.get("error")})
+        core.run(["open", music.MEDIA_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
+        h._json({"apple_music": False})
 
     def r_weather(h, q, b):
         from . import weather

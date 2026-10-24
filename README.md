@@ -27,9 +27,9 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Music**: now playing with artwork, search your library and Apple Music, or let Claude DJ.
 - **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary.
 - **Evolution**: friction, evolve branches (review / merge / discard), the board, the roadmap.
-- **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Full Music
-  control" (a separate helper app gets the Accessibility grant, never Claude OS itself) and
-  weather for a city or your location. Everything is off until you turn it on.
+- **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Apple Music
+  in Claude OS" (MusicKit: any catalog song plays right in Claude OS) and weather for a city
+  or your location. Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
 `cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and

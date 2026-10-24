@@ -1,15 +1,14 @@
 // swift-tools-version:5.9
-// Claude OS.app: the native macOS shell around the `cos serve` desktop, and
-// Claude OS Music Helper.app, the small app that holds the Accessibility grant.
-// Build the bundles with app/build.sh (this package only produces the executables).
+// Claude OS.app: the native macOS shell around the `cos serve` desktop, with its own
+// Apple Music player (MusicKit). Build the bundle with app/build.sh (this package only
+// produces the executable).
 import PackageDescription
 
 let package = Package(
     name: "ClaudeOS",
-    platforms: [.macOS(.v13)],
+    platforms: [.macOS(.v14)],  // ApplicationMusicPlayer is macOS 14+
     products: [
         .executable(name: "ClaudeOS", targets: ["ClaudeOS"]),
-        .executable(name: "ClaudeOSMusicHelper", targets: ["MusicHelper"]),
     ],
     targets: [
         .executableTarget(
@@ -20,14 +19,7 @@ let package = Package(
                 .linkedFramework("WebKit"),
                 .linkedFramework("Carbon"),
                 .linkedFramework("CoreLocation"),
-            ]
-        ),
-        .executableTarget(
-            name: "MusicHelper",
-            path: "Sources/MusicHelper",
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-                .linkedFramework("ApplicationServices"),
+                .linkedFramework("MusicKit"),
             ]
         ),
     ]

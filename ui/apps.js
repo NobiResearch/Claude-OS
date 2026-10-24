@@ -791,24 +791,25 @@
 
       function permissions(s) {
         const box = h("div");
-        // Full Music control (decision 0003): a separate helper app holds the grant.
+        // Apple Music in Claude OS (decision 0003, amended): MusicKit, "Media & Apple Music".
         const m = s.music;
         const musicToggle = h("input", { type: "checkbox", class: "switch" });
-        musicToggle.checked = m.full_control;
+        musicToggle.checked = m.apple_music;
         musicToggle.addEventListener("change", async () => {
-          const r = await api("/api/settings/music", { body: { full_control: musicToggle.checked } });
-          if (musicToggle.checked && !r.trusted) toast("macOS will ask you to allow “Claude OS Music Helper” in Accessibility", "accent");
-          if (!musicToggle.checked) toast("Off. To fully revoke it, untick the helper in the Accessibility list that just opened.");
+          if (musicToggle.checked) toast("macOS may ask to let Claude OS use Apple Music", "accent");
+          const r = await api("/api/settings/music", { body: { apple_music: musicToggle.checked } });
+          if (r.error) toast(r.error, "bad");
+          if (!musicToggle.checked) toast("Off. To fully revoke it, untick Claude OS in the Media & Apple Music list that just opened.");
           draw();
         });
-        const musicState = !m.helper_installed ? "The helper isn't installed yet: run `cos app install`."
-          : !m.full_control ? "Off."
-          : m.trusted ? "On ✓ Catalog songs play directly."
-          : "Waiting for you: System Settings › Privacy & Security › Accessibility › allow “Claude OS Music Helper”.";
+        const musicState = !m.apple_music ? "Off: catalog songs open in the Music app for you to press play."
+          : m.error ? m.error
+          : m.authorization === "authorized" ? "On ✓ Any Apple Music song plays right here in Claude OS."
+          : "Waiting for macOS: allow Claude OS under Privacy & Security › Media & Apple Music.";
         box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
-            h("div", { class: "daemon-name" }, "Full Music control", pill("note", "permission")),
-            h("div", { class: "small" }, "Play exact songs from Apple Music. A small helper app presses Music's own play button for Claude OS. macOS calls this Accessibility; only the helper gets it, not Claude OS or its chats. Turn off anytime."),
+            h("div", { class: "daemon-name" }, "Apple Music in Claude OS", pill("note", "permission")),
+            h("div", { class: "small" }, "Play any song from Apple Music, not just your library. Claude OS becomes a small player using your subscription. macOS calls this Media & Apple Music. Turn off anytime."),
             h("div", { class: "muted small" }, musicState)),
           musicToggle));
         // Weather: a city, or this Mac's location (rounded to ~1 km, stays on this Mac).

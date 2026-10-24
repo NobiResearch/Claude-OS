@@ -10,8 +10,8 @@ what, where, and how we'll know it works.
    behind a user-initiated "Connect Calendar" button so the permission prompt is expected.
    Recurring events must expand correctly (AppleScript doesn't; consider EventKit).
 2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **Calibrate the music helper** on more macOS versions (`inspect` dumps Music's
-   accessibility tree; keep matching by structure, never by localized labels).
+3. **One player**: route library songs through MusicKit too (`MusicLibraryRequest`), so
+   Claude OS plays everything itself and the AppleScript path becomes a fallback.
 4. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
    so the human's own automations become syscalls.
 5. **Weather alerts**: a pulse signal for rain/snow/storm in the next hours (weather shipped

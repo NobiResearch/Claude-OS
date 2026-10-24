@@ -1,7 +1,6 @@
 #!/bin/bash
 # Builds "build/Claude OS.app", the native shell around `cos serve`, with
-# "Claude OS Music Helper.app" (the only thing that ever holds an Accessibility grant)
-# embedded in Contents/Helpers.
+# a built-in Apple Music player (MusicKit, "Media & Apple Music" permission).
 #
 #   app/build.sh             build and sign build/Claude OS.app
 #   app/build.sh --install   also copy it to ~/Applications/Claude OS.app
@@ -11,7 +10,7 @@
 # (apps started from Finder don't get your shell's PATH). Both are machine-specific, so
 # they live only in the built bundle; build/ is git-ignored. Rebuild if the repo moves.
 #
-# Signing: macOS ties privacy grants (Accessibility, Location) to the code signature. An
+# Signing: macOS ties privacy grants (Apple Music, Location) to the code signature. An
 # ad-hoc signature is new on every build, so grants reset; an Apple Development identity
 # keeps them. The identity is chosen at build time and never written to any file:
 #   COS_SIGN_IDENTITY=adhoc        ad hoc
@@ -48,12 +47,13 @@ swift build -c release --package-path app
 BIN_DIR="$(swift build -c release --package-path app --show-bin-path)"
 
 APP="build/Claude OS.app"
-HELPER="$APP/Contents/Helpers/Claude OS Music Helper.app"
-echo "==> assembling $APP ($VERSION)"
+# MusicKit only works for a bundle id registered (with the MusicKit service) in the signing
+# team's developer account. Anyone building their own copy sets COS_BUNDLE_ID to theirs.
+BUNDLE_ID="${COS_BUNDLE_ID:-local.claude-os.desktop}"
+echo "==> assembling $APP ($VERSION, $BUNDLE_ID)"
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources" "$HELPER/Contents/MacOS" "$HELPER/Contents/Resources"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/ClaudeOS" "$APP/Contents/MacOS/ClaudeOS"
-cp "$BIN_DIR/ClaudeOSMusicHelper" "$HELPER/Contents/MacOS/ClaudeOSMusicHelper"
 
 # The icon only changes when icon.swift does, so cache the .icns between builds.
 ICNS="build/AppIcon.icns"
@@ -66,50 +66,41 @@ if [ ! -f "$ICNS" ] || [ app/icon.swift -nt "$ICNS" ]; then
     rm -rf "$ICONSET"
 fi
 cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
-cp "$ICNS" "$HELPER/Contents/Resources/AppIcon.icns"
 
 # plistlib does the XML escaping, so odd characters in paths can't break the plist.
-/usr/bin/env python3 - "$APP/Contents/Info.plist" "$HELPER/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" <<'PY'
+/usr/bin/env python3 - "$APP/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" "$BUNDLE_ID" <<'PY'
 import plistlib
 import sys
 
-out, helper_out, version, root, path = sys.argv[1:6]
+out, version, root, path, bundle_id = sys.argv[1:6]
 location = ("Claude OS shows the weather for where you are. "
             "Your location is rounded to about a kilometre and stays on this Mac.")
-common = {
+info = {
     "CFBundleIconFile": "AppIcon",
     "CFBundlePackageType": "APPL",
     "CFBundleInfoDictionaryVersion": "6.0",
     "CFBundleShortVersionString": version,
     "CFBundleVersion": version,
-    "LSMinimumSystemVersion": "13.0",
-}
-info = dict(common, **{
+    "LSMinimumSystemVersion": "14.0",
     "CFBundleName": "Claude OS",
     "CFBundleDisplayName": "Claude OS",
-    "CFBundleIdentifier": "local.claude-os.desktop",
+    "CFBundleIdentifier": bundle_id,
     "CFBundleExecutable": "ClaudeOS",
     "NSHighResolutionCapable": True,
     "NSPrincipalClass": "NSApplication",
     "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
     "NSLocationUsageDescription": location,
     "NSLocationWhenInUseUsageDescription": location,
+    "NSAppleMusicUsageDescription": "Claude OS plays the Apple Music songs you ask for.",
+    # claude-os://music/play?id=… lets `cos` drive the built-in player (see Player.swift).
+    "CFBundleURLTypes": [{"CFBundleURLName": "Claude OS", "CFBundleURLSchemes": ["claude-os"]}],
     "ClaudeOSRoot": root,
     "ClaudeOSPath": path,
-})
-# The helper is a command-line tool in an app's clothing: no Dock icon, no menu bar.
-helper = dict(common, **{
-    "CFBundleName": "Claude OS Music Helper",
-    "CFBundleDisplayName": "Claude OS Music Helper",
-    "CFBundleIdentifier": "local.claude-os.music-helper",
-    "CFBundleExecutable": "ClaudeOSMusicHelper",
-    "LSUIElement": True,
-})
-for path_out, plist in ((out, info), (helper_out, helper)):
-    with open(path_out, "wb") as f:
-        plistlib.dump(plist, f)
+}
+with open(out, "wb") as f:
+    plistlib.dump(info, f)
 PY
-plutil -lint "$APP/Contents/Info.plist" "$HELPER/Contents/Info.plist" >/dev/null
+plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
 # --- signing -------------------------------------------------------------------------
 # SIGN_ID is what codesign gets ("-" is ad hoc); SIGN_LABEL is what we print, and never
@@ -144,12 +135,10 @@ else
     SIGN_LABEL="the identity named in COS_SIGN_IDENTITY"
 fi
 
-# Inside out: the nested helper first, then the app that seals it. No --deep: each bundle
-# is signed explicitly. A real identity never asks a timestamp server (offline builds work).
+# A real identity never asks a timestamp server, so offline builds work.
 sign_bundles() {
     local args=(--force --sign "$1")
     [ "$1" = "-" ] || args+=(--timestamp=none)
-    codesign "${args[@]}" "$HELPER" || return 1
     codesign "${args[@]}" "$APP" || return 1
 }
 
@@ -164,10 +153,9 @@ if ! sign_bundles "$SIGN_ID"; then
     SIGN_ID="-"
     sign_bundles "$SIGN_ID"
 fi
-codesign --verify --strict "$HELPER"
 codesign --verify --strict --deep "$APP"
 if [ "$SIGN_ID" = "-" ]; then
-    echo "⚠ ad-hoc signed: macOS permissions (Accessibility, Location) reset on every rebuild" >&2
+    echo "⚠ ad-hoc signed: macOS permissions (Apple Music, Location) reset on every rebuild, and MusicKit won't work" >&2
 else
     echo "==> signed with $SIGN_LABEL"
 fi

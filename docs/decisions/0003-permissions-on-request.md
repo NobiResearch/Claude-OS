@@ -46,3 +46,26 @@ process, so the grant stays with code that only knows four fixed commands.
    for Location only when clicked. Coordinates are rounded to ~1 km, live only in
    `~/.claude-os/config.json`, never in the journal, trends, friction or commits, and the
    city name joins the Guardian's private terms. Open-Meteo gets only rounded coordinates.
+
+## Amendment (same day): MusicKit instead of the helper
+
+In practice the helper never became trusted: the human switched it on under Accessibility,
+yet `AXIsProcessTrusted()` stayed false however it was launched (`open`, nested or
+standalone, as a launchd job), with a valid signature. The human then pointed at the right
+tool: **"Media & Apple Music"**, the permission for MusicKit.
+
+On macOS 14+, MusicKit's `ApplicationMusicPlayer` plays any catalog song with the human's
+subscription, through Apple's own API. That's strictly narrower than Accessibility (music
+only, no input synthesis), so the chair adopted it under this decision's conditions rather
+than reconvening: the board approved permission-based music control; this is a smaller
+permission for the same feature. The helper is removed.
+
+- Claude OS.app plays catalog songs itself (`app/Sources/ClaudeOS/Player.swift`); `cos`
+  drives it with `claude-os://music/…` URLs and reads `~/.claude-os/state/player.json`. A
+  stray link can at most play or pause a song.
+- "Apple Music in Claude OS" in Settings, off by default; turning it off opens the Media
+  & Apple Music pane so the human can revoke the grant.
+- MusicKit needs the app's bundle id registered with the MusicKit service in the signing
+  team's developer account (`COS_BUNDLE_ID` for anyone building their own copy).
+- `MusicLibrary.add` isn't available on macOS, so catalog songs can't be added to the
+  library; they play in Claude OS, and library songs still play in Music.
