@@ -27,7 +27,9 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Music**: now playing with artwork, search your library and Apple Music, or let Claude DJ.
 - **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary.
 - **Evolution**: friction, evolve branches (review / merge / discard), the board, the roadmap.
-- **Journal**, **Memory**, **Settings** (turn background jobs on and off).
+- **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Full Music
+  control" (a separate helper app gets the Accessibility grant, never Claude OS itself) and
+  weather for a city or your location. Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
 `cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and
@@ -140,6 +142,10 @@ mutating command outright. Evolve works in a sandbox (writes only to its worktre
 network), and nothing it writes reaches `main` until the guard and the tests pass again
 at merge time.
 Hard-won macOS lessons live in [docs/lessons.md](docs/lessons.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
 
 ## A note from the founder
 

@@ -787,10 +787,67 @@
     render(w) {
       const root = h("div", { class: "pad" });
       w.body.appendChild(root);
+      const nativeBridge = () => window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.cos;
+
+      function permissions(s) {
+        const box = h("div");
+        // Full Music control (decision 0003): a separate helper app holds the grant.
+        const m = s.music;
+        const musicToggle = h("input", { type: "checkbox", class: "switch" });
+        musicToggle.checked = m.full_control;
+        musicToggle.addEventListener("change", async () => {
+          const r = await api("/api/settings/music", { body: { full_control: musicToggle.checked } });
+          if (musicToggle.checked && !r.trusted) toast("macOS will ask you to allow “Claude OS Music Helper” in Accessibility", "accent");
+          if (!musicToggle.checked) toast("Off. To fully revoke it, untick the helper in the Accessibility list that just opened.");
+          draw();
+        });
+        const musicState = !m.helper_installed ? "The helper isn't installed yet: run `cos app install`."
+          : !m.full_control ? "Off."
+          : m.trusted ? "On ✓ Catalog songs play directly."
+          : "Waiting for you: System Settings › Privacy & Security › Accessibility › allow “Claude OS Music Helper”.";
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Full Music control", pill("note", "permission")),
+            h("div", { class: "small" }, "Play exact songs from Apple Music. A small helper app presses Music's own play button for Claude OS. macOS calls this Accessibility; only the helper gets it, not Claude OS or its chats. Turn off anytime."),
+            h("div", { class: "muted small" }, musicState)),
+          musicToggle));
+        // Weather: a city, or this Mac's location (rounded to ~1 km, stays on this Mac).
+        const w = s.weather;
+        const city = h("input", { class: "search", placeholder: "City for weather, e.g. Lisbon" });
+        const setCity = async () => {
+          const query = city.value.trim();
+          if (!query) return;
+          try { const r = await api("/api/weather/city", { body: { query } }); toast("Weather for " + r.name, "ok"); draw(); COS.refreshWeather && COS.refreshWeather(); }
+          catch (e) { toast(e.message, "bad"); }
+        };
+        city.addEventListener("keydown", (e) => { if (e.key === "Enter") setCity(); });
+        const locate = async () => {
+          try {
+            const r = await nativeBridge().postMessage({ type: "locate" });
+            if (r.error) { toast(r.error, "bad"); return; }
+            await api("/api/weather/coords", { body: { lat: r.lat, lon: r.lon } });
+            toast("Weather follows your location", "ok");
+            draw();
+            COS.refreshWeather && COS.refreshWeather();
+          } catch (e) { toast("Location isn't available: " + e.message, "bad"); }
+        };
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Weather", w.name ? pill("ok", w.source === "device" ? "your location" : "city") : pill("note", "off")),
+            h("div", { class: "small" }, "Use my location for weather on Today and in your brief. Or type a city."),
+            h("div", { class: "muted small" }, w.name ? "Showing weather for " + w.name + ". The place stays on this Mac." : "Off until you choose a place."),
+            h("div", { class: "row gap" }, city, btn("Set", setCity, "ghost small"),
+              nativeBridge() ? btn("Use my location", locate, "primary small") : null,
+              w.name ? btn("Forget", async () => { await api("/api/weather/clear", { body: {} }); draw(); COS.refreshWeather && COS.refreshWeather(); }, "ghost small") : null))));
+        return box;
+      }
+
       async function draw() {
         await loading(root, async () => {
-          const ds = await api("/api/daemons");
+          const [ds, settings] = await Promise.all([api("/api/daemons"), api("/api/settings")]);
           clear(root);
+          root.appendChild(h("div", { class: "section-title" }, "Permissions"));
+          root.appendChild(permissions(settings));
           root.appendChild(h("div", { class: "section-title" }, "Background jobs"));
           ds.forEach((d) => {
             const toggle = h("input", { type: "checkbox", class: "switch" });
@@ -827,9 +884,26 @@
     const hour = new Date().getHours();
     const greet = hour < 5 ? "Up late." : hour < 12 ? "Good morning." : hour < 18 ? "Good afternoon." : "Good evening.";
     const line = h("div", { class: "today-line" });
+    const wx = h("button", { class: "today-weather", onclick: () => COS.open("settings") });
+    COS.refreshWeather = async () => {
+      try {
+        const f = await api("/api/weather");
+        clear(wx);
+        if (!f.configured) { wx.appendChild(h("span", { class: "muted" }, "＋ Add weather")); return; }
+        if (f.error || !f.now) { wx.appendChild(h("span", { class: "muted" }, "Weather unavailable")); return; }
+        const t = f.today || {};
+        wx.appendChild(h("span", { class: "wx-symbol" }, f.now.symbol));
+        wx.appendChild(h("span", { class: "wx-temp" }, Math.round(f.now.temp) + "°"));
+        wx.appendChild(h("span", { class: "muted" }, f.now.summary + (t.max != null ? " · " + Math.round(t.max) + "° / " + Math.round(t.min) + "°" : "") +
+          (t.precip_pct ? " · " + t.precip_pct + "% rain" : "")));
+      } catch (e) { clear(wx); }
+    };
+    COS.refreshWeather();
+    setInterval(COS.refreshWeather, 30 * 60 * 1000);
     clear(today).appendChild(h("div", null,
       h("div", { class: "today-greet" }, greet),
       h("div", { class: "today-date" }, new Date().toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" })),
+      wx,
       line,
       h("div", { class: "today-chips" }, ["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
         .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s)))));

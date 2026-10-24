@@ -80,6 +80,10 @@ button.mb-item:hover { background: var(--hover); }
 .today { position: absolute; left: 40px; top: 36px; max-width: 460px; z-index: 1; user-select: none; }
 .today-greet { font: 300 40px/1.1 var(--display); letter-spacing: -0.01em; }
 .today-date { margin-top: 6px; color: var(--muted); font-size: 15px; }
+.today-weather { margin-top: 12px; display: flex; align-items: baseline; gap: 8px; font-size: 14px; padding: 4px 8px 4px 0; border-radius: 8px; text-align: left; }
+.today-weather:hover .muted { color: var(--text); }
+.wx-symbol { font-size: 20px; }
+.wx-temp { font: 300 26px var(--display); }
 .today-line { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12.5px; }
 .today-line span::before { content: "◆ "; color: var(--accent); font-size: 9px; vertical-align: 1px; }
 .today-chips { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }

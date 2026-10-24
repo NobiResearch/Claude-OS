@@ -10,6 +10,7 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 ## Gather
 
 - `bin/cos status --json`: vitals and signals.
+- `bin/cos weather --json`: today's weather, if the human has chosen a place (skip if off).
 - `bin/cos update --json` (cached data is fine; don't `--fetch` here).
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
 - `bin/cos friction` and `bin/cos evolve`: what the OS itself needs.
@@ -22,6 +23,7 @@ Plain Markdown, this shape:
 ```
 # Good morning — <weekday, date>
 
+**Weather:** one line, only if configured ("13°, light rain later; take a jacket").
 **Mac:** one line. Free space, anything that needs attention (or "all quiet").
 **Updates:** one line, only if there's something worth doing.
 

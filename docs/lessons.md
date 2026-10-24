@@ -86,6 +86,21 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **`toLocaleDateString(undefined)` follows the OS, not the browser language.** Pass
   `navigator.language` when output must match the page (e.g. English screenshots).
 
+## Permissions (TCC)
+
+- **macOS charges privacy permissions to the "responsible" app**, and everything an app
+  launches inherits its grants. Give a capability its own small app, started with `open`,
+  when only that code should have it (decision 0003).
+- **Ad-hoc signatures change every build**, and grants are tied to the signature, so they
+  silently reset. Sign local builds with a stable identity.
+- **`shortcuts run --input-path` hands the shortcut a file, not text.** Actions expecting
+  text or entities need "Get Text from Input" first.
+- **`open -W` always exits 0** and can return early ("Unable to block on application")
+  when the app exits within milliseconds. Read the app's own output (`--stdout`), not
+  `open`'s exit code; the helper lingers 100 ms before exiting.
+- **Turning a feature off doesn't revoke a macOS grant.** Only the human can, in System
+  Settings; open the pane for them.
+
 ## Hardware
 
 - **Battery health on Apple Silicon:** `ioreg -rn AppleSmartBattery` reports

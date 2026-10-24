@@ -254,6 +254,10 @@ def make_handler(app):
                 self._json(dict(demo.MUSIC_NOW, ok=True, now=demo.MUSIC_NOW, source="library"))
             elif path.startswith("/api/memory"):
                 self._json(demo.GETS["/api/memory"])
+            elif path.startswith("/api/weather"):
+                self._json({"name": demo.WEATHER["place"], "source": "city"})
+            elif path.startswith("/api/settings"):
+                self._json(demo.SETTINGS["music"])
             elif path.endswith(("/apply", "/merge", "/discard", "/install", "/uninstall")):
                 self._json(demo.fake_job("demo"))
             else:
@@ -361,6 +365,58 @@ def make_handler(app):
         names = [n for n in b.get("names") or [] if re.match(r"^[\w@./+-]+$", n)]
         argv = ["update", "apply", source] + names + ([] if source == "macos" else ["--yes"])
         h._json(app.job(argv, "Update %s %s" % (source, " ".join(names) or "(all)")))
+
+    def r_settings(h, q, b):
+        from . import music, weather
+        cfg = core.config()
+        installed = bool(music.helper_path())
+        trusted = music.helper("status").get("trusted") if installed else None
+        place = weather.location() or {}
+        h._json({"music": {"full_control": bool(cfg["music"].get("full_control")), "helper_installed": installed,
+                           "trusted": trusted, "shortcut": music.shortcut_installed()},
+                 "weather": {"name": place.get("name"), "source": place.get("source")}})
+
+    def r_settings_music(h, q, b):
+        from . import music
+        on = bool(b.get("full_control"))
+        core.config_set("music.full_control", on)
+        core.run(["rm", "-f", str(core.home("cache", "music-helper.json"))])
+        core.journal("action", "full music control turned %s" % ("on" if on else "off"), via="app")
+        if on:
+            res = music.helper("request")  # macOS shows its own prompt; the human decides there
+            return h._json({"full_control": True, "trusted": res.get("trusted"), "error": res.get("error")})
+        core.run(["open", music.ACCESSIBILITY_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
+        h._json({"full_control": False})
+
+    def r_weather(h, q, b):
+        from . import weather
+        try:
+            h._json(weather.forecast(force=bool(q.get("refresh"))))
+        except Exception as e:
+            h._json({"configured": True, "error": str(e)})
+
+    def r_weather_city(h, q, b):
+        from . import weather
+        query = (b.get("query") or "").strip()
+        if not query:
+            return h._error(400, "type a city")
+        place = weather.set_city(query)
+        if not place:
+            return h._error(404, "couldn't find %s" % query)
+        h._json({"name": place["name"], "source": "city"})
+
+    def r_weather_coords(h, q, b):
+        from . import weather
+        try:
+            place = weather.set_coords(b.get("lat"), b.get("lon"))
+        except (TypeError, ValueError) as e:
+            return h._error(400, str(e))
+        h._json({"name": place["name"], "source": "device"})
+
+    def r_weather_clear(h, q, b):
+        from . import weather
+        weather.clear()
+        h._json({"name": None})
 
     def r_trends(h, q, b):
         from . import status
@@ -539,6 +595,12 @@ def make_handler(app):
         ("GET", "/api/updates"): r_updates,
         ("POST", "/api/updates/apply"): r_updates_apply,
         ("GET", "/api/trends"): r_trends,
+        ("GET", "/api/settings"): r_settings,
+        ("POST", "/api/settings/music"): r_settings_music,
+        ("GET", "/api/weather"): r_weather,
+        ("POST", "/api/weather/city"): r_weather_city,
+        ("POST", "/api/weather/coords"): r_weather_coords,
+        ("POST", "/api/weather/clear"): r_weather_clear,
         ("GET", "/api/music/now"): r_music_now,
         ("GET", "/api/music/search"): r_music_search,
         ("GET", "/api/music/playlists"): r_music_playlists,

@@ -4,6 +4,22 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+## 0.4.0 — 2026-10-25
+
+Permissions when the human asks for them ([0003](docs/decisions/0003-permissions-on-request.md)).
+
+- **Settings › Permissions:** "Full Music control" and "Weather", both off by default.
+- **Claude OS Music Helper.app:** a tiny helper with its *own* Accessibility grant (started
+  with `open`, so Claude OS.app and its chats never inherit it). It presses Music's own
+  controls through the accessibility API (no keystrokes, no label matching); `cos music
+  play` uses it for catalog songs, then verifies what's playing.
+- **Weather:** `cos weather` (Open-Meteo, no key), on the Today panel and in the brief. Pick a
+  city, or "Use my location" in the app (CoreLocation, rounded to ~1 km, stays on this Mac;
+  the place joins the Guardian's private terms).
+- **Signing:** local builds are signed with your own Apple Development identity when there
+  is one, so macOS grants survive rebuilds; ad-hoc (loudly) otherwise and under daemons.
+- **MIT license.** Shortcut setup now includes "Get Text from Input".
+
 ## 0.3.0 — 2026-10-24
 
 Decided by the board's first meeting ([0002](docs/decisions/0002-v0.3-priorities.md)).

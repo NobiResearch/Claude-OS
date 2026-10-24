@@ -245,7 +245,8 @@ def cache_put(name, payload):
 # ---------------------------------------------------------------- config
 
 DEFAULT_CONFIG = {
-    "music": {"storefront": None},
+    "music": {"storefront": None, "full_control": False},
+    "weather": {},
     "notify": {"enabled": True},
     "pulse": {"low_disk_gb": 20},
 }

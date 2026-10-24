@@ -205,9 +205,13 @@ def play_catalog(item):
     # Give the page time to load, press play once, then be patient: streams
     # can take several seconds to start, and re-pressing play restarts them.
     n = {}
+    pressed = None
     for attempt in range(2):
         time.sleep(2.5)
-        _tell("play", timeout=6)
+        if full_control():
+            pressed = helper("press-play")
+        if not (pressed and pressed.get("ok")):
+            _tell("play", timeout=6)
         n = _wait_playing(10)
         if n.get("state") == "playing":
             break
@@ -233,6 +237,68 @@ def play_catalog(item):
     return {"ok": True, "now": n, "matched": bool(n.get("track"))}
 
 
+# ---------------------------------------------------------------- the helper (decision 0003)
+#
+# "Full Music control" is a tiny separate app, Claude OS Music Helper, that holds its own
+# Accessibility grant. It's started with `open`, so macOS charges the permission to the
+# helper alone: Claude OS.app and the Claude sessions it spawns never get it. The helper
+# only knows fixed commands and presses Music's own controls through the accessibility
+# API; it never types keys.
+
+HELPER = "Claude OS Music Helper.app"
+ACCESSIBILITY_PANE = "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+
+
+def helper_path():
+    for base in (os.path.expanduser("~/Applications/Claude OS.app"), str(core.ROOT / "build" / "Claude OS.app")):
+        path = os.path.join(base, "Contents", "Helpers", HELPER)
+        if os.path.isdir(path):
+            return path
+    return None
+
+
+def helper(command, timeout=20):
+    if command not in ("status", "request", "inspect", "press-play"):
+        return {"ok": False, "error": "unknown helper command"}
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return {"ok": False, "error": "the music helper never runs from background jobs"}
+    path = helper_path()
+    if not path:
+        return {"ok": False, "error": "the music helper isn't installed (cos app install)"}
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="cos-helper-") as tmp:
+        out, err = os.path.join(tmp, "out"), os.path.join(tmp, "err")
+        r = core.run(["open", "-n", "-g", "-W", "--stdout", out, "--stderr", err, path, "--args", command],
+                     timeout=timeout)
+        text = _read(out).strip().splitlines()
+        if not text:
+            return {"ok": False, "error": (r.err or _read(err) or "no answer from the helper")[:300]}
+        try:
+            res = json.loads(text[-1])
+        except ValueError:
+            return {"ok": False, "error": "unreadable answer from the helper"}
+    res.setdefault("ok", r.ok)
+    return res
+
+
+def _read(path):
+    try:
+        with open(path) as f:
+            return f.read()
+    except OSError:
+        return ""
+
+
+def full_control():
+    """On only when the human turned it on *and* macOS has granted the helper."""
+    if not core.config()["music"].get("full_control"):
+        return False
+    cached = core.cache_get("music-helper", max_age=60)
+    if cached is None:
+        cached = core.cache_put("music-helper", bool(helper("status").get("trusted")))
+    return bool(cached["data"])
+
+
 # ---------------------------------------------------------------- shortcut route
 
 SHORTCUT = "Claude OS Play"
@@ -240,8 +306,8 @@ SETUP_STEPS = """\
 Catalog playback through Shortcuts (one-time, no new permissions):
 
   1. Open the Shortcuts app and make a new shortcut named exactly:  %s
-  2. Add Music's "Play" action (search the action list for Music and pick Play).
-  3. In that action, set the music item to "Shortcut Input".
+  2. Add "Get Text from Input" (the input arrives as a file).
+  3. Add Music's "Play" action and set its music item to the Text from step 2.
   4. Save. Then try:  cos music play "sunset lover petit biscuit" --source shortcut
 
 Siri's music search resolves the text, so it reaches the whole Apple Music catalog.
@@ -451,7 +517,13 @@ def main(args):
     if c == "history":
         return history(args.days)
     if c == "setup":
+        on = core.config()["music"].get("full_control")
+        trusted = helper("status").get("trusted") if helper_path() else None
+        print("Full Music control: %s" % ("on" if on else "off"))
+        print("  helper: %s" % ("not installed (cos app install)" if trusted is None else
+                                "allowed in Accessibility ✓" if trusted else "not yet allowed in Accessibility"))
+        print("  turn it on in Claude OS › Settings, or: cos config music.full_control true\n")
         print(SETUP_STEPS)
-        print("Status: %s" % ("installed ✓" if shortcut_installed() else "not installed yet"))
+        print("Shortcut: %s" % ("installed ✓" if shortcut_installed() else "not installed"))
         return 0
     core.die("unknown music command %r" % c)
