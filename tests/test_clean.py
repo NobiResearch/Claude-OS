@@ -93,3 +93,17 @@ class TestMeasure(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRuntimes(unittest.TestCase):
+    def test_keeps_the_newest_runtime_per_platform(self):
+        data = {
+            "a": {"platformIdentifier": "ios", "version": "26.5", "sizeBytes": 8, "deletable": True},
+            "b": {"platformIdentifier": "ios", "version": "26.4.1", "sizeBytes": 9, "deletable": True},
+            "c": {"platformIdentifier": "ios", "version": "27.0", "sizeBytes": 7, "deletable": True},
+            "d": {"platformIdentifier": "tvos", "version": "26.4", "sizeBytes": 3, "deletable": False},
+            "e": {"platformIdentifier": "tvos", "version": "27.0", "sizeBytes": 3, "deletable": True},
+            "f": {"platformIdentifier": "watch", "version": "11.0", "sizeBytes": 2, "deletable": True},
+        }
+        self.assertEqual([rt["id"] for rt in clean.pick_old_runtimes(data)], ["b", "a"])
+        self.assertEqual(clean.pick_old_runtimes({}), [])

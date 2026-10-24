@@ -188,7 +188,7 @@
           case "result":
             live = null;
             setBusy(false);
-            if (e.total_cost != null) cost.textContent = "$" + e.total_cost.toFixed(2);
+            cost.textContent = e.total_cost ? "$" + e.total_cost.toFixed(2) : "";
             if (e.is_error && e.text) log.appendChild(h("div", { class: "chat-error" }, e.text));
             COS.refreshStatus();
             break;
@@ -376,6 +376,7 @@
             h("div", { class: "detail-list" }, (t.details || []).slice(0, 40).map((d) =>
               h("div", { class: "detail" }, h("span", { class: "detail-name" }, d.path || d.name || d.type || d.note || JSON.stringify(d)),
                 d.runtime ? h("span", { class: "muted small" }, " " + d.runtime) : null,
+                d.last_used ? h("span", { class: "muted small" }, " last used " + d.last_used) : null,
                 d.bytes != null ? h("span", { class: "num" }, fmt.bytes(d.bytes)) : null))),
             t.action === "list" ? h("div", { class: "muted small" }, "List only: handle these by hand after a look.")
               : h("div", { class: "row" }, btn("Reclaim " + fmt.bytes(t.bytes), () => reclaim([t.id], t.label), t.safety === "safe" ? "primary small" : "ghost small")));
@@ -739,7 +740,7 @@
           let day = "";
           rows.forEach((e) => {
             const d = e.ts.slice(0, 10);
-            if (d !== day) { day = d; listEl.appendChild(h("div", { class: "tl-day" }, new Date(d + "T12:00:00").toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }))); }
+            if (d !== day) { day = d; listEl.appendChild(h("div", { class: "tl-day" }, new Date(d + "T12:00:00").toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" }))); }
             listEl.appendChild(h("div", { class: "tl-row" }, h("span", { class: "tl-time muted mono" }, e.ts.slice(11, 16)), pill("kind-" + e.kind, e.kind), h("span", { class: "grow" }, e.msg)));
           });
         });
@@ -828,7 +829,7 @@
     const line = h("div", { class: "today-line" });
     clear(today).appendChild(h("div", null,
       h("div", { class: "today-greet" }, greet),
-      h("div", { class: "today-date" }, new Date().toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" })),
+      h("div", { class: "today-date" }, new Date().toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" })),
       line,
       h("div", { class: "today-chips" }, ["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
         .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s)))));

@@ -169,6 +169,52 @@ def collect(include_slow=True):
     return s
 
 
+TRENDS_FILE = "trends.jsonl"
+TRENDS_KEEP = 730  # two years of daily lines
+
+
+def record_trend(s, today=None):
+    """Append one snapshot per day (idempotent), for trend lines once enough days exist."""
+    import datetime as dt
+    import json
+    today = today or dt.date.today().isoformat()
+    path = core.home(TRENDS_FILE)
+    try:
+        lines = path.read_text().splitlines()
+    except OSError:
+        lines = []
+    if lines and json.loads(lines[-1]).get("date") == today:
+        return False
+    b = s.get("battery") or {}
+    upd = core.cache_get("updates")
+    scan = core.cache_get("clean")
+    row = {"date": today, "disk_free": s["disk"]["free"], "battery_health": b.get("health_pct"),
+           "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
+           "reclaimable": scan["data"].get("safe_bytes") if scan else None}
+    lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
+    path.write_text("\n".join(lines) + "\n")
+    return True
+
+
+def trends():
+    import json
+    try:
+        return [json.loads(l) for l in core.home(TRENDS_FILE).read_text().splitlines() if l.strip()]
+    except (OSError, ValueError):
+        return []
+
+
+def disk_trend(rows, min_days=7):
+    """Average change in free disk per week, once there's at least a week of data."""
+    rows = [r for r in rows if r.get("disk_free") is not None]
+    if len(rows) < min_days:
+        return None
+    import datetime as dt
+    first, last = rows[0], rows[-1]
+    days = (dt.date.fromisoformat(last["date"]) - dt.date.fromisoformat(first["date"])).days or 1
+    return (last["disk_free"] - first["disk_free"]) / days * 7
+
+
 def fmt_uptime(sec):
     if sec is None:
         return "?"
@@ -197,6 +243,9 @@ def render(s):
     if top:
         print("  top cpu  " + ", ".join("%s %.0f%%" % (p["name"], p["cpu"]) for p in top["cpu"][:4]))
         print("  top mem  " + ", ".join("%s %s" % (p["name"], core.human_bytes(p["rss"])) for p in top["memory"][:4]))
+    week = disk_trend(trends())
+    if week is not None:
+        print("  trend    free disk %s%s per week" % ("+" if week >= 0 else "−", core.human_bytes(abs(week))))
     if s["signals"]:
         print()
         for sig in s["signals"]:

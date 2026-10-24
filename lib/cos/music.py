@@ -14,6 +14,7 @@ Hard-won rules (see docs/lessons.md):
 """
 
 import json
+import os
 import re
 import time
 import unicodedata
@@ -232,6 +233,54 @@ def play_catalog(item):
     return {"ok": True, "now": n, "matched": bool(n.get("track"))}
 
 
+# ---------------------------------------------------------------- shortcut route
+
+SHORTCUT = "Claude OS Play"
+SETUP_STEPS = """\
+Catalog playback through Shortcuts (one-time, no new permissions):
+
+  1. Open the Shortcuts app and make a new shortcut named exactly:  %s
+  2. Add Music's "Play" action (search the action list for Music and pick Play).
+  3. In that action, set the music item to "Shortcut Input".
+  4. Save. Then try:  cos music play "sunset lover petit biscuit" --source shortcut
+
+Siri's music search resolves the text, so it reaches the whole Apple Music catalog.
+""" % SHORTCUT
+
+
+def shortcut_installed():
+    cached = core.cache_get("music-shortcut", max_age=300)
+    if cached is not None:
+        return cached["data"]
+    r = core.run(["shortcuts", "list"], timeout=15)
+    found = r.ok and any(line.strip() == SHORTCUT for line in r.out.splitlines())
+    core.cache_put("music-shortcut", found)
+    return found
+
+
+def play_via_shortcut(query, expect=None):
+    """Hand the request to the human's "Claude OS Play" shortcut, then verify."""
+    import tempfile
+    before = now()
+    with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
+        f.write(query)
+        path = f.name
+    try:
+        r = core.run(["shortcuts", "run", SHORTCUT, "--input-path", path], timeout=45)
+    finally:
+        os.unlink(path)
+    if not r.ok:
+        return {"ok": False, "error": "the %s shortcut failed: %s" % (SHORTCUT, (r.err or r.out)[:200])}
+    n = _wait_playing(10)
+    changed = n.get("track") != before.get("track") or before.get("state") != "playing"
+    if n.get("state") != "playing" or not changed:
+        return {"ok": False, "error": "the shortcut ran, but Music isn't playing anything new"}
+    matched = None
+    if expect:
+        matched = fold(expect) in fold(n.get("track")) or fold(n.get("track")) in fold(expect)
+    return {"ok": True, "now": n, "matched": matched if matched is not None else True}
+
+
 # ---------------------------------------------------------------- helpers
 
 def fold(s):
@@ -266,6 +315,15 @@ def play(query, source="auto", pick=0):
             res = play_library(track)
             res.update(source="library", chosen=track)
             return res
+    if source in ("auto", "shortcut") and (source == "shortcut" or shortcut_installed()):
+        tried.append("shortcut")
+        cat = catalog_search(query, limit=3)
+        pick_ = best_catalog_pick(cat["results"]) if cat["results"] else None
+        spoken = "%s %s" % (pick_["name"], pick_["artist"]) if pick_ else query
+        res = play_via_shortcut(spoken, expect=pick_["name"] if pick_ else None)
+        if res.get("ok") or source == "shortcut":
+            res.update(source="shortcut", chosen=pick_ or {"name": query})
+            return res
     if source in ("auto", "catalog"):
         cat = catalog_search(query, limit=8)
         tried.append("catalog (%d hits)" % len(cat["results"]))
@@ -289,7 +347,7 @@ def report(res, query=None):
         if res.get("playlist"):
             print("  playlist: %s" % res["playlist"])
         if res.get("matched") is False:
-            print("  note: Music didn't report the track name, so I couldn't confirm it's %r." % chosen.get("name"))
+            print("  note: Music is playing something, but I couldn't confirm it's %r." % chosen.get("name"))
         core.journal("music", "played %s — %s" % (name, artist), query=query, source=res.get("source"),
                      track=name, artist=artist, playlist=res.get("playlist"))
         return 0
@@ -392,4 +450,8 @@ def main(args):
         return like()
     if c == "history":
         return history(args.days)
+    if c == "setup":
+        print(SETUP_STEPS)
+        print("Status: %s" % ("installed ✓" if shortcut_installed() else "not installed yet"))
+        return 0
     core.die("unknown music command %r" % c)

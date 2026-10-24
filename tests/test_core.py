@@ -53,6 +53,22 @@ class TestCore(TempHome):
         self.assertIsNotNone(core.ssl_context())
 
 
+
+class TestTrends(TempHome):
+    def test_one_line_per_day_and_weekly_rate(self):
+        from cos import status
+        snap = {"disk": {"free": 100 * 2 ** 30}, "battery": {"health_pct": 99, "cycles": 30}}
+        self.assertTrue(status.record_trend(snap, today="2026-10-01"))
+        self.assertFalse(status.record_trend(snap, today="2026-10-01"), "second write the same day is a no-op")
+        for day in range(2, 9):
+            snap["disk"]["free"] -= 2 ** 30
+            status.record_trend(snap, today="2026-10-%02d" % day)
+        rows = status.trends()
+        self.assertEqual(len(rows), 8)
+        self.assertAlmostEqual(status.disk_trend(rows), -7 * 2 ** 30)
+        self.assertIsNone(status.disk_trend(rows[:3]), "no trend from too little data")
+
+
 if __name__ == "__main__":
     import unittest
     unittest.main()

@@ -21,8 +21,9 @@ You are the DJ. The syscall does mechanics; you bring taste.
    - "Something from my library": `bin/cos music find <genre or word>`, or
      `bin/cos music playlists`, then play a playlist with `--shuffle`.
 3. **Play it.** `bin/cos music play "<song> <artist>"`. It tries the library first, then the
-   Apple Music catalog. `--source catalog` skips the library; `--pick N` chooses another
-   result from `bin/cos music catalog "<query>"`.
+   human's "Claude OS Play" shortcut if they've set it up (`bin/cos music setup` explains
+   how; it plays anything in Apple Music), then opening the song page. `--source catalog`
+   skips the library; `--pick N` chooses another result from `bin/cos music catalog "<query>"`.
 4. **Report** in one line what's playing and why you picked it. If playback only *opened*
    the song (catalog playback isn't fully scriptable), say it's open in Music and they need
    to press play. Don't retry in a loop.

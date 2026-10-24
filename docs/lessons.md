@@ -83,6 +83,9 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **Focusing an input inside an `overflow: hidden` container still scrolls it.** Use
   `focus({preventScroll: true})` and pin the desktop's scroll position.
 
+- **`toLocaleDateString(undefined)` follows the OS, not the browser language.** Pass
+  `navigator.language` when output must match the page (e.g. English screenshots).
+
 ## Hardware
 
 - **Battery health on Apple Silicon:** `ioreg -rn AppleSmartBattery` reports

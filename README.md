@@ -9,6 +9,10 @@ who you are, and a nightly habit of making itself a little better.
 It comes two ways: **Claude OS.app**, a desktop with windows, a dock and Claude at the
 center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
+![Claude OS: the desktop, with Claude asking before it cleans up](docs/screenshots/desktop.png)
+
+<sub>Screenshots come from `cos serve --demo`, a fictional Mac. No real machine is ever shown.</sub>
+
 ## The desktop
 
 `cos app` builds and opens **Claude OS.app**: a native Mac app (menu bar item, global
@@ -26,7 +30,12 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Journal**, **Memory**, **Settings** (turn background jobs on and off).
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
-`cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token.
+`cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and
+`cos serve --demo --open` shows it running on a fictional Mac.
+
+| Storage | Evolution & Feeds |
+|---|---|
+| ![Storage and Vitals](docs/screenshots/storage.png) | ![Evolution and Feeds](docs/screenshots/evolve.png) |
 
 ```
 $ cos
@@ -77,7 +86,7 @@ cos app             # builds, installs and opens Claude OS.app
 cos status                       vitals, security posture, top processes, signals
 cos clean [--deep]               reclaimable space with safety levels · clean apply <id>… --yes
 cos update [--fetch]             macOS, Homebrew, npm, mas, rustup · update apply <source> --yes
-cos music play "weightless"      library first, then the Apple Music catalog
+cos music play "weightless"      library first, then the Apple Music catalog (cos music setup)
 cos music now|pause|next|vol|find|catalog|playlists|playlist|like|history
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes

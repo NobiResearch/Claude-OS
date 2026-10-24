@@ -231,14 +231,15 @@ def _flatten(content):
 
 
 class Registry:
-    def __init__(self):
+    def __init__(self, factory=Session):
+        self.factory = factory
         self.sessions = {}
         self._lock = threading.Lock()
 
     def create(self):
         with self._lock:
             self._reap()
-            s = Session()
+            s = self.factory()
             self.sessions[s.id] = s
             return s
 
