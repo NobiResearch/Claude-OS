@@ -12,7 +12,8 @@ Permissions when the human asks for them ([0003](docs/decisions/0003-permissions
 - **Claude OS plays Apple Music itself:** MusicKit's ApplicationMusicPlayer under the narrow
   "Media & Apple Music" permission plays any catalog song; `cos music play` drives it via
   `claude-os://music/…` URLs and `cos music now` shows it. (An Accessibility-based helper
-  was tried first and removed: see the amendment in 0003.) Needs macOS 14+.
+  was tried first and removed: see the amendment in 0003.) Needs macOS 14+, an App ID with
+  the MusicKit service, and a macOS development profile in `~/.claude-os` (`cos music setup`).
 - **Weather:** `cos weather` (Open-Meteo, no key), on the Today panel and in the brief. Pick a
   city, or "Use my location" in the app (CoreLocation, rounded to ~1 km, stays on this Mac;
   the place joins the Guardian's private terms).

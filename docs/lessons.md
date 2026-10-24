@@ -95,9 +95,15 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   switched on in System Settings, valid signature, yet `AXIsProcessTrusted()` stayed false
   from every launch path. Unexplained; prefer narrower, purpose-built permissions anyway.
 - **MusicKit on macOS:** `ApplicationMusicPlayer` (macOS 14+) and catalog requests work;
-  `SystemMusicPlayer` and `MusicLibrary.add` don't exist on macOS. The developer token is
-  automatic once the bundle id has the MusicKit service in the developer account. iTunes
-  Search API `trackId`s are Apple Music catalog ids.
+  `SystemMusicPlayer` and `MusicLibrary.add` don't exist on macOS. iTunes Search API
+  `trackId`s are Apple Music catalog ids.
+- **"Failed to request developer token"** means MusicKit can't identify the app. An App ID
+  with the MusicKit service isn't enough: the app also needs an embedded macOS development
+  provisioning profile (App ID + certificate + this Mac) and the
+  `com.apple.application-identifier` entitlement in its signature. Ad-hoc signing can't
+  carry that entitlement (macOS refuses to launch it).
+- **`MusicPlayer.State.playbackStatus` lags commands** by a few hundred milliseconds; wait
+  before reporting state.
 - **Ad-hoc signatures change every build**, and grants are tied to the signature, so they
   silently reset. Sign local builds with a stable identity.
 - **`shortcuts run --input-path` hands the shortcut a file, not text.** Actions expecting

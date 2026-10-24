@@ -37,9 +37,9 @@ final class Player {
             switch command {
             case "authorize": await authorize()
             case "play" where !id.isEmpty && id.allSatisfy(\.isNumber): await play(id: id)
-            case "pause": player.pause(); write()
-            case "resume": try? await player.play(); write()
-            case "stop": player.stop(); current = nil; write()
+            case "pause": player.pause(); ticker?.invalidate(); await settledWrite()
+            case "resume": try? await player.play(); startTicking(); await settledWrite()
+            case "stop": player.stop(); ticker?.invalidate(); current = nil; await settledWrite()
             default: lastError = "unknown music command"; write()
             }
         }
@@ -86,6 +86,12 @@ final class Player {
                 if self.player.state.playbackStatus != .playing { self.ticker?.invalidate() }
             }
         }
+    }
+
+    /// playbackStatus lags a command by a moment; report what actually happened.
+    private func settledWrite() async {
+        try? await Task.sleep(nanoseconds: 400_000_000)
+        write()
     }
 
     private func write() {

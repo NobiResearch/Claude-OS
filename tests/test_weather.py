@@ -76,6 +76,11 @@ class TestClaudeOSPlayer(TempHome):
                                                             "track": "Weightless", "artist": "Marconi Union"})
         n = music.now()
         self.assertEqual((n["track"], n["player"]), ("Weightless", "Claude OS"))
+        import io
+        from contextlib import redirect_stdout
+        with redirect_stdout(io.StringIO()) as out:
+            music.render_now(n)
+        self.assertIn("in Claude OS", out.getvalue())
         core.save_json(core.home("state", "player.json"), {"ts": time.time() - 3600, "status": "playing", "track": "Old"})
         self.assertNotEqual(music.now().get("track"), "Old", "stale player state is ignored")
 

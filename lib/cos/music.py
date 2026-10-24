@@ -91,7 +91,8 @@ def render_now(n):
         return
     pos = "%d:%02d / %d:%02d" % (n["position"] // 60, n["position"] % 60, n["duration"] // 60, n["duration"] % 60)
     print("%s %s — %s" % ("▶" if n["state"] == "playing" else "❚❚", n["track"], n["artist"] or "?"))
-    print("  %s · %s · vol %d%s" % (n["album"] or "", pos, n["volume"], " · shuffle" if n["shuffle"] else ""))
+    where = "in Claude OS" if n.get("player") == "Claude OS" else "vol %d" % (n.get("volume") or 0)
+    print("  %s · %s · %s%s" % (n["album"] or "", pos, where, " · shuffle" if n.get("shuffle") else ""))
 
 
 # ---------------------------------------------------------------- library
@@ -546,7 +547,14 @@ def main(args):
         print("  Media & Apple Music access: %s" % st.get("authorization", "not asked yet"))
         if st.get("error"):
             print("  last error: %s" % st["error"])
-        print("  turn it on in Claude OS › Settings › Permissions\n")
+        print("  turn it on in Claude OS › Settings › Permissions")
+        if not os.path.exists(os.path.expanduser("~/.claude-os/ClaudeOS.provisionprofile")):
+            print("  one-time developer setup (MusicKit needs it):")
+            print("    1. developer.apple.com › Identifiers: App ID %s with the MusicKit service" % "local.claude-os.desktop")
+            print("    2. Devices: add this Mac (System Information › Hardware › Provisioning UDID)")
+            print("    3. Profiles: macOS App Development for that App ID and this Mac; save it as")
+            print("       ~/.claude-os/ClaudeOS.provisionprofile, then: cos app install")
+        print()
         print(SETUP_STEPS)
         print("Shortcut: %s" % ("installed ✓" if shortcut_installed() else "not installed"))
         return 0
