@@ -43,7 +43,7 @@ parallel with a short brief) and follow their conditions. A Guardian `reject` me
 
 ## 5. Land it
 
-- **Nightly** (you're on an `evolve/*` branch in a worktree):
+- **Nightly** (you're on an `evolve/*` branch in your own clone, inside a sandbox):
   `git add -A` then `git commit -m "<imperative summary>"`, body explaining why, and
   `Addresses friction #N` if it does (merging closes those automatically). Never push,
   merge, or switch branches. Finish with a 2–4 line summary whose first line is the commit

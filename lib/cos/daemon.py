@@ -26,9 +26,11 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 ]
 
 # Evolve edits code and runs tests, so its shell runs in Claude Code's sandbox: writes
-# confined to the worktree, no network, no unsandboxed escape hatch.
+# confined to its workspace clone, no network, no unsandboxed escape hatch.
 SANDBOX_SETTINGS = {"sandbox": {"enabled": True, "failIfUnavailable": True,
-                                "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False}}
+                                "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False,
+                                # the test suite starts servers on 127.0.0.1; still no outside network
+                                "network": {"allowLocalBinding": True}}}
 
 
 def definitions():
@@ -185,10 +187,10 @@ def claude_command(spec):
 def run_llm(name, spec):
     from . import evolve
     cwd = str(core.ROOT)
-    worktree = None
-    if spec.get("worktree"):
-        worktree = evolve.new_worktree()
-        cwd = worktree["path"]
+    workspace = None
+    if spec.get("workspace"):
+        workspace = evolve.new_workspace()
+        cwd = workspace["path"]
     env = {"CLAUDE_OS_DAEMON": name, "CLAUDE_OS_HOME": str(core.home())}
     r = core.run(claude_command(spec), input=spec["prompt"], cwd=cwd, env=env,
                  timeout=int(spec.get("timeout_minutes", 10)) * 60)
@@ -196,8 +198,8 @@ def run_llm(name, spec):
     out_path = core.home("runs", name, stamp + ".md")
     out_path.write_text(r.out + ("\n\n---\nstderr:\n" + r.err if r.err else ""))
     summary = next((l.strip("# ").strip() for l in r.out.splitlines() if l.strip()), "(no output)")[:180]
-    if worktree:
-        summary = evolve.after_run(worktree, summary)
+    if workspace:
+        summary = evolve.after_run(workspace, summary)
     return r.ok, summary, str(out_path)
 
 

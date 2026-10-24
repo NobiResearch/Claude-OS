@@ -24,7 +24,7 @@
     ]
   },
   "evolve": {
-    "description": "03:30 daily: one small, tested improvement to Claude OS, committed on a local evolve/* branch in its own sandboxed worktree. Never pushes, never touches your checkout.",
+    "description": "03:30 daily: one small, tested improvement to Claude OS, committed on a local evolve/* branch in its own sandboxed clone. Never pushes, never touches your checkout.",
     "schedule": {
       "hour": 3,
       "minute": 30
@@ -32,7 +32,7 @@
     "prompt": "/evolve nightly",
     "budget_usd": 5,
     "timeout_minutes": 40,
-    "worktree": true,
+    "workspace": true,
     "permission_mode": "acceptEdits",
     "allowed_tools": [
       "Bash(bin/cos *)",
