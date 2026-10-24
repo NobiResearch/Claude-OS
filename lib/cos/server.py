@@ -375,7 +375,10 @@ def make_handler(app):
         place = weather.location() or {}
         from . import cal
         cs = cal.state() or {}
-        h._json({"calendar": cs.get("calendar", "not connected"), "calendars": cs.get("calendars"),
+        ns = core.load_json(core.home("state", "notify.json"), {}) or {}
+        h._json({"notify": {"native": bool(cfg["notify"].get("native")),
+                            "authorization": ns.get("authorization", "not determined")},
+                 "calendar": cs.get("calendar", "not connected"), "calendars": cs.get("calendars"),
                  "music": {"apple_music": bool(cfg["music"].get("apple_music")),
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},
@@ -392,6 +395,22 @@ def make_handler(app):
             return h._json({"apple_music": True, "authorization": st.get("authorization"), "error": res.get("error")})
         core.run(["open", music.MEDIA_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
         h._json({"apple_music": False})
+
+    def r_settings_notify(h, q, b):
+        on = bool(b.get("native"))
+        core.config_set("notify.native", on)
+        core.journal("action", "Claude OS notifications turned %s" % ("on" if on else "off"), via="app")
+        if not on:
+            return h._json({"native": False})
+        before = (core.load_json(core.home("state", "notify.json"), {}) or {}).get("ts", 0)
+        core.run(["open", "-g", "claude-os://notify/authorize"], timeout=10)  # macOS asks; the human decides
+        status = {}
+        for _ in range(120):
+            time.sleep(0.5)
+            status = core.load_json(core.home("state", "notify.json"), {}) or {}
+            if status.get("ts", 0) > before:
+                break
+        h._json({"native": True, "authorization": status.get("authorization", "not determined")})
 
     def r_weather(h, q, b):
         from . import weather
@@ -621,6 +640,7 @@ def make_handler(app):
         ("GET", "/api/startup"): r_startup,
         ("POST", "/api/agenda/connect"): r_agenda_connect,
         ("POST", "/api/settings/music"): r_settings_music,
+        ("POST", "/api/settings/notify"): r_settings_notify,
         ("GET", "/api/weather"): r_weather,
         ("POST", "/api/weather/city"): r_weather_city,
         ("POST", "/api/weather/coords"): r_weather_coords,

@@ -21,6 +21,7 @@ let package = Package(
                 .linkedFramework("CoreLocation"),
                 .linkedFramework("MusicKit"),
                 .linkedFramework("EventKit"),
+                .linkedFramework("UserNotifications"),
             ]
         ),
         .testTarget(name: "ClaudeOSTests", dependencies: ["ClaudeOS"], path: "Tests/ClaudeOSTests"),

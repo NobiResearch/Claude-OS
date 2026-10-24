@@ -247,7 +247,7 @@ def cache_put(name, payload):
 DEFAULT_CONFIG = {
     "music": {"storefront": None, "apple_music": False},
     "weather": {},
-    "notify": {"enabled": True},
+    "notify": {"enabled": True, "native": False},
     "pulse": {"low_disk_gb": 20},
 }
 
@@ -313,9 +313,30 @@ def curl_get(url, timeout=12):
 
 # ---------------------------------------------------------------- mac i/o
 
+def native_notifications():
+    """Claude OS.app posts them itself when the human turned it on, macOS allowed it and the
+    app is running. Background jobs never launch the app just to show a notification."""
+    if not config()["notify"].get("native"):
+        return False
+    status = load_json(home("state", "notify.json"), {}) or {}
+    return status.get("authorization") == "authorized" and app_running("ClaudeOS")
+
+
 def notify(message, title="Claude OS", subtitle=None, sound=None):
     if not config()["notify"]["enabled"]:
         return Result(0, "", "notifications disabled")
+    if native_notifications():
+        # The text goes in a private file; the link that wakes the app carries nothing.
+        import uuid
+        note = {"title": title, "subtitle": subtitle or "", "body": message, "sound": bool(sound)}
+        path = home("state", "outbox", "%d-%s.json" % (int(time.time() * 1000), uuid.uuid4().hex[:8]))
+        try:
+            with open(path, "w") as f:
+                json.dump(note, f, ensure_ascii=False)
+            os.chmod(str(path), 0o600)
+            return run(["open", "-g", "claude-os://notify/flush"], timeout=10)
+        except OSError:
+            pass  # fall through to AppleScript
     script = "display notification %s with title %s" % (
         applescript_str(message), applescript_str(title))
     if subtitle:

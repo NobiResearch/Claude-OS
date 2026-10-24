@@ -822,6 +822,25 @@
             h("div", { class: "small" }, "Play any song from Apple Music, not just your library. Claude OS becomes a small player using your subscription. macOS calls this Media & Apple Music. Turn off anytime."),
             h("div", { class: "muted small" }, musicState)),
           musicToggle));
+        // Notifications from Claude OS itself (decision 0004): permission only on this click.
+        const n = s.notify || {};
+        const notifyToggle = h("input", { type: "checkbox", class: "switch" });
+        notifyToggle.checked = n.native;
+        notifyToggle.addEventListener("change", async () => {
+          if (notifyToggle.checked) toast("macOS will ask to let Claude OS send notifications", "accent");
+          await api("/api/settings/notify", { body: { native: notifyToggle.checked } });
+          draw();
+        });
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Notifications from Claude OS", n.native && n.authorization === "authorized" ? pill("ok", "on") : pill("note", "off")),
+            h("div", { class: "small" }, "Alerts and your morning brief arrive with Claude OS's own name and icon, and clicking one opens the desktop. Otherwise they come from Script Editor."),
+            h("div", { class: "muted small" }, !n.native ? "Off."
+              : n.authorization === "authorized" ? "On ✓"
+              : n.authorization === "denied" ? "macOS says no: allow Claude OS under System Settings › Notifications."
+              : "Waiting for macOS to ask you.")),
+          notifyToggle));
+
         // Calendar & Reminders (decision 0002): read-only, only after the human clicks Connect.
         const calOn = s.calendar === "connected";
         box.appendChild(h("div", { class: "daemon" },
