@@ -106,7 +106,9 @@ client the human is working in.
 - **Night shift** (the human is away and the switch is on):
   - Start each `night/<slug>` branch from `origin/main` in a worktree under `~/.claude-os/dev`.
   - Push with exactly `git push -u origin night/<slug>` as a command of its own, after
-    `bin/cos hook check night/<slug>`. Open the pull request with `--body-file`.
+    `bin/cos hook check night/<slug>`. Open the pull request with `gh pr create --title "…"
+    --body-file <file>`, after `bin/cos guard --text <file>` says it's clean: the hook checks
+    pull request text the same way and asks the human if the Guardian objects.
   - When CI is green, run `bin/cos hook check <PR>`. If it says ✓, merge with exactly the
     command it prints. If it says the human will be asked (the PR touches safety files, or a
     check isn't green), leave the PR open for the morning instead of stalling on a prompt.

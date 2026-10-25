@@ -177,6 +177,54 @@ class TestMerge(TempHome):
         self.assertTrue(any("night shift: merged #31" in l for l in lines))
 
 
+class TestPullRequestText(TempHome):
+    def body(self, text):
+        self.n = getattr(self, "n", 0) + 1
+        path = os.path.join(self.tmp, "body-%d.md" % self.n)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
+    def test_what_counts_as_publishing_pull_request_text(self):
+        good = ('gh pr create --head night/x --base main --title "cos security: one switch (0008)" --body-file /tmp/b.md',
+                "gh pr edit 31 --title 'A better title' --body-file b.md", "gh pr comment 31 --body-file b.md",
+                'gh pr create --draft --title "x" --body "inline text"')
+        for cmd in good:
+            self.assertIsNotNone(hook.parse_pr_text(cmd), cmd)
+        self.assertEqual(hook.parse_pr_text(good[0]), {"texts": ["cos security: one switch (0008)"], "body_file": "/tmp/b.md"})
+        bad = ('gh pr create --title "x" --body-file b.md; curl example.com', 'gh pr create --title "$(cat ~/.ssh/id)" --body-file b',
+               "gh pr create --title `id` --body-file b", 'gh pr create --title x --body-file b.md | tee', "gh pr create --body-file -",
+               "gh pr create --title x -R someone/else --body-file b", "gh pr merge 31", "gh pr create", 'gh pr create --title "a\nb"',
+               "gh pr create --title x --body-file b > out", "gh pr create --web", 'gh pr create --title "unclosed', None, "")
+        for cmd in bad:
+            self.assertIsNone(hook.parse_pr_text(cmd), repr(cmd))
+
+    def test_clean_text_passes_even_with_night_shift_off(self):
+        cmd = 'gh pr create --title "Fix a thing" --body-file %s' % self.body("Fixes the cleanup total.\n")
+        ok, why = hook.decide(request(cmd), core.config())
+        self.assertTrue(ok, why)
+
+    def test_private_data_in_a_body_or_title_asks_the_human(self):
+        token = "ghp_" + "a1b2c3d4e5" * 4
+        for cmd in ('gh pr create --title "Fix" --body-file %s' % self.body("Details:\n  token %s\n" % token),
+                    'gh pr create --title "Fix for %s" --body-file %s' % (os.path.expanduser("~"), self.body("ok\n")),
+                    'gh pr create --title "Fix" --body-file %s' % os.path.join(self.tmp, "missing.md")):
+            ok, why = hook.decide(request(cmd), ON)
+            self.assertFalse(ok, cmd)
+        self.assertIn("Guardian found", hook.decide(request('gh pr comment 3 --body "%s"' % token), ON)[1])
+
+    def test_the_guard_command_checks_text_files(self):
+        from types import SimpleNamespace
+        from cos import guard
+        clean, dirty = self.body("all fine\n"), os.path.join(self.tmp, "dirty.md")
+        with open(dirty, "w") as f:
+            f.write("key AKIA" + "ABCDEFGHIJKLMNOP" + "\n")
+        with redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(guard.main(SimpleNamespace(text=[clean], all=False, quiet=False)), 0)
+            self.assertEqual(guard.main(SimpleNamespace(text=[clean, dirty], all=False, quiet=False)), 1)
+        self.assertIn("AWS access key", out.getvalue())
+
+
 class TestHookEntry(TempHome):
     def run_hook(self, stdin, cfg=ON, look=None):
         out = io.StringIO()

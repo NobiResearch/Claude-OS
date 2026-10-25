@@ -155,4 +155,6 @@ to push it, once to merge it. The human accepted that.
 **Not yet.** Merging the whole morning queue with one approval. A native confirmation for
 turning Night shift on: the desktop page itself can call that endpoint, so a merged change
 to `ui/` could flip it. A Guardian scan of pull request bodies before they're published
-(titles are scanned at merge).
+(titles are scanned at merge). *Done the same day:* `gh pr create|edit|comment` now ask, and
+the hook approves them only after the Guardian has read the title and the body file;
+`cos guard --text <file>` runs the same check beforehand.
