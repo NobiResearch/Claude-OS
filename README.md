@@ -64,7 +64,8 @@ the Xcode command line tools (Swift).
 
 ```sh
 git clone https://github.com/markusskov/Claude-OS.git && cd Claude-OS
-bin/cos install     # links `cos` into ~/.local/bin, enables the privacy guard, starts the free pulse daemon
+bin/cos install     # links `cos` into ~/.local/bin and /music /tidy /update /startup into ~/.claude/skills,
+                    # enables the privacy guard, starts the free pulse daemon
 cos doctor          # checks the wiring
 cos                 # boots Claude Code inside Claude OS
 cos app             # builds, installs and opens Claude OS.app

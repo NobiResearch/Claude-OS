@@ -1,16 +1,18 @@
 ---
 name: startup
-description: Explain what starts with this Mac (login items, launch agents and daemons, background items) and what's worth a look. Use when the human asks what runs at startup or login, why the Mac is slow to start, about background items, or whether something on their Mac is suspicious.
+description: Explain what starts with this Mac (login items, launch agents and daemons, background items) and what's worth a look. Use when the human asks what runs at startup or login on their Mac, why the Mac is slow to start, about background items, or whether something on their Mac is suspicious. Not for a project's or app's own startup code.
 ---
+
+> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Claude OS folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
 
 # Startup
 
 ## Steps
 
-1. `bin/cos startup --json`. It's read-only and needs no permission: the launch agents and
+1. `cos startup --json`. It's read-only and needs no permission: the launch agents and
    daemons (the launchd plists, with their on/off state), plus who signed each program.
    It doesn't list *apps* that open at login. If the human wants those too, tell them first
-   that macOS will show an admin password dialog, then run `bin/cos startup --full --json`
+   that macOS will show an admin password dialog, then run `cos startup --full --json`
    (it asks for an Allow). Never run `--full` on your own or in a headless run.
 2. **Lead with the answer**: how many things start, and whether anything needs attention.
 3. **Items worth a look come first** (`findings`). For each one, say in plain language what it

@@ -200,6 +200,7 @@ def build_parser():
     cmd("statusline", "one-line status for Claude Code", json_flag=False)
     i = cmd("install", "set up Claude OS on this Mac", json_flag=False)
     i.add_argument("--no-daemons", action="store_true")
+    i.add_argument("--no-skills", action="store_true", help="don't link /music, /tidy, /update, /startup into ~/.claude/skills")
     cmd("uninstall", "remove daemons, link and hook", json_flag=False)
     cmd("doctor", "check that everything is wired up", json_flag=False)
     cmd("version", "print version", json_flag=False)

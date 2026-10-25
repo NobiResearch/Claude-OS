@@ -12,7 +12,10 @@ a thousand small good changes, not one big risky one.
 ## 1. Orient
 
 - `git log --oneline -15` (what changed recently; don't redo or undo it)
-- `bin/cos friction --json` (open friction, the strongest signal)
+- `bin/cos friction --json` (open friction, the strongest signal). Friction marked
+  `"outside": true` was logged from a session in another project (0009): fix it, but never
+  quote its text in commits, `changes/` entries, pull request titles or bodies; describe the
+  problem in your own generic words and refer to it by number.
 - `bin/cos daemon logs board` (latest board minutes; look for "Priorities for next week")
 - `docs/roadmap.md` (the "Next" section)
 - `bin/cos log --days 3` (what the human actually did; failures are clues)
