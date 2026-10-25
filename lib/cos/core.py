@@ -205,7 +205,9 @@ def which(name):
 
 
 def app_running(name):
-    return run(["pgrep", "-xq", name], timeout=3).rc == 0
+    # -a: macOS pgrep skips its own ancestors unless asked, and the app's chat runs inside
+    # the app, so without it Claude OS looked "not running" from inside Claude OS.
+    return run(["pgrep", "-a", "-xq", name], timeout=3).rc == 0
 
 
 def applescript_str(s):

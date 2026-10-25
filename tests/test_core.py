@@ -20,6 +20,17 @@ class TestCore(TempHome):
         self.assertTrue(r.ok)
         self.assertEqual(r.out, "hi")
 
+    def test_app_running_sees_its_own_ancestors(self):
+        # The app's chat runs inside the app; macOS pgrep skips ancestors unless told not to.
+        name = "cosparent%d" % os.getpid()
+        shell = os.path.join(self.tmp, name)
+        os.symlink("/bin/sh", shell)
+        lib = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "lib")
+        probe = "import sys; sys.path.insert(0, %r); from cos import core; print(core.app_running(%r))" % (lib, name)
+        r = core.run([shell, "-c", '"$0" -c "$1"; true', sys.executable, probe], timeout=20)
+        self.assertEqual(r.out, "True")
+        self.assertFalse(core.app_running(name + "-not-running"))
+
     def test_applescript_quoting(self):
         self.assertEqual(core.applescript_str('say "hi" \\ bye'), '"say \\"hi\\" \\\\ bye"')
 
