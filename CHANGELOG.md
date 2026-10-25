@@ -4,6 +4,10 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- Night shift: branches that change `core.py`, `cli.py`, `evolve.py` or `server.py` now
+  wait for you too, because the night shift's own checks rely on them (amendment to 0006,
+  from the first weekly board meeting).
+
 - `cos friction add`, `cos remember` and `cos memory --forget` print one clear line instead
   of a traceback when private state can't be written (as in a sandboxed run).
 

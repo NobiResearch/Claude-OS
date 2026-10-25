@@ -81,6 +81,24 @@ class TestDecide(TempHome):
             ok, why = hook.decide(req, ON, look=look)
             self.assertFalse(ok, name)
 
+    def test_the_code_the_gate_leans_on_waits_for_the_human(self):
+        # Merged on one night, a change here would loosen the checks for the next.
+        for path in ("lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py"):
+            ok, why = hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=["ui/apps.js", path]))
+            self.assertFalse(ok, path)
+            self.assertIn("waits for the human", why)
+            self.assertIn(path, why)
+        self.assertTrue(hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=["lib/cos/updates.py"]))[0])
+
+    def test_check_exits_one_when_it_would_ask(self):
+        args = mock.Mock(hook_cmd="check", branch="night/x", json=True)
+        real = hook.decide
+        for paths, rc in ((["lib/cos/evolve.py"], 1), (["lib/cos/updates.py"], 0)):
+            with mock.patch.object(hook, "decide", lambda r, c: real(r, c, look=looking(paths=paths))), \
+                    mock.patch.object(hook.core, "config", return_value=ON), redirect_stdout(io.StringIO()) as out:
+                self.assertEqual(hook.main(args), rc, paths)
+            self.assertEqual(json.loads(out.getvalue())["approve"], rc == 0)
+
 
 class TestHookEntry(TempHome):
     def run_hook(self, stdin, cfg=ON, look=None):

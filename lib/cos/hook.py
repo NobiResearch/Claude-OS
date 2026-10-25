@@ -21,9 +21,12 @@ from . import core
 ALLOW = {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow"}}}
 COMMAND = re.compile(r"[A-Za-z0-9._/ -]+")  # no quotes, $, ;, &, |, <, >, globs, :, +, @, ~ or newlines
 BRANCH = re.compile(r"night/[A-Za-z0-9._-]+")
-# A night shift can't widen its own powers: changes here wait for the human.
+# A night shift can't widen its own powers: changes here wait for the human. That includes
+# the code this hook leans on (core, cli, evolve's guard_branch) and the server that flips
+# the switch, so a branch merged one night can't loosen the next night's checks.
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
-             "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py")
+             "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py",
+             "lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py")
 
 
 def parse_push(command):
