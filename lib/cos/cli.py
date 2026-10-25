@@ -101,7 +101,9 @@ def build_parser():
     wxs.add_argument("place", nargs="+")
     wxsub.add_parser("clear", help="turn weather off and forget the place")
 
-    cmd("startup", "what starts with this Mac (read-only)")
+    su = cmd("startup", "what starts with this Mac (read-only)")
+    su.add_argument("--full", action="store_true",
+                    help="macOS's full login items list, apps included (macOS asks for an admin password)")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
     ca_sub = ca_.add_subparsers(dest="cal_cmd")
@@ -273,7 +275,7 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 # deny-list, and able to start yet more) or a server or a build.
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
-    ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build")}
+    ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full")}
 
 
 def daemon_refused(args):
@@ -283,6 +285,8 @@ def daemon_refused(args):
         key = ("app", args.app_cmd)
     elif args.cmd == "memory":
         key = ("memory", "--forget") if args.forget else None
+    elif args.cmd == "startup":
+        key = ("startup", "--full") if args.full else None
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None
@@ -331,6 +335,9 @@ def main(argv=None):
     refused = daemon_refused(args) if os.environ.get("CLAUDE_OS_DAEMON") else None
     if refused:
         core.die("`cos %s` is not allowed in a headless daemon run" % " ".join(refused), 3)
+    if args.cmd == "startup" and args.full and argv[:2] != ["startup", "--full"]:
+        # It summons macOS's password dialog, so the ask rule must be able to see it.
+        core.die("write it as `cos startup --full …`, so permission rules can see it.", 2)
     c = args.cmd
     if c == "ask":
         return ask(" ".join(args.question))

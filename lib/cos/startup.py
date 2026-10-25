@@ -1,14 +1,19 @@
 """cos startup — what starts with this Mac, read-only (decision 0004).
 
-Reads macOS's Background Task Management records (`sfltool dumpbtm`, the list behind
-System Settings › General › Login Items & Extensions), checks each executable's code
-signature, and puts the odd ones first: missing executables, unsigned or ad-hoc code,
-things that are on but haven't run in months. It never changes anything; the human (or
-Claude, with an Allow) does that in System Settings.
+By default it reads the launchd plists in ~/Library/LaunchAgents, /Library/LaunchAgents and
+/Library/LaunchDaemons (plus launchctl's on/off overrides), which needs no permission.
+`--full` reads macOS's Background Task Management records instead (`sfltool dumpbtm`, the
+list behind System Settings › General › Login Items & Extensions, apps included); on recent
+macOS that shows an admin password dialog, so it only runs when the human asked for it, and
+never in a background job. Either way it checks each executable's code signature and puts
+the odd ones first: missing executables, unsigned or ad-hoc code, things that are on but
+haven't run in months. It never changes anything; the human (or Claude, with an Allow) does
+that in System Settings.
 """
 
 import datetime as dt
 import os
+import plistlib
 import re
 import urllib.parse
 from concurrent.futures import ThreadPoolExecutor
@@ -68,10 +73,68 @@ def normalize(i):
             "path": path, "last_use": last, "uid": i.get("uid"), "parent": i.get("parent_identifier") or ""}
 
 
+LAUNCH_DIRS = [("~/Library/LaunchAgents", "launch agent", "me"),
+               ("/Library/LaunchAgents", "launch agent", 0),
+               ("/Library/LaunchDaemons", "launch daemon", 0)]
+FULL_NOTE = ("Apps that open at login aren't listed: `cos startup --full` reads macOS's full list, "
+             "and macOS asks for an admin password to show it.")
+
+
+def parse_plist(path, kind, uid):
+    try:
+        with open(path, "rb") as f:
+            d = plistlib.load(f)
+    except Exception:
+        return None
+    if not isinstance(d, dict):
+        return None
+    label = str(d.get("Label") or os.path.basename(path)[:-len(".plist")])
+    args = d.get("ProgramArguments") or [None]
+    prog = d.get("Program") or (args[0] if isinstance(args, list) and args else None) or ""
+    return {"name": label, "developer": "", "type": kind, "enabled": not d.get("Disabled", False),
+            "allowed": True, "identifier": label, "path": prog if str(prog).startswith("/") else "",
+            "last_use": None, "uid": uid, "parent": ""}
+
+
+def parse_overrides(text):
+    """`launchctl print-disabled` lines: "label" => enabled|disabled (or true/false)."""
+    out = {}
+    for m in re.finditer(r'"([^"]+)"\s*=>\s*(\w+)', text):
+        out[m.group(1)] = m.group(2) in ("enabled", "false")
+    return out
+
+
+def launchd_items(dirs=None):
+    me = os.getuid()
+    overrides = {}
+    for domain in ("gui/%d" % me, "system"):
+        overrides.update(parse_overrides(core.run(["launchctl", "print-disabled", domain], timeout=10).out))
+    items = []
+    for folder, kind, uid in dirs or LAUNCH_DIRS:
+        folder = os.path.expanduser(folder)
+        try:
+            names = sorted(n for n in os.listdir(folder) if n.endswith(".plist"))
+        except OSError:
+            continue
+        for n in names:
+            item = parse_plist(os.path.join(folder, n), kind, me if uid == "me" else uid)
+            if item:
+                if item["identifier"] in overrides:
+                    item["enabled"] = overrides[item["identifier"]]
+                items.append(item)
+    return items
+
+
 def signer(path):
     """Who signed the executable: Apple, a named developer, ad hoc, or nobody."""
     if not path or not os.path.exists(path):
         return {"signed": None, "authority": None}
+    try:
+        with open(path, "rb") as f:
+            if f.read(2) == b"#!":
+                return {"signed": False, "authority": "script"}  # scripts are never signed
+    except OSError:
+        pass
     r = core.run(["codesign", "-dvv", path], timeout=10)
     text = r.err + r.out
     if "not signed" in text:
@@ -90,8 +153,9 @@ def findings(item, now=None):
     out = []
     if item["path"] and not os.path.exists(item["path"]):
         out.append("its program is missing (left behind by something you removed?)")
-    if item.get("authority") in ("unsigned", "ad hoc") and item["enabled"]:
-        out.append("runs %s code" % ("unsigned" if item["authority"] == "unsigned" else "ad-hoc signed"))
+    if item.get("authority") in ("unsigned", "ad hoc", "script") and item["enabled"]:
+        out.append({"unsigned": "runs unsigned code", "ad hoc": "runs ad-hoc signed code",
+                    "script": "runs a script (scripts aren't signed; fine if you know it)"}[item["authority"]])
     if item["enabled"] and item["last_use"] and now - item["last_use"] > STALE_DAYS * 86400:
         out.append("on, but hasn't run in %d days" % ((now - item["last_use"]) // 86400))
     if not item["allowed"]:
@@ -99,12 +163,18 @@ def findings(item, now=None):
     return out
 
 
-def audit():
-    r = core.run(["sfltool", "dumpbtm"], timeout=30)
-    if not r.ok and not r.out:
-        return {"error": "couldn't read the login items list: %s" % (r.err or "sfltool failed")[:200], "items": []}
-    me = os.getuid()
-    items = [i for i in parse_btm(r.out) if i["uid"] in (me, 0, -2) and i["type"] != "developer group"]
+def audit(full=False):
+    note = None
+    if full:
+        r = core.run(["sfltool", "dumpbtm"], timeout=60)
+        if not r.ok and not r.out:
+            return {"error": "couldn't read the login items list (did macOS's password dialog get "
+                             "cancelled?): %s" % (r.err or "sfltool timed out")[:200], "items": []}
+        me = os.getuid()
+        items = [i for i in parse_btm(r.out) if i["uid"] in (me, 0, -2) and i["type"] != "developer group"]
+    else:
+        items = launchd_items()
+        note = FULL_NOTE
     seen, unique = set(), []
     for i in items:
         key = (i["identifier"], i["path"])
@@ -117,7 +187,7 @@ def audit():
             i["findings"] = findings(i)
     unique.sort(key=lambda i: (not i["findings"], not i["enabled"], i["type"], (i["name"] or "").lower()))
     return {"items": unique, "enabled": sum(1 for i in unique if i["enabled"]),
-            "flagged": sum(1 for i in unique if i["findings"])}
+            "flagged": sum(1 for i in unique if i["findings"]), "full": full, "note": note}
 
 
 def render(data):
@@ -132,8 +202,10 @@ def render(data):
         for f in i["findings"]:
             print("    %s" % f)
     print("\n● on  ○ off  ⚠ worth a look · change these in System Settings › General › Login Items & Extensions")
+    if data.get("note"):
+        print(data["note"])
 
 
 def main(args):
-    core.emit(audit(), args.json, render)
+    core.emit(audit(full=args.full), args.json, render)
     return 0

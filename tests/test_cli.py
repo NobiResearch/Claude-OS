@@ -59,7 +59,8 @@ class TestCli(TempHome):
             for argv in (["cal", "connect"], ["weather", "set", "Lisbon"], ["feeds", "add", "https://x.example/feed"],
                          ["config", "notify.native", "true"], ["music", "play", "anything"], ["music", "like"],
                          ["music", "radio"], ["music", "radio", "anything"], ["remember", "a fact"],
-                         ["memory", "--forget", "a fact"], ["ask", "anything"], ["serve"], ["app", "build"]):
+                         ["memory", "--forget", "a fact"], ["ask", "anything"], ["serve"], ["app", "build"],
+                         ["startup", "--full"]):
                 with self.assertRaises(SystemExit) as cm:
                     self.cos(*argv)
                 self.assertEqual(cm.exception.code, 3, argv)
@@ -69,6 +70,12 @@ class TestCli(TempHome):
             self.assertEqual(rc, 0)
         finally:
             del os.environ["CLAUDE_OS_DAEMON"]
+
+    def test_startup_full_must_be_written_so_the_ask_rule_sees_it(self):
+        # Refused before anything runs: `--full` summons macOS's admin password dialog.
+        with self.assertRaises(SystemExit) as cm:
+            self.cos("startup", "--json", "--full")
+        self.assertEqual(cm.exception.code, 2)
 
     def test_free_text_never_spawns_claude_without_a_terminal(self):
         r = subprocess.run([sys.executable, COS, "please clean everything"], capture_output=True, text=True,

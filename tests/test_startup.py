@@ -1,4 +1,6 @@
 import os
+import plistlib
+import tempfile
 import unittest
 
 import helpers  # noqa: F401
@@ -50,6 +52,51 @@ class TestStartup(unittest.TestCase):
         found = startup.findings(item, now=200 * 86400)
         self.assertEqual(len(found), 3)
         self.assertIn("missing", found[0])
+
+
+    def test_launchd_plists_need_no_password(self):
+        with tempfile.TemporaryDirectory() as d:
+            with open(os.path.join(d, "com.example.sync.plist"), "wb") as f:
+                plistlib.dump({"Label": "com.example.sync", "ProgramArguments": ["/opt/example/bin/sync", "--daemon"],
+                               "RunAtLoad": True}, f)
+            with open(os.path.join(d, "com.example.off.plist"), "wb") as f:
+                plistlib.dump({"Label": "com.example.off", "Program": "/opt/example/off", "Disabled": True}, f,
+                              fmt=plistlib.FMT_BINARY)
+            with open(os.path.join(d, "broken.plist"), "w") as f:
+                f.write("not a plist")
+            items = startup.launchd_items([(d, "launch agent", "me")])
+        by = {i["name"]: i for i in items}
+        self.assertEqual(sorted(by), ["com.example.off", "com.example.sync"], "unreadable plists are skipped")
+        self.assertEqual(by["com.example.sync"]["path"], "/opt/example/bin/sync")
+        self.assertTrue(by["com.example.sync"]["enabled"])
+        self.assertFalse(by["com.example.off"]["enabled"])
+        self.assertEqual(by["com.example.sync"]["uid"], UID)
+
+    def test_scripts_are_named_not_called_unsigned(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as f:
+            f.write("#!/bin/sh\necho hi\n")
+        try:
+            self.assertEqual(startup.signer(f.name)["authority"], "script")
+        finally:
+            os.unlink(f.name)
+        found = startup.findings({"path": "/bin/sh", "enabled": True, "allowed": True, "authority": "script", "last_use": None})
+        self.assertEqual(len(found), 1)
+        self.assertIn("script", found[0])
+
+    def test_launchctl_overrides(self):
+        text = '\tdisabled services = {\n\t\t"com.example.a" => enabled\n\t\t"com.example.b" => disabled\n\t\t"com.example.c" => true\n\t}'
+        self.assertEqual(startup.parse_overrides(text),
+                         {"com.example.a": True, "com.example.b": False, "com.example.c": False})
+
+    def test_default_audit_never_runs_sfltool(self):
+        from unittest import mock
+        from cos import core
+        calls = []
+        with mock.patch.object(startup.core, "run", side_effect=lambda argv, **k: calls.append(argv[0]) or core.Result(0, "", "")):
+            data = startup.audit()
+        self.assertNotIn("sfltool", calls, "sfltool shows macOS's admin password dialog")
+        self.assertFalse(data["full"])
+        self.assertIn("--full", data["note"])
 
 
 if __name__ == "__main__":

@@ -59,6 +59,9 @@
       "Bash(bin/cos config*)",
       "Bash(./bin/cos config*)",
       "Bash(cos config*)",
+      "Bash(bin/cos startup --full*)",
+      "Bash(./bin/cos startup --full*)",
+      "Bash(cos startup --full*)",
       "Bash(git push*)"
     ]
   },

@@ -125,9 +125,16 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 
 ## System
 
-- **`sfltool dumpbtm`** (no sudo needed) is the login-items database behind System Settings.
-  It writes home folders as `/Users/<uid>/…` and some executable paths relative to their
-  bundle; map both before checking that files exist.
+- **`sfltool dumpbtm`** is the login-items database behind System Settings. Without sudo
+  it shows an **admin password dialog** (SecurityAgent) on macOS 27 and blocks until it's
+  answered, so a background job that calls it hangs and leaves a dialog on the screen.
+  Only run it when the human asked and knows the dialog is coming; the launchd plists in
+  `~/Library/LaunchAgents`, `/Library/LaunchAgents` and `/Library/LaunchDaemons` (plus
+  `launchctl print-disabled gui/<uid>` and `system`) need no permission at all. It writes
+  home folders as `/Users/<uid>/…` and some executable paths relative to their bundle; map
+  both before checking that files exist.
+- **Scripts are never code-signed**: check for `#!` before calling `codesign`, or every
+  shell-script agent looks like "unsigned code".
 
 ## Hardware
 

@@ -7,8 +7,11 @@ description: Explain what starts with this Mac (login items, launch agents and d
 
 ## Steps
 
-1. `bin/cos startup --json`. It's read-only: macOS's own login-items list, plus who signed
-   each program.
+1. `bin/cos startup --json`. It's read-only and needs no permission: the launch agents and
+   daemons (the launchd plists, with their on/off state), plus who signed each program.
+   It doesn't list *apps* that open at login. If the human wants those too, tell them first
+   that macOS will show an admin password dialog, then run `bin/cos startup --full --json`
+   (it asks for an Allow). Never run `--full` on your own or in a headless run.
 2. **Lead with the answer**: how many things start, and whether anything needs attention.
 3. **Items worth a look come first** (`findings`). For each one, say in plain language what it
    probably is (use the name, developer and path; you know most common apps and tools), why
@@ -16,6 +19,7 @@ description: Explain what starts with this Mac (login items, launch agents and d
    - *program missing*: left behind by something that was removed; safe to remove the item.
    - *unsigned / ad hoc*: often a developer tool or something the human built (Homebrew
      builds are ad-hoc signed); only worrying if they don't recognize it.
+   - *runs a script*: scripts can't be signed; read what it runs (the path) and say so.
    - *on but unused for months*: a candidate to turn off.
 4. Then a short summary of the rest, grouped (apps, launch agents, daemons). No wall of items.
 5. **Changing things:** point to System Settings › General › Login Items & Extensions. Removing
