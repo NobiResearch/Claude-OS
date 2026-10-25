@@ -1,10 +1,42 @@
 import json
 import os
+import time
 import unittest
+from unittest import mock
 
 from helpers import TempHome
 
-from cos import daemon
+from cos import core, daemon
+
+
+def board_stream(finished=True):
+    """A hand-written stream-json run shaped like a weekly board meeting (Claude Code 2.1)."""
+    def line(**m):
+        return json.dumps(m) + "\n"
+
+    seats = ["architect", "guardian", "steward", "skeptic"]
+    out = [line(type="system", subtype="init", cwd="/Users/someone/Claude OS", tools=["Agent"]),
+           line(type="assistant", message={"content": [
+               {"type": "tool_use", "name": "Bash", "input": {"command": "bin/cos friction --all --json"}},
+               {"type": "tool_use", "name": "Read", "input": {"file_path": "/Users/someone/.claude-os/memory.md"}}]}),
+           line(type="assistant", message={"content": [{"type": "text", "text": "Board seats are deliberating."}]
+                + [{"type": "tool_use", "name": "Agent", "id": "t%d" % i, "input": {"subagent_type": s}} for i, s in enumerate(seats)]})]
+    out += [line(type="system", subtype="task_started", tool_use_id="t%d" % i, subagent_type=s, description="private words",
+                 prompt="the whole brief, with private things in it") for i, s in enumerate(seats)]
+    out += [line(type="user", message={"content": [{"type": "tool_result", "tool_use_id": "t0", "content": "Async agent launched"}]}),
+            line(type="result", subtype="success", is_error=False, result="Board seats are deliberating."),
+            line(type="assistant", parent_tool_use_id="t2", message={"content": [{"type": "text", "text": "SEAT: Steward\nVOTE: amend"}]}),
+            line(type="system", subtype="task_notification", tool_use_id="t2", status="completed", summary="SEAT: Steward\nVOTE: amend"),
+            line(type="result", subtype="success", is_error=False, result="Steward is in. Still waiting on three."),
+            line(type="system", subtype="task_notification", tool_use_id="t0", status="completed", summary="SEAT: Architect\nVOTE: **approve**")]
+    if finished:
+        for i in (1, 3):
+            out.append(line(type="system", subtype="task_notification", tool_use_id="t%d" % i, status="completed", summary="VOTE: amend"))
+        out += [line(type="assistant", message={"content": [{"type": "text", "text": "# Board minutes — weekly review\n\n## Votes\n..."}]}),
+                line(type="result", subtype="success", is_error=False, result="# Board minutes — weekly review\n\n## Votes\n...")]
+    else:
+        out.append(line(type="assistant", message={"content": [{"type": "text", "text": "Architect is in. Waiting on two."}]}))
+    return out
 
 
 class TestDaemons(TempHome):
@@ -45,6 +77,28 @@ class TestDaemons(TempHome):
             self.assertIn("--max-budget-usd", cmd)
             self.assertNotEqual(spec.get("permission_mode"), "bypassPermissions", name)
 
+    def test_streaming_changes_the_output_format_and_nothing_else(self):
+        for name, spec in daemon.definitions().items():
+            if "prompt" not in spec:
+                continue
+            cmd = daemon.claude_command(spec)
+            self.assertEqual(cmd[:5], ["claude", "-p", "--output-format", "stream-json", "--verbose"], name)
+            for never in ("--include-partial-messages", "--input-format", "--permission-prompt-tool",
+                          "--dangerously-skip-permissions", "--allow-dangerously-skip-permissions"):
+                self.assertNotIn(never, cmd, name)
+            self.assertEqual(cmd[cmd.index("--permission-mode") + 1], spec.get("permission_mode", "dontAsk"), name)
+            if spec.get("allowed_tools"):
+                self.assertIn("--allowedTools", cmd, name)
+            denied = cmd[cmd.index("--disallowedTools") + 1:]
+            for rule in daemon.ALWAYS_DENIED:
+                self.assertIn(rule, denied, name)
+            self.assertEqual("--settings" in cmd, bool(spec.get("sandbox")), name)
+
+    def test_no_daemon_can_keep_itself_alive_or_schedule_more(self):
+        # The first weekly meeting scheduled a 20-minute wakeup and sat out its whole timeout.
+        for tool in ("ScheduleWakeup", "CronCreate", "CronDelete", "Monitor", "RemoteTrigger"):
+            self.assertIn(tool, daemon.ALWAYS_DENIED)
+
     def test_the_budget_cap_is_for_api_billing(self):
         spec = daemon.definitions()["board"]
         self.assertIn("--max-budget-usd", daemon.claude_command(spec))
@@ -68,6 +122,114 @@ class TestDaemons(TempHome):
                 self.assertTrue(daemon.on_subscription())
         with mock.patch.object(daemon.core, "run", return_value=core.Result(127, "", "command not found")):
             self.assertFalse(daemon.on_subscription(), "unknown keeps the cap")
+
+
+class TestLiveRuns(TempHome):
+    def feed(self, lines):
+        t = daemon.Transcript()
+        for l in lines:
+            t.feed(l)
+        return t
+
+    def test_the_output_is_each_turns_final_text(self):
+        t = self.feed(board_stream())
+        self.assertEqual(t.output(), "Board seats are deliberating.\n\nSteward is in. Still waiting on three.\n\n"
+                                     "# Board minutes — weekly review\n\n## Votes\n...")
+        self.assertFalse(t.error)
+
+    def test_seats_and_votes(self):
+        t = self.feed(board_stream(finished=False))
+        seats = {a["type"]: (a["state"], a["vote"]) for a in t.agents.values()}
+        self.assertEqual(seats, {"architect": ("done", "approve"), "guardian": ("working", None),
+                                 "steward": ("done", "amend"), "skeptic": ("working", None)})
+        self.assertIsNone(t.now, "between turns it isn't using a tool")
+
+    def test_the_live_file_holds_labels_only(self):
+        t = daemon.Transcript()
+        for l in board_stream(finished=False)[:3]:
+            t.feed(l)
+        self.assertEqual(t.now, "Agent")
+        t2 = self.feed(board_stream()[:2])
+        self.assertEqual(t2.now, "Read")
+        self.assertEqual(daemon.tool_label({"name": "Bash", "input": {"command": "bin/cos friction add 'my secret'"}}), "cos friction")
+        self.assertEqual(daemon.tool_label({"name": "Bash", "input": {"command": "cat ~/.claude-os/memory.md"}}), "Bash")
+        self.assertEqual(daemon.tool_label({"name": "x; rm -rf ~"}), "a tool")
+        daemon.write_live("board", core.now_iso(), self.feed(board_stream(finished=False)))
+        path = daemon.live_path("board")
+        self.assertEqual(oct(os.stat(str(path)).st_mode & 0o777), "0o600")
+        raw = path.read_text()
+        for private in ("someone", "memory.md", "private", "brief", "SEAT:", "Steward is in"):
+            self.assertNotIn(private, raw)
+
+    def test_a_cut_off_turn_keeps_its_latest_text(self):
+        t = self.feed(board_stream(finished=False))
+        self.assertTrue(t.output().endswith("Architect is in. Waiting on two."))
+
+    def test_odd_lines_are_skipped_by_the_runner(self):
+        t = daemon.Transcript()
+        with self.assertRaises(ValueError):
+            t.feed("not json")
+        self.assertFalse(t.feed(json.dumps({"type": "system", "subtype": "task_notification", "tool_use_id": "nope"})))
+
+    def test_the_summary_is_the_outcome_not_the_chatter(self):
+        minutes = self.feed(board_stream()).output()
+        self.assertEqual(daemon.summarize("board", minutes, False, 20, True), "Board minutes — weekly review")
+        self.assertEqual(daemon.summarize("evolve", "Flag downgrades in cos update\n\nThings this run couldn't do: x", False, 40, True),
+                         "Things this run couldn't do: x")
+        self.assertEqual(daemon.summarize("evolve", "Flag downgrades in cos update\nmore", False, 40, True), "Flag downgrades in cos update")
+        self.assertEqual(daemon.summarize("board", "Steward is in.", True, 20, False),
+                         "Board ran out of time after 20 min; partial output saved")
+        self.assertEqual(daemon.summarize("board", "", True, 20, False), "Board ran out of time after 20 min")
+        self.assertIn("stopped with an error", daemon.summarize("morning", "", False, 10, False))
+
+    def test_live_means_the_runner_is_alive(self):
+        self.assertIsNone(daemon.live("board"))
+        daemon.write_live("board", core.now_iso())
+        self.assertEqual(daemon.live("board")["minutes"], 0)
+        data = core.load_json(daemon.live_path("board"))
+        core.save_json(daemon.live_path("board"), dict(data, pid=999999))
+        self.assertIsNone(daemon.live("board"), "a dead runner isn't a meeting")
+        core.save_json(daemon.live_path("board"), dict(data, started="2026-01-01T10:00:00+01:00"))
+        self.assertIsNone(daemon.live("board"), "older than its timeout allows")
+
+    def test_a_dead_runners_lock_is_taken_over(self):
+        lock = core.home("state", "daemon-board.lock")
+        lock.write_text("999999")
+        self.assertIsNotNone(daemon._lock("board"))
+        self.assertIsNone(daemon._lock("board"), "a live one is respected")
+
+    def test_a_run_saves_output_and_cleans_up(self):
+        seen = []
+
+        def fake_stream(cmd, on_line, **k):
+            for l in board_stream(finished=False):
+                on_line(l)
+            seen.append(daemon.live("board"))
+            return core.Result(124, "", "timed out after 1200s\nsome warning")
+
+        notes = []
+        with mock.patch.object(daemon.core, "stream", fake_stream), \
+                mock.patch.object(daemon, "on_subscription", lambda: True), \
+                mock.patch.object(daemon.core, "notify", lambda *a, **k: notes.append((a, k))), \
+                mock.patch("builtins.print"):
+            rc = daemon.run("board")
+        self.assertEqual(rc, 1)
+        live = seen[0]
+        self.assertEqual(len(live["agents"]), 4)
+        self.assertEqual(sorted(a["vote"] for a in live["agents"] if a["vote"]), ["amend", "approve"])
+        self.assertIsNone(daemon.live("board"))
+        self.assertFalse(daemon.live_path("board").exists())
+        self.assertFalse(core.home("state", "daemon-board.lock").exists())
+        runs = sorted(core.home("runs", "board").glob("*"))
+        self.assertEqual([p.suffix for p in runs], [".err", ".md"])
+        self.assertIn("Architect is in.", runs[1].read_text())
+        self.assertNotIn("timed out", runs[1].read_text(), "stderr stays out of the minutes")
+        self.assertEqual(oct(os.stat(str(runs[0])).st_mode & 0o777), "0o600")
+        (summary,), kw = notes[0]
+        self.assertEqual(summary, "Board ran out of time after 20 min; partial output saved")
+        self.assertEqual(kw["target"], "board")
+        entry = core.read_journal(days=1, kind="daemon")[-1]
+        self.assertEqual((entry["ok"], entry["msg"]), (False, summary))
 
 
 if __name__ == "__main__":

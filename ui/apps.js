@@ -703,19 +703,65 @@
           const proposal = h("input", { class: "search", placeholder: "Put a proposal to the board…" });
           const convene = () => { const p = proposal.value.trim(); if (p) COS.ask("/board " + p); };
           proposal.addEventListener("keydown", (e) => { if (e.key === "Enter") convene(); });
-          (async () => {
+          const SEATS = [["architect", "Architect", "fit & simplicity"], ["guardian", "Guardian", "safety · veto"],
+            ["steward", "Steward", "your interests"], ["skeptic", "Skeptic", "the case against"]];
+          const NOW = { Agent: "calling the seats", Read: "reading", Grep: "searching", Glob: "searching", Write: "writing", Edit: "writing" };
+          const seatsBox = h("div"), sessionBox = h("div");
+          let timer = null;
+          const stop = () => { clearTimeout(timer); timer = null; };
+          w.cleanup.push(stop);
+          // While a meeting runs, each seat shows where it is; the live data is labels only.
+          function paintLive(live) {
+            const agents = (live && live.agents) || [];
+            clear(seatsBox).appendChild(h("div", { class: "board-seats" + (live ? " in-session" : "") }, SEATS.map(([id, name, role]) => {
+              const a = agents.filter((x) => x.type === id).pop();
+              let state = role, cls = "";
+              if (live) {
+                if (!a) { state = "waiting"; cls = " waiting"; }
+                else if (a.vote) { state = "voted " + a.vote; cls = " voted " + a.vote; }
+                else if (a.state === "working") { state = "deliberating…"; cls = " working"; }
+                else { state = "done"; cls = " voted"; }
+              }
+              return h("div", { class: "seat" + cls }, h("div", { class: "seat-mark" }, "◆"), h("div", { class: "seat-name" }, name), h("div", { class: "muted small" }, state));
+            })));
+            clear(sessionBox);
+            if (live) sessionBox.appendChild(h("div", { class: "session" }, h("span", { class: "live-dot" }),
+              h("span", null, "In session · " + live.minutes + " min"), live.now ? h("span", { class: "muted" }, " · " + (NOW[live.now] || "now: " + live.now)) : null,
+              h("div", { class: "muted small" }, "The minutes appear here when the meeting ends.")));
+          }
+          async function poll() {
+            if (!root.isConnected) return stop();
+            if (!document.hidden) {
+              try {
+                const b = await api("/api/board");
+                if (!b.live) return draw();
+                paintLive(b.live);
+              } catch (e) { /* try again on the next tick */ }
+            }
+            timer = setTimeout(poll, 5000);
+          }
+          async function draw() {
+            stop();
             await loading(root, async () => {
               const b = await api("/api/board");
               clear(root);
-              root.appendChild(h("div", { class: "board-seats" }, [["Architect", "fit & simplicity"], ["Guardian", "safety · veto"], ["Steward", "your interests"], ["Skeptic", "the case against"]]
-                .map(([n, d]) => h("div", { class: "seat" }, h("div", { class: "seat-mark" }, "◆"), h("div", { class: "seat-name" }, n), h("div", { class: "muted small" }, d)))));
+              paintLive(b.live);
+              root.appendChild(seatsBox);
+              root.appendChild(sessionBox);
               root.appendChild(h("div", { class: "row gap" }, proposal, btn("Convene", convene, "primary")));
               root.appendChild(h("div", { class: "section-title" }, "Decisions"));
               b.decisions.forEach((d) => root.appendChild(h("button", { class: "list-row link", onclick: () => doc(d.name) }, d.title)));
               root.appendChild(h("div", { class: "section-title" }, "Latest minutes"));
-              root.appendChild(b.latest ? h("div", { class: "md", html: MD.render(b.latest.text) }) : h("div", { class: "muted" }, "The board hasn't met yet. Weekly meetings run on Sundays once the board daemon is on."));
+              if (!b.latest) root.appendChild(h("div", { class: "muted" }, "The board hasn't met yet. Weekly meetings run on Sundays once the board daemon is on."));
+              else {
+                root.appendChild(h("div", { class: "md", html: MD.render(b.latest.text) }));
+                if (b.latest.details) root.appendChild(h("details", { class: "run-details" }, h("summary", null, "How the meeting went"),
+                  h("div", { class: "md muted", html: MD.render(b.latest.details) })));
+              }
+              if (b.live) timer = setTimeout(poll, 5000);
             });
-          })();
+          }
+          draw();
           async function doc(name) {
             const d = await api("/api/doc?name=" + encodeURIComponent(name));
             clear(root).appendChild(h("div", null, btn("← Back", () => { clear(pane); w.body.querySelector('.tab[data-name="Board"]').click(); }, "ghost small"), h("div", { class: "md", html: MD.render(d.text) })));
@@ -929,7 +975,8 @@
             });
             root.appendChild(h("div", { class: "daemon" },
               h("div", { class: "grow" }, h("div", { class: "daemon-name" }, d.name, d.llm ? pill("note", "uses Claude") : pill("ok", "free")),
-                h("div", { class: "muted small" }, d.description), h("div", { class: "muted small" }, d.schedule + " · last run " + (d.last_run ? d.last_run.slice(0, 16).replace("T", " ") : "never"))),
+                h("div", { class: "muted small" }, d.description), h("div", { class: "muted small" }, d.schedule + " · " + (d.running_minutes != null ? "running now · " + d.running_minutes + " min"
+                  : "last run " + (d.last_run ? d.last_run.slice(0, 16).replace("T", " ") : "never")))),
               toggle));
           });
           root.appendChild(h("div", { class: "section-title" }, "About"));

@@ -4,14 +4,17 @@ Daemons are defined in etc/daemons.json. `builtin` daemons are plain Python
 (free); `prompt` daemons run headless Claude Code with a tool allowlist and a
 timeout, plus a budget cap when Claude is billed per token (an API key; a Pro or Max plan
 has no per-run cost, so its runs aren't cut short). Output of every run lands in
-~/.claude-os/runs/.
+~/.claude-os/runs/. While a run is going, ~/.claude-os/state/live/<name>.json says so
+(decision 0007): which agents it started, their votes, and the tool it's on, as labels only.
 """
 
 import datetime as dt
 import json
 import os
 import plistlib
+import re
 import time
+from pathlib import Path
 
 from . import core
 
@@ -27,6 +30,10 @@ _MUTATING = ["clean apply", "update apply", "daemon install", "daemon uninstall"
              "memory --forget", "ask", "serve", "app", "startup --full"]
 ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/cos", "./bin/cos", "cos")] + [
     "Bash(git push*)", "Bash(sudo *)", "Bash(curl *)", "Bash(osascript *)",
+    # A pending wakeup keeps a headless run alive until its timeout (the first weekly board
+    # meeting finished in 6 minutes and then sat for 14), and a daemon has no business
+    # scheduling more work or cloud routines anyway.
+    "ScheduleWakeup", "CronCreate", "CronDelete", "Monitor", "RemoteTrigger",
 ]
 
 # Evolve edits code and runs tests, so its shell runs in Claude Code's sandbox: writes
@@ -120,10 +127,12 @@ def status():
     out = []
     for name, spec in definitions().items():
         last = last_run(name)
+        now = live(name)
         out.append({"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
                     "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
                     "description": spec["description"],
-                    "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None})
+                    "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
+                    "running_minutes": now["minutes"] if now else None})
     return out
 
 
@@ -131,6 +140,10 @@ def render_status(rows):
     for r in rows:
         mark = "●" if r["loaded"] else ("○" if r["installed"] else "–")
         last = r["last_run"][:16].replace("T", " ") if r["last_run"] else "never"
+        if r.get("running_minutes") is not None:
+            last = "running %d min" % r["running_minutes"]
+            print("%s %-8s %-12s %-5s now:  %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
+            continue
         print("%s %-8s %-12s %-5s last: %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
     print("\n● running  ○ installed, not loaded  – off · cos daemon install <name>|--all")
 
@@ -139,10 +152,157 @@ def render_status(rows):
 
 def _lock(name):
     path = core.home("state", "daemon-%s.lock" % name)
-    if path.exists() and time.time() - path.stat().st_mtime < 3 * 3600:
+    if path.exists() and time.time() - path.stat().st_mtime < 3 * 3600 and _alive(_pid(path)):
         return None
     path.write_text(str(os.getpid()))
     return path
+
+
+def _pid(path):
+    try:
+        return int(path.read_text().strip())
+    except (OSError, ValueError):
+        return None
+
+
+def _alive(pid):
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except PermissionError:
+        return True
+    except OSError:
+        return False
+    return True
+
+
+# ---------------------------------------------------------------- live runs
+
+# Where a click on a daemon's notification lands in the app (core.NOTIFY_TARGETS).
+NOTIFY_TARGET = {"board": "board", "morning": "brief", "evolve": "evolve"}
+
+# Only labels reach the live file. Tool inputs, tool results and free text can hold anything
+# private (memory, journal, calendar), so they never leave the stream.
+LABEL = re.compile(r"[A-Za-z][\w:.-]{0,60}")
+COS_VERB = re.compile(r"(?:\./)?(?:bin/)?cos\s+([a-z]+)")
+VOTE = re.compile(r"VOTE:\W*(approve|amend|reject)", re.I)
+HEADING = re.compile(r"^#{1,3}\s+(.+)$", re.M)
+
+
+def tool_label(block):
+    name = str(block.get("name") or "")
+    if name == "Bash":
+        m = COS_VERB.match(str((block.get("input") or {}).get("command", "")).strip())
+        return "cos " + m.group(1) if m else "Bash"
+    return name if LABEL.fullmatch(name) else "a tool"
+
+
+class Transcript:
+    """One headless run, read from Claude Code's stream-json: its output (each turn's final
+    text, as text mode printed it), the background agents it started (for the board, its
+    seats and their votes) and the tool it's on."""
+
+    def __init__(self):
+        self.turns, self.pending = [], None
+        self.agents = {}  # tool_use_id -> {"type", "state", "vote"}
+        self.now, self.error = None, False
+
+    def feed(self, line):
+        """Take one line of the stream -> True when something worth showing changed."""
+        msg = json.loads(line)
+        kind, sub = msg.get("type"), msg.get("subtype")
+        if kind == "assistant":
+            blocks = (msg.get("message") or {}).get("content") or []
+            parent = msg.get("parent_tool_use_id")
+            if parent:  # an agent's own messages: only its vote matters here
+                agent = self.agents.get(parent)
+                for b in blocks:
+                    m = VOTE.search(b.get("text") or "") if agent and b.get("type") == "text" else None
+                    if m:
+                        agent["vote"] = m.group(1).lower()
+                return False
+            for b in blocks:
+                if b.get("type") == "text" and (b.get("text") or "").strip():
+                    self.pending = b["text"].strip()
+                elif b.get("type") == "tool_use":
+                    self.now = tool_label(b)
+            return True
+        if kind == "result":
+            text = (msg.get("result") or "").strip() or self.pending
+            if text:
+                self.turns.append(text)
+            self.pending, self.now, self.error = None, None, bool(msg.get("is_error"))
+            return True
+        if kind == "system" and sub == "task_started":
+            agent_type = str(msg.get("subagent_type") or "")
+            self.agents[msg.get("tool_use_id") or msg.get("task_id")] = {
+                "type": agent_type if LABEL.fullmatch(agent_type) else "agent", "state": "working", "vote": None}
+            return True
+        if kind == "system" and sub == "task_notification":
+            agent = self.agents.get(msg.get("tool_use_id") or msg.get("task_id"))
+            if not agent:
+                return False
+            agent["state"] = "done" if msg.get("status") == "completed" else "stopped"
+            m = VOTE.search(str(msg.get("summary") or ""))
+            if m:
+                agent["vote"] = m.group(1).lower()
+            return True
+        return False
+
+    def output(self):
+        return "\n\n".join(self.turns + ([self.pending] if self.pending else []))
+
+
+def summarize(name, text, timed_out, minutes, ok):
+    """The line the notification and the journal show: what the run produced, never the
+    chatter it started with."""
+    title = name.capitalize()
+    if timed_out:
+        return "%s ran out of time after %d min%s" % (title, minutes, "; partial output saved" if text else "")
+    if not ok:
+        return "%s stopped with an error (cos daemon logs %s)" % (title, name)
+    m = HEADING.search(text)
+    last = text.split("\n\n")[-1] if text else ""
+    line = m.group(1) if m else next((l for l in last.splitlines() if l.strip()), "(no output)")
+    return line.strip().strip("*#").strip()[:180]
+
+
+def live_path(name):
+    return core.home("state", "live", name + ".json")
+
+
+def write_live(name, started, transcript=None):
+    t = transcript or Transcript()
+    data = {"name": name, "pid": os.getpid(), "started": started, "updated": core.now_iso(),
+            "agents": list(t.agents.values()), "now": t.now, "turns": len(t.turns)}
+    path = live_path(name)
+    tmp = Path(str(path) + ".tmp")
+    try:
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f)
+        os.replace(tmp, path)
+    except OSError:
+        pass  # the run matters more than its progress report
+
+
+def live(name):
+    """The run in progress, or None. Live means its runner is still alive (an agent can
+    think for minutes without a word), and not older than its timeout allows."""
+    data = core.load_json(live_path(name))
+    if not isinstance(data, dict) or not _alive(data.get("pid")):
+        return None
+    try:
+        started = dt.datetime.fromisoformat(data["started"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    minutes = int((dt.datetime.now().astimezone() - started).total_seconds() // 60)
+    limit = int((definitions().get(name) or {}).get("timeout_minutes", 10)) + 5
+    if minutes > max(limit, 15):
+        return None
+    data["minutes"] = minutes
+    return data
 
 
 def pulse():
@@ -195,7 +355,7 @@ def on_subscription():
 
 
 def claude_command(spec, capped=True):
-    cmd = ["claude", "-p", "--output-format", "text",
+    cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",
            "--permission-mode", spec.get("permission_mode", "dontAsk")]
     if capped and spec.get("budget_usd"):
         cmd += ["--max-budget-usd", str(spec["budget_usd"])]
@@ -207,7 +367,7 @@ def claude_command(spec, capped=True):
     return cmd
 
 
-def run_llm(name, spec):
+def run_llm(name, spec, started=None):
     from . import evolve
     cwd = str(core.ROOT)
     workspace = None
@@ -215,14 +375,30 @@ def run_llm(name, spec):
         workspace = evolve.new_workspace()
         cwd = workspace["path"]
     env = {"CLAUDE_OS_DAEMON": name, "CLAUDE_OS_HOME": str(core.home())}
+    transcript = Transcript()
+
+    def on_line(line):
+        if transcript.feed(line):
+            write_live(name, started or core.now_iso(), transcript)
+
+    minutes = int(spec.get("timeout_minutes", 10))
     # The cap is Claude Code's estimate at API prices: real money with an API key, but on a
     # Pro or Max plan it only cut runs short (the timeout still bounds them).
-    r = core.run(claude_command(spec, capped=not on_subscription()), input=spec["prompt"], cwd=cwd, env=env,
-                 timeout=int(spec.get("timeout_minutes", 10)) * 60)
+    r = core.stream(claude_command(spec, capped=not on_subscription()), on_line, input=spec["prompt"],
+                    cwd=cwd, env=env, timeout=minutes * 60)
     stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
     out_path = core.home("runs", name, stamp + ".md")
-    out_path.write_text(r.out + ("\n\n---\nstderr:\n" + r.err if r.err else ""))
-    summary = next((l.strip("# ").strip() for l in r.out.splitlines() if l.strip()), "(no output)")[:180]
+    text = transcript.output()
+    out_path.write_text(text + "\n" if text else "")
+    if r.err:  # kept next to the output, not in it: the app shows the .md as it is
+        try:
+            fd = os.open(str(out_path.with_suffix(".err")), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, "w") as f:
+                f.write(r.err + "\n")
+        except OSError:
+            pass
+    ok = r.ok and not transcript.error
+    summary = summarize(name, text, r.rc == 124, minutes, ok)
     if workspace:
         summary = evolve.after_run(workspace, summary)
     return r.ok, summary, str(out_path)
@@ -237,16 +413,22 @@ def run(name):
         print("%s is already running" % name)
         return 0
     started = time.time()
+    since = core.now_iso()
+    write_live(name, since)
     try:
         if spec.get("builtin") == "pulse":
             ok, summary, out = True, pulse(), None
         else:
-            ok, summary, out = run_llm(name, spec)
-            core.notify(summary, subtitle=name.capitalize())
+            ok, summary, out = run_llm(name, spec, started=since)
+            core.notify(summary, subtitle=name.capitalize(), target=NOTIFY_TARGET.get(name, "daemons"))
     except Exception as e:
         ok, summary, out = False, "%s crashed: %s" % (name, e), None
     finally:
-        lock.unlink()
+        for path in (lock, live_path(name)):
+            try:
+                path.unlink()
+            except OSError:
+                pass
     core.journal("daemon", summary, daemon=name, ok=ok, output=out, seconds=round(time.time() - started))
     print(summary)
     return 0 if ok else 1

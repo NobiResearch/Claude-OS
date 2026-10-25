@@ -153,3 +153,16 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   code 2 means *deny*, so it must exit 0 and print nothing when unsure.
 - **`--max-budget-usd` applies on a Pro or Max plan too.** It checks Claude Code's estimate at
   API prices and stops the run, even though nothing is charged.
+- **A pending `ScheduleWakeup` keeps a headless `claude -p` alive** until it fires or the
+  timeout kills it. The first weekly board meeting finished in 6 minutes and then sat for
+  14 more. Daemons deny `ScheduleWakeup`, `CronCreate`, `CronDelete`, `Monitor` and
+  `RemoteTrigger`; denied this way, a tool disappears from the run altogether.
+- **Agent calls run in the background.** The `tool_result` arrives right away ("Async agent
+  launched"), so it doesn't mean the agent is done. In `--output-format stream-json
+  --verbose` (Claude Code 2.1), a `system`/`task_started` event carries the `tool_use_id`
+  and `subagent_type`, and a `system`/`task_notification` event carries the `status` and a
+  `summary` of the agent's answer. The agent's own messages come with `parent_tool_use_id`.
+  Each turn ends in its own `result` event, so one run can have several. Text mode prints
+  each turn's final text, and that's what the run files keep.
+- **`Write(path)` permission rules aren't used for files.** Claude Code warns that only
+  `Edit(path)` rules are checked, and they cover every file-editing tool.

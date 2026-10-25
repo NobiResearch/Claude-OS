@@ -4,6 +4,15 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Watch the board meet.** While a meeting runs, Evolution › Board shows "In session" and
+  each seat waiting, deliberating or voted. When it ends, the minutes appear in the same
+  place without the chatter that came before them. Settings and `cos daemon list` say when
+  a background job is running. The notification at the end now says what happened ("Board
+  minutes — weekly review", or that it ran out of time) instead of the run's first line
+  ([0007](docs/decisions/0007-live-daemon-runs.md)).
+- Background jobs can't schedule wakeups or timers any more. The first weekly meeting
+  finished in 6 minutes and then waited 14 more on a wakeup it had set itself.
+
 - Night shift: branches that change `core.py`, `cli.py`, `evolve.py` or `server.py` now
   wait for you too, because the night shift's own checks rely on them (amendment to 0006,
   from the first weekly board meeting).

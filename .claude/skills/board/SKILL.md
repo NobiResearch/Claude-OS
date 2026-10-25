@@ -41,4 +41,7 @@ just growing. You chair: you frame the question, you don't vote, you write the d
    three items. The evolve loop reads these minutes, so be specific: name files, commands,
    and acceptance criteria.
 
-In a headless run, output only the minutes.
+In a headless run, output only the minutes, starting with a `# Board minutes — …` heading
+(the app shows the run from there and the notification uses that line). The seats report
+back on their own, so don't schedule wakeups or wait on timers; write the minutes as soon
+as the last seat is in.

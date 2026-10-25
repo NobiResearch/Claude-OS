@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 
 from helpers import TempHome
@@ -54,6 +55,59 @@ class TestCore(TempHome):
 
 
 
+class TestStream(TempHome):
+    """core.stream: the runner every headless Claude run goes through, unattended."""
+
+    def py(self, code):
+        return [sys.executable, "-c", code]
+
+    def test_lines_arrive_in_order_with_the_input(self):
+        lines = []
+        r = core.stream(self.py("import sys; print(sys.stdin.read().upper()); print('two')"), lines.append, input="one", timeout=10)
+        self.assertEqual((r.rc, [l.strip() for l in lines]), (0, ["ONE", "two"]))
+
+    def test_a_silent_child_is_killed_on_time(self):
+        started = time.time()
+        r = core.stream(self.py("import time; time.sleep(30)"), lambda l: None, timeout=1)
+        self.assertEqual(r.rc, 124)
+        self.assertLess(time.time() - started, 8, "the deadline doesn't wait for output")
+        self.assertIn("timed out after 1s", r.err)
+
+    def test_a_stderr_flood_does_not_deadlock(self):
+        lines = []
+        r = core.stream(self.py("import sys\nfor i in range(20000): sys.stderr.write('x' * 100 + '\\n')\nprint('done')"),
+                        lines.append, timeout=20)
+        self.assertEqual((r.rc, [l.strip() for l in lines]), (0, ["done"]))
+        self.assertLessEqual(len(r.err.splitlines()), 40, "only a short tail is kept")
+
+    def test_grandchildren_are_gone_afterwards(self):
+        code = ("import subprocess, sys; p = subprocess.Popen(['sleep', '30'], stdout=subprocess.DEVNULL, "
+                "stderr=subprocess.DEVNULL); print(p.pid)")
+        pids = []
+        core.stream(self.py(code), lambda l: pids.append(int(l)), timeout=10)
+        self.assertEqual(len(pids), 1)
+        for _ in range(40):
+            try:
+                os.kill(pids[0], 0)
+            except ProcessLookupError:
+                return
+            time.sleep(0.05)
+        self.fail("the grandchild outlived the run")
+
+    def test_a_failing_handler_loses_a_line_not_the_run(self):
+        seen = []
+
+        def handler(line):
+            seen.append(line.strip())
+            if len(seen) == 1:
+                raise ValueError("odd line")
+        r = core.stream(self.py("print('a'); print('b')"), handler, timeout=10)
+        self.assertEqual((r.rc, seen), (0, ["a", "b"]))
+
+    def test_never_raises_for_a_missing_binary(self):
+        self.assertEqual(core.stream(["definitely-not-a-binary-xyz"], lambda l: None).rc, 127)
+
+
 class TestNotifications(TempHome):
     def test_native_notifications_use_the_outbox_not_the_url(self):
         import os
@@ -73,6 +127,22 @@ class TestNotifications(TempHome):
         self.assertEqual(len(files), 1)
         self.assertEqual(oct(os.stat(str(outbox / files[0])).st_mode & 0o777), "0o600")
         self.assertEqual(core.load_json(outbox / files[0])["body"], "Rain likely around 15:00")
+        self.assertNotIn("target", core.load_json(outbox / files[0]))
+
+    def test_a_click_target_comes_from_a_fixed_list(self):
+        core.config_set("notify.native", True)
+        core.save_json(core.home("state", "notify.json"), {"authorization": "authorized", "ts": 1})
+        orig_run, orig_running = core.run, core.app_running
+        core.run = lambda cmd, **k: core.Result(0, "", "")
+        core.app_running = lambda name: name == "ClaudeOS"
+        try:
+            core.notify("Board minutes", target="board")
+            core.notify("odd", target="javascript:alert(1)")
+        finally:
+            core.run, core.app_running = orig_run, orig_running
+        outbox = core.home("state", "outbox")
+        notes = [core.load_json(outbox / f) for f in sorted(os.listdir(str(outbox)))]
+        self.assertEqual({n["body"]: n.get("target") for n in notes}, {"Board minutes": "board", "odd": None})
 
     def test_falls_back_when_the_app_is_not_running(self):
         core.config_set("notify.native", True)

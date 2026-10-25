@@ -9,6 +9,17 @@ from helpers import TempHome
 from cos import chat, server
 
 
+class TestRunFiles(unittest.TestCase):
+    def test_minutes_without_the_chatter_before_them(self):
+        from cos import server
+        text, details = server.split_run("Board seats are deliberating.\n\nSteward is in.\n\n# Board minutes\n\n## Votes\n")
+        self.assertTrue(text.startswith("# Board minutes"))
+        self.assertIn("## Votes", text)
+        self.assertEqual(details, "Board seats are deliberating.\n\nSteward is in.")
+        self.assertEqual(server.split_run("# Good morning\n\nRain."), ("# Good morning\n\nRain.", ""))
+        self.assertEqual(server.split_run("Fixed a thing\n\n---\nstderr:\nnoise")[0], "Fixed a thing")
+
+
 class TestServerSecurity(TempHome):
     def setUp(self):
         super().setUp()
