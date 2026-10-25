@@ -24,7 +24,10 @@ what, where, and how we'll know it works.
 
 ## Research (for `/lab`)
 
-- Nothing open. Answered: [Apple Music catalog playback](research/apple-music-catalog-playback.md)
+- Nothing open. Answered: [a daily mix without an LLM](research/daily-mix.md) (Apple's own
+  personal mixes through MusicKit: one fixed `claude-os://music/mix`), [Time Machine's last
+  backup date](research/time-machine-last-backup.md) (`defaults export` reads it without Full
+  Disk Access; verify with a real destination), [Apple Music catalog playback](research/apple-music-catalog-playback.md)
   (Claude OS's own MusicKit player), [Claude OS as a plugin](research/claude-code-plugin.md);
   the menu bar presence is Claude OS.app's status item.
 
