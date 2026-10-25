@@ -603,7 +603,7 @@
         clear(list);
         if (!items.length) { list.appendChild(empty("Nothing unread.", "You're all caught up.")); return; }
         items.forEach((it) => {
-          const node = h("a", { class: "feed-item", href: it.link, target: "_blank", rel: "noopener noreferrer" },
+          const node = h("a", { class: "feed-item", href: /^https?:\/\//i.test(it.link || "") ? it.link : null, target: "_blank", rel: "noopener noreferrer" },
             h("div", { class: "feed-meta muted small" }, it.feed + " · " + (it.ts ? fmt.ago(it.ts) : "")), h("div", { class: "feed-title" }, it.title),
             it.summary ? h("div", { class: "feed-summary muted" }, it.summary) : null);
           node.addEventListener("click", () => {

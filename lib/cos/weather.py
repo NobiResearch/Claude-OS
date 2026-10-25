@@ -41,23 +41,26 @@ def location():
     return w
 
 
-def _guard_term(name):
-    """Make the Guardian refuse commits that mention the human's place."""
-    term = (name or "").split(",")[0].strip()
-    if len(term) < 3:
+def _guard_term(name, lat=None, lon=None):
+    """Make the Guardian refuse commits that mention the human's place or its coordinates."""
+    terms = [(name or "").split(",")[0].strip()]
+    terms += ["%.2f" % v for v in (lat, lon) if v is not None]
+    terms = [t for t in terms if len(t) >= 3]
+    if not terms:
         return
     path = core.home("guard.json")
     data = core.load_json(path, {}) or {}
     extra = data.get("extra", [])
-    if term not in extra:
-        data["extra"] = extra + [term]
+    new = [t for t in terms if t not in extra]
+    if new:
+        data["extra"] = extra + new
         core.save_json(path, data)
 
 
 def _save(name, lat, lon, source):
     place = {"name": name, "lat": round(float(lat), 2), "lon": round(float(lon), 2), "source": source}
     core.config_set("weather", place)
-    _guard_term(name if source == "city" else None)
+    _guard_term(name if source == "city" else None, place["lat"], place["lon"])
     core.run(["rm", "-f", str(core.home("cache", "weather.json"))])
     core.journal("action", "weather location updated (%s)" % source)
     return place

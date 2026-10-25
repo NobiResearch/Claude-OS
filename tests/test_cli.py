@@ -53,6 +53,19 @@ class TestCli(TempHome):
         finally:
             del os.environ["CLAUDE_OS_DAEMON"]
 
+    def test_daemons_cannot_change_settings_music_or_feeds(self):
+        os.environ["CLAUDE_OS_DAEMON"] = "morning"
+        try:
+            for argv in (["cal", "connect"], ["weather", "set", "Lisbon"], ["feeds", "add", "https://x.example/feed"],
+                         ["config", "notify.native", "true"], ["music", "play", "anything"], ["music", "like"]):
+                with self.assertRaises(SystemExit) as cm:
+                    self.cos(*argv)
+                self.assertEqual(cm.exception.code, 3, argv)
+            rc, _ = self.cos("config")  # reading the config is fine
+            self.assertEqual(rc, 0)
+        finally:
+            del os.environ["CLAUDE_OS_DAEMON"]
+
     def test_free_text_never_spawns_claude_without_a_terminal(self):
         r = subprocess.run([sys.executable, COS, "please clean everything"], capture_output=True, text=True,
                            timeout=30, stdin=subprocess.DEVNULL)

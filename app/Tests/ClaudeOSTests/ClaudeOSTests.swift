@@ -53,3 +53,30 @@ final class PlayerTests: XCTestCase {
         XCTAssertEqual(Player.seconds(nil), 0)
     }
 }
+
+final class AppURLTests: XCTestCase {
+    func testLinksNeedThisLaunchesNonce() {
+        let url = URL(string: "claude-os://music/play?id=1&nonce=abc123&rid=r1")!
+        XCTAssertTrue(AppURL.authorized(url, nonce: "abc123"))
+        XCTAssertFalse(AppURL.authorized(url, nonce: "other"))
+        XCTAssertFalse(AppURL.authorized(URL(string: "claude-os://music/play?id=1")!, nonce: "abc123"))
+        XCTAssertFalse(AppURL.authorized(url, nonce: ""), "an empty nonce never matches")
+    }
+
+    func testRequestIDs() {
+        XCTAssertEqual(AppURL.requestID(URL(string: "claude-os://music/pause?rid=abc123DEF")!), "abc123DEF")
+        XCTAssertNil(AppURL.requestID(URL(string: "claude-os://music/pause?rid=a%22b")!))
+        XCTAssertNil(AppURL.requestID(URL(string: "claude-os://music/pause")!))
+    }
+}
+
+final class ExternalLinkTests: XCTestCase {
+    func testOnlyWebAndMailLeaveTheApp() {
+        for ok in ["https://example.com", "http://example.com", "mailto:a@example.com"] {
+            XCTAssertTrue(MainWindowController.opensExternally(URL(string: ok)!), ok)
+        }
+        for bad in ["claude-os://music/love", "file:///etc/passwd", "ssh://host", "shortcuts://run-shortcut?name=x", "smb://srv"] {
+            XCTAssertFalse(MainWindowController.opensExternally(URL(string: bad)!), bad)
+        }
+    }
+}

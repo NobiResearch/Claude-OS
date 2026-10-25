@@ -85,11 +85,32 @@ def run_tests(path):
 
 
 def guard_branch(branch, base=None):
-    """Run the Guardian over every file the branch changes, as the branch has it."""
+    """Run the Guardian over every commit the branch would publish, one by one, and its
+    message: a file added in one commit and deleted in the next is still pushed."""
     from . import guard
-    names = git("diff", "--name-only", "-z", "--diff-filter=d", "%s...%s" % (base or main_branch(), branch)).out
-    paths = [p for p in names.split("\0") if p]
-    return guard.scan(paths, lambda p: git("show", "%s:%s" % (branch, p)).out)
+    problems = []
+    commits = git("rev-list", "--reverse", "%s..%s" % (base or main_branch(), branch)).out.split()
+    patterns = guard.SECRET_PATTERNS + guard.personal_patterns()
+    for c in commits:
+        names = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=d", c).out
+        paths = [p for p in names.split("\0") if p]
+        problems += [("%s %s" % (c[:8], p), why) for p, why in
+                     guard.scan(paths, lambda p, c=c: git("show", "%s:%s" % (c, p)).out)]
+        message = git("log", "-1", "--format=%B", c).out
+        problems += [("%s message" % c[:8], why) for _, why in guard.check_text("message", message, patterns)]
+    return problems
+
+
+def test_commit(branch):
+    """Run the tests of exactly what would be merged: a fresh checkout of the branch tip,
+    not a workspace that might hold uncommitted edits. None if they couldn't run at all."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="cos-evolve-test-") as tmp:
+        path = os.path.join(tmp, "repo")
+        r = git("clone", "--quiet", "--local", "--branch", branch, str(core.ROOT), path, timeout=180)
+        if not r.ok:
+            return None
+        return run_tests(path)
 
 
 def after_run(ws, summary):
@@ -100,10 +121,10 @@ def after_run(ws, summary):
     r = git("fetch", "--quiet", ws["path"], "%s:%s" % (ws["branch"], ws["branch"]))
     if not r.ok:
         return "evolve: committed on %s but couldn't bring it back: %s" % (ws["branch"], r.err[:200])
-    t = run_tests(ws["path"])
-    verdict = "tests pass" if t.ok else "TESTS FAIL"
+    t = test_commit(ws["branch"])
+    verdict = "tests pass" if t is not None and t.ok else "TESTS FAIL"
     core.journal("evolve", "%s: %d commit(s), %s" % (ws["branch"], len(commits), verdict),
-                 branch=ws["branch"], commits=commits, tests_ok=t.ok)
+                 branch=ws["branch"], commits=commits, tests_ok=bool(t is not None and t.ok))
     return "evolved: %s (%s) · review: cos evolve review %s" % (commits[0].split(" ", 1)[-1], verdict, ws["branch"])
 
 
@@ -202,9 +223,10 @@ def main(args):
             for path, why in problems:
                 print("  guard: %s: %s" % (path, why))
             core.die("the Guardian blocks this branch (it would publish private data)")
-        path = workspace_path(args.branch)
-        t = run_tests(path) if path else None
-        if t is not None and not t.ok:
+        t = test_commit(args.branch)
+        if t is None:
+            core.die("couldn't run the branch's tests; not merging")
+        if not t.ok:
             print((t.err or t.out)[-2000:])
             core.die("the branch's tests fail; not merging")
         fixed = addressed_frictions(args.branch)

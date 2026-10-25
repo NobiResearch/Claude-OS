@@ -5,17 +5,23 @@
 (function () {
   const esc = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+  const anchor = (url, label) => '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer">' + label + "</a>";
+
+  // Code spans and links become placeholders before anything else touches the text, so a
+  // URL can never be re-matched inside markup we generated (no attribute break-outs).
   function inline(s) {
-    const codes = [];
-    s = s.replace(/`([^`]+)`/g, (_, c) => { codes.push(c); return "\u0000" + (codes.length - 1) + "\u0000"; });
+    s = s.replace(/[\u0000\u0001]/g, "");
+    const held = [];
+    const hold = (html, mark) => { held.push(html); return mark + (held.length - 1) + mark; };
+    s = s.replace(/`([^`]+)`/g, (_, c) => hold("<code>" + esc(c) + "</code>", "\u0000"));
+    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s()"'<>]+)\)/g, (_, text, url) => hold(anchor(url, esc(text)), "\u0001"));
+    s = s.replace(/(^|[\s(])(https?:\/\/[^\s()"'<>]+)/g, (_, pre, url) => pre + hold(anchor(url, esc(url)), "\u0001"));
     s = esc(s);
-    s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
-    s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)]+)/g, '$1<a href="$2" target="_blank" rel="noopener noreferrer">$2</a>');
     s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
     s = s.replace(/(^|[^*\w])\*([^*\n]+)\*(?=[^*\w]|$)/g, "$1<em>$2</em>");
     s = s.replace(/(^|[^_\w])_([^_\n]+)_(?=[^_\w]|$)/g, "$1<em>$2</em>");
     s = s.replace(/~~([^~]+)~~/g, "<del>$1</del>");
-    return s.replace(/\u0000(\d+)\u0000/g, (_, i) => "<code>" + esc(codes[+i]) + "</code>");
+    return s.replace(/[\u0000\u0001](\d+)[\u0000\u0001]/g, (_, i) => held[+i] || "");
   }
 
   function table(rows) {

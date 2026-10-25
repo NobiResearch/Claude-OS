@@ -96,9 +96,16 @@ def _drain(p):
 SANDBOX_PROFILE = """(version 1)
 (allow default)
 (deny network-outbound (remote ip))
+(allow network-outbound (remote ip "localhost:*"))
 (deny file-write*)
-(allow file-write* (subpath %s) (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/dev"))
+(allow file-write* (subpath %(cwd)s) (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/dev"))
+(deny file-read* %(private)s)
+(allow file-read* (subpath %(cwd)s))
 """
+
+# Never readable by model-written code: credentials and the human's private state.
+PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".aws", ".gnupg", ".config/gh", ".netrc", ".npmrc",
+                "Library/Keychains", "Library/Application Support/com.apple.TCC")
 
 
 def run_sandboxed(cmd, cwd, timeout=600):
@@ -106,9 +113,13 @@ def run_sandboxed(cmd, cwd, timeout=600):
     cwd and temp dirs, and a throwaway HOME so nothing can touch the real one."""
     import tempfile
     real = os.path.realpath(cwd)
-    profile = SANDBOX_PROFILE % json.dumps(real)
+    home_dir = os.path.realpath(os.path.expanduser("~"))
+    private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
+    profile = SANDBOX_PROFILE % {"cwd": json.dumps(real), "private": private}
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-") as tmp:
-        env = {"HOME": tmp, "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1"}
+        # CLAUDE_OS_DAEMON makes `cos` refuse every mutating command inside, too.
+        env = {"HOME": tmp, "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1",
+               "CLAUDE_OS_DAEMON": "sandboxed-tests"}
         return run(["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real, env=env)
 
 
@@ -313,6 +324,37 @@ def curl_get(url, timeout=12):
 
 # ---------------------------------------------------------------- mac i/o
 
+def app_url(path, **params):
+    """A claude-os:// link for a command that changes something. It carries the per-launch
+    nonce Claude OS.app keeps in ~/.claude-os/state/app.nonce (0600), so a web page or any
+    process that can't read that file can't make the app act."""
+    import urllib.parse
+    try:
+        params["nonce"] = home("state", "app.nonce").read_text().strip()
+    except OSError:
+        params["nonce"] = ""
+    query = urllib.parse.urlencode({k: v for k, v in params.items() if v is not None})
+    return "claude-os://%s?%s" % (path, query)
+
+
+def ensure_app(wait=12):
+    """Start Claude OS.app (in the background) if it isn't running; True once it's up."""
+    if app_running("ClaudeOS"):
+        return True
+    bundle = os.path.expanduser("~/Applications/Claude OS.app")
+    if not os.path.isdir(bundle):
+        return False
+    nonce = home("state", "app.nonce")
+    before = nonce.stat().st_mtime if nonce.exists() else 0
+    run(["open", "-g", bundle], timeout=15)
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        time.sleep(0.5)
+        if app_running("ClaudeOS") and nonce.exists() and nonce.stat().st_mtime > before:
+            return True
+    return app_running("ClaudeOS")
+
+
 def native_notifications():
     """Claude OS.app posts them itself when the human turned it on, macOS allowed it and the
     app is running. Background jobs never launch the app just to show a notification."""
@@ -334,7 +376,10 @@ def notify(message, title="Claude OS", subtitle=None, sound=None):
             with open(path, "w") as f:
                 json.dump(note, f, ensure_ascii=False)
             os.chmod(str(path), 0o600)
-            return run(["open", "-g", "claude-os://notify/flush"], timeout=10)
+            r = run(["open", "-g", "claude-os://notify/flush"], timeout=10)
+            if r.ok:
+                return r
+            os.unlink(str(path))  # couldn't wake the app: say it the old way instead
         except OSError:
             pass  # fall through to AppleScript
     script = "display notification %s with title %s" % (

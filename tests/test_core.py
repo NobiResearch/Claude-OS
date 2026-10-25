@@ -85,6 +85,15 @@ class TestNotifications(TempHome):
             core.app_running = orig
 
 
+class TestAppLinks(TempHome):
+    def test_app_url_carries_the_nonce(self):
+        core.home("state", "app.nonce").write_text("n0nce\n")
+        url = core.app_url("music/play", id="123", rid="r1")
+        self.assertTrue(url.startswith("claude-os://music/play?"))
+        self.assertIn("nonce=n0nce", url)
+        self.assertIn("id=123", url)
+
+
 class TestTrends(TempHome):
     def test_one_line_per_day_and_weekly_rate(self):
         from cos import status

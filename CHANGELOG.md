@@ -4,6 +4,24 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Security review fixes** (a fresh review of everything since v0.2):
+  - `claude-os://` links that change something (play, rate, permission prompts) need this
+    launch's nonce from `~/.claude-os/state/app.nonce`, so a web page or feed link can't make
+    Claude OS act; the player also honours the "Apple Music in Claude OS" switch.
+  - Only http(s)/mailto links leave the app, and feeds keep only http(s) links.
+  - Markdown links can no longer break out of their attribute; the desktop's CSP drops
+    `'unsafe-inline'` styles.
+  - Evolve: the Guardian checks every commit and message a merge would publish (not just
+    the final diff); tests run on a fresh checkout of exactly the merged commit, inside a
+    sandbox that can reach localhost but not the internet and can't read `~/.ssh`,
+    `~/.claude-os` and other private folders; no tests, no merge.
+  - Background jobs can't connect the calendar, set the weather place, add feeds, change
+    config or play/rate music; those also ask first in interactive sessions.
+  - Player answers carry a request id, so a stale state file can't pass for success.
+  - The morning brief no longer launches Claude OS just to refresh the calendar.
+  - Weather coordinates join the Guardian's private terms; a notification falls back to
+    AppleScript if the app can't be woken.
+
 - **Notifications from Claude OS** (decision 0004): with the new setting on, alerts and the
   morning brief arrive with Claude OS's own name and icon, and clicking one opens the
   desktop. The text goes through a private outbox in `~/.claude-os`; the link that wakes the

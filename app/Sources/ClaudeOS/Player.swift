@@ -53,6 +53,7 @@ final class Player {
     private let player = ApplicationMusicPlayer.shared
     private var current: Song?
     private var lovedID: String?
+    private var requestID: String?
     private var lastError: String?
     private var ticker: Timer?
 
@@ -63,11 +64,26 @@ final class Player {
         return base.appendingPathComponent("state/player.json")
     }()
 
-    func handle(_ url: URL) {
+    func handle(_ url: URL, trusted: Bool) {
+        requestID = AppURL.requestID(url)
+        guard trusted else {
+            log("refused a music link without this launch's nonce")
+            return
+        }
         guard let command = MusicCommand(url: url) else {
             lastError = "unknown music command"
             write()
             return
+        }
+        switch command {
+        case .authorize, .play, .playLibrary:
+            guard Self.appleMusicEnabled else {
+                lastError = "Apple Music in Claude OS is off (Settings › Permissions)"
+                write()
+                return
+            }
+        default:
+            break
         }
         Task { @MainActor in
             switch command {
@@ -207,6 +223,7 @@ final class Player {
             state["loved"] = lovedID == song.id.rawValue
         }
         if let error = lastError { state["error"] = error }
+        if let rid = requestID { state["rid"] = rid }
         do {
             try FileManager.default.createDirectory(at: stateURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: state, options: [.sortedKeys])
@@ -214,6 +231,15 @@ final class Player {
         } catch {
             log("couldn't write player state: \(error.localizedDescription)")
         }
+    }
+
+    /// The human's switch in Settings (config.json › music.apple_music), read fresh each time.
+    static var appleMusicEnabled: Bool {
+        let url = AppURL.base.appendingPathComponent("config.json")
+        guard let data = try? Data(contentsOf: url),
+              let config = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let music = config["music"] as? [String: Any] else { return false }
+        return music["apple_music"] as? Bool ?? false
     }
 
     /// Library songs report their duration in milliseconds (catalog songs in seconds);

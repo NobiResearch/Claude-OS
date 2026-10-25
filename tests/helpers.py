@@ -17,7 +17,8 @@ class TempHome(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="cos-test-")
-        self._old = {k: os.environ.get(k) for k in ("CLAUDE_OS_HOME", "HOME")}
+        self._old = {k: os.environ.get(k) for k in ("CLAUDE_OS_HOME", "HOME", "CLAUDE_OS_DAEMON")}
+        os.environ.pop("CLAUDE_OS_DAEMON", None)  # tests that need it set it themselves
         os.environ["CLAUDE_OS_HOME"] = os.path.join(self.tmp, "state")
         os.environ["HOME"] = os.path.join(self.tmp, "home")
         os.makedirs(os.environ["HOME"])
