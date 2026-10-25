@@ -26,11 +26,12 @@ SAFETY_ORDER = {"safe": 0, "review": 1, "careful": 2}
 
 class Target:
     def __init__(self, id, label, why, safety, paths=(), action="contents",
-                 cmd=None, requires=None, deep=False, measure=None, apply=None):
+                 cmd=None, requires=None, deep=False, measure=None, apply=None, busy=()):
         self.id, self.label, self.why, self.safety = id, label, why, safety
         self.paths = [Path(os.path.expanduser(p)) for p in paths]
         self.action, self.cmd, self.requires = action, cmd, requires
         self.deep, self.measure_fn, self.apply_fn = deep, measure, apply
+        self.busy = busy  # processes that hold this cache while they run
 
     def available(self):
         if self.requires and not core.which(self.requires):
@@ -150,9 +151,12 @@ def measure_stale_sims(t):
 
 
 def apply_stale_sims(t):
-    udids = [d["udid"] for d in stale_simulators()]
-    if udids:
-        core.run(["xcrun", "simctl", "delete"] + udids, timeout=300)
+    """-> bytes freed: what simctl was asked to delete, if it said it did."""
+    sims = stale_simulators()
+    if not sims:
+        return 0
+    r = core.run(["xcrun", "simctl", "delete"] + [d["udid"] for d in sims], timeout=300)
+    return sum(d.get("dataPathSize", 0) for d in sims) if r.ok else 0
 
 
 def measure_unavailable_sims(t):
@@ -177,11 +181,17 @@ def pick_old_runtimes(data):
 
 
 def old_runtimes():
-    r = core.run(["xcrun", "simctl", "runtime", "list", "-j"], timeout=60)
-    try:
-        return pick_old_runtimes(json.loads(r.out or "{}"))
-    except (ValueError, AttributeError):
-        return []
+    # Right after simulators are deleted, CoreSimulator can answer with nothing for a moment.
+    for attempt in range(2):
+        r = core.run(["xcrun", "simctl", "runtime", "list", "-j"], timeout=60)
+        try:
+            data = json.loads(r.out or "")
+            if r.ok and isinstance(data, dict):
+                return pick_old_runtimes(data)
+        except (ValueError, AttributeError):
+            pass
+        time.sleep(3)
+    return []
 
 
 def measure_old_runtimes(t):
@@ -194,10 +204,15 @@ def measure_old_runtimes(t):
 
 
 def apply_old_runtimes(t):
+    """-> bytes freed: the size of each runtime simctl deleted."""
+    freed = 0
     for rt in old_runtimes():
         r = core.run(["xcrun", "simctl", "runtime", "delete", rt["id"]], timeout=600)
-        if not r.ok:
+        if r.ok:
+            freed += rt.get("sizeBytes") or 0
+        else:
             print("  couldn't delete %s %s: %s" % (rt.get("platformIdentifier"), rt.get("version"), (r.err or r.out)[:200]))
+    return freed
 
 
 def measure_brew(t):
@@ -387,7 +402,8 @@ TARGETS = [
            "safe", ["~/Library/Caches/Yarn"], action="cmd", cmd=["yarn", "cache", "clean"], requires="yarn"),
     Target("pip-cache", "pip cache", "Wheel and HTTP cache.", "safe", ["~/Library/Caches/pip"]),
     Target("uv-cache", "uv cache", "Python package cache; refetched on demand.",
-           "safe", ["~/.cache/uv"], action="cmd", cmd=["uv", "cache", "clean"], requires="uv"),
+           "safe", ["~/.cache/uv"], action="cmd", cmd=["uv", "cache", "clean"], requires="uv",
+           busy=("uv",)),  # uvx tools (MCP servers, say) lock the cache; `uv cache clean` would wait
     Target("cargo-cache", "Cargo registry cache", "Downloaded crate archives and sources.",
            "safe", ["~/.cargo/registry/cache", "~/.cargo/registry/src"]),
     Target("gradle-cache", "Gradle caches", "Dependency and build caches.", "safe", ["~/.gradle/caches"]),
@@ -523,9 +539,16 @@ def apply(ids, yes=False):
         return 2
     results = []
     for t in targets:
+        running = [name for name in t.busy if core.app_running(name)]
+        if running:
+            print("  %-22s skipped: %s is running and holds it (an MCP server started with uvx, say). "
+                  "Quit it and run this again." % (t.id, " and ".join(running)))
+            core.journal("action", "clean %s skipped: %s is running" % (t.id, ", ".join(running)), target=t.id, freed=0)
+            continue
         before = measure(t)["bytes"]
+        reported = 0
         if t.apply_fn:
-            t.apply_fn(t)
+            reported = t.apply_fn(t) or 0
         elif t.action == "cmd":
             r = core.run(t.cmd, timeout=900)
             if not r.ok:
@@ -534,7 +557,8 @@ def apply(ids, yes=False):
             for p in t.paths:
                 delete_contents(p)
         after = measure(t)["bytes"]
-        freed = max(0, before - after)
+        # Measuring can come back empty while a tool is busy; what the apply deleted still counts.
+        freed = max(0, before - after, reported if isinstance(reported, int) else 0)
         results.append((t.id, freed))
         core.journal("action", "clean %s freed %s" % (t.id, core.human_bytes(freed)), target=t.id, freed=freed)
         print("  %-22s freed %s" % (t.id, core.human_bytes(freed)))
