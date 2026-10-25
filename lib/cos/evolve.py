@@ -291,8 +291,24 @@ def _fast_forward(out, base, cwd, source):
                      source=source, old=old, new=git("rev-parse", "HEAD", cwd=cwd).out,
                      subjects=out["subjects"][:20], protected=out["protected"], undo="git reset --keep %s" % old)
         out["behind"] = 0
+        core.cache_put("caught-up", {"subjects": out["subjects"], "protected": out["protected"],
+                                     "source": source, "head": out["head"]})
     finally:
         lock.close()
+
+
+def auto_catch_up(source, cwd=None):
+    """With "Keep Claude OS up to date" on (0011, part two), fast-forward. Callers only call
+    it where no old code is loaded: the server's start, a terminal session's boot, pulse
+    while the app is closed. -> catch_up's dict, or None when the switch is off."""
+    auto = core.config()["autonomy"]
+    if not auto.get("catch_up"):
+        return None
+    if not auto.get("catch_up_url") or git("config", "--get", "remote.origin.url", cwd=cwd).out != auto["catch_up_url"]:
+        c = catch_up(fetch=True, source=source, cwd=cwd)
+        c["why"] = c["why"] or "origin isn't the repository Keep Claude OS up to date was turned on for"
+        return c
+    return catch_up(apply=True, fetch=True, source=source, cwd=cwd)
 
 
 def main(args):

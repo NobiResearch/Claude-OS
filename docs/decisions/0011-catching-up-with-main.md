@@ -1,6 +1,6 @@
 # 0011 — Catching up with main
 
-- **Status:** accepted (part one)
+- **Status:** accepted
 - **Date:** 2026-10-25
 - **Decided by:** the board, from friction #16
 
@@ -47,14 +47,26 @@ waits for its opt-in switch. Part one reports, and moves the code when the human
 - **The desktop** can't apply it yet (`/api/updates/apply` refuses the source): the running
   server would mix versions.
 
-## Part two (next)
+## Decision (part two)
 
-An opt-in **Keep Claude OS up to date** switch in Settings › Permissions, off by default and
-turned on only in the app's native dialog, like Night shift. With it on, the fast-forward
-happens only where no old code is loaded: when Claude OS.app's server starts (before it
-serves, then it re-executes itself), in a terminal session's boot, and in pulse while the app
-isn't running. Otherwise the desktop shows that an update is ready. The URL is pinned when
-the switch is turned on.
+- **Keep Claude OS up to date**, a switch in Settings › Permissions: off by default, turned
+  on only in Claude OS.app's native dialog (like Night shift), off in one click. `cos config`
+  refuses to turn any `autonomy.*` switch on, so the dialog is the only way, Night shift's
+  included. Turning it on pins origin's URL; if origin changes later, it only reports.
+- With it on, `evolve.auto_catch_up` fast-forwards only where no old code is loaded:
+  - when Claude OS.app's server starts, before any of the server is imported; if it moved,
+    `cos serve` starts again on the new code (`os.execv`, once);
+  - in a terminal session's boot, while the app isn't running;
+  - in pulse, while the app isn't running.
+  The app's chat sessions only report.
+- **Update** in the desktop's menu bar appears when a restart would help: the checkout moved
+  since the server started, or the switch is on and changes are waiting. It restarts only
+  the server, after a confirm: the server exits with status 75, which Claude OS.app takes as
+  planned (no crash count, no alert), and the new server catches up as it starts. Music
+  keeps playing; the player lives in the app. A browser's `cos serve` can't be restarted
+  this way, so it never offers it.
+- The next session's banner says once what came in ("↑ Claude OS caught up with main"),
+  and names the gate's files if they changed.
 
 ## Not changed
 

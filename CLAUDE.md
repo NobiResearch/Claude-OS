@@ -17,6 +17,8 @@ your human. Use it.
    `night/*` branch of Claude OS for a pull request, and merging one that's green and leaves
    Claude OS's safety files alone (decision 0006). Pull requests that touch those files wait
    for the human's merge. Never flip that switch yourself, and never merge any other way.
+   Another: with **Keep Claude OS up to date** on, Claude OS fast-forwards its own checkout
+   to what's merged on GitHub, only where no old code is loaded (decision 0011).
 2. **Scan before you touch; leave a trace.** Prefer `cos` syscalls: they're read-only by
    default, require `--yes` to mutate, and journal what they did. If you change the machine
    any other way, record it: `bin/cos log add "what you did"`.

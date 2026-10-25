@@ -29,6 +29,7 @@ from . import __version__, chat, core
 
 UI_DIR = core.ROOT / "ui"
 COS = str(core.ROOT / "bin" / "cos")
+RESTART = 75  # the exit status that tells Claude OS.app a restart was planned (EX_TEMPFAIL)
 
 
 # ---------------------------------------------------------------- jobs
@@ -129,6 +130,17 @@ def confirm_natively(what, wait=120):
     return False
 
 
+def code_state(app):
+    """For the menu bar's Update item: is a restart of the server worth it?"""
+    on_disk = core.run(["git", "-C", str(core.ROOT), "rev-parse", "--short", "HEAD"], timeout=5).out
+    cached = (core.cache_get("catch-up") or {}).get("data") or {}
+    auto = bool(core.config()["autonomy"].get("catch_up"))
+    waiting = cached.get("behind", 0) if auto and not cached.get("why") else 0
+    return {"running": app.head, "on_disk": on_disk, "auto": auto, "waiting": waiting,
+            "subjects": cached.get("subjects", [])[:5] if waiting else [],
+            "restart": bool(app.managed and app.head and on_disk and (on_disk != app.head or waiting))}
+
+
 def read_doc(name):
     allowed = {"roadmap": "docs/roadmap.md", "lessons": "docs/lessons.md", "architecture": "docs/architecture.md",
                "changelog": "CHANGELOG.md", "readme": "README.md"}
@@ -198,6 +210,11 @@ class App:
             self.chats = chat.Registry()
         self.jobs = {}
         self.port = None
+        # The commit this server's code came from: once the checkout moves, it's out of date
+        # (any lib/cos module it loads from now on would be newer than the ones it has; 0011).
+        self.head = core.run(["git", "-C", str(core.ROOT), "rev-parse", "--short", "HEAD"], timeout=5).out
+        self.managed = False  # started by Claude OS.app, which restarts it (see r_restart)
+
 
     def job(self, argv, label):
         j = Job(argv, label)
@@ -392,7 +409,21 @@ def make_handler(app):
         from . import status
         s = status.collect()
         core.cache_put("status", s)
-        h._json(s)
+        h._json(dict(s, claude_os=code_state(app)))
+
+    def r_restart(h, q, b):
+        """Restart only the server (music plays on in the app): exit 75 tells Claude OS.app
+        it was planned. With Keep Claude OS up to date on, the new server catches up first."""
+        if not app.managed:
+            return h._error(400, "only Claude OS.app restarts its server; in a browser, restart `cos serve`")
+        h._json({"ok": True})
+
+        def later():
+            time.sleep(0.3)
+            app.chats.close_all()
+            core.journal("action", "Claude OS's server restarted to update", via="app")
+            os._exit(RESTART)
+        threading.Thread(target=later, daemon=True).start()
 
     def r_clean(h, q, b):
         from . import clean
@@ -440,7 +471,8 @@ def make_handler(app):
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},
                  "weather": {"name": place.get("name"), "source": place.get("source")},
-                 "night_shift": bool(cfg["autonomy"].get("night_shift"))})
+                 "night_shift": bool(cfg["autonomy"].get("night_shift")),
+                 "catch_up": bool(cfg["autonomy"].get("catch_up"))})
 
     def r_settings_music(h, q, b):
         from . import music
@@ -468,6 +500,22 @@ def make_handler(app):
         core.journal("action", "Night shift turned %s%s" % ("on" if on else "off", " (confirmed in the app window)" if on else ""),
                      via="app")
         h._json({"night_shift": on})
+
+    def r_settings_catch_up(h, q, b):
+        on = bool(b.get("on"))
+        if on:
+            answer = confirm_natively("catch-up")  # like Night shift: the page can't click it
+            if answer is not True:
+                core.journal("action", "Keep Claude OS up to date stayed off (%s)" % (
+                    "declined in the app window" if answer is False else "couldn't ask in Claude OS.app"), via="app")
+                return h._json({"catch_up": False, "confirmed": answer,
+                                "error": None if answer is False else "It can only be turned on in Claude OS.app"})
+            core.config_set("autonomy.catch_up_url",
+                            core.run(["git", "-C", str(core.ROOT), "config", "--get", "remote.origin.url"], timeout=5).out)
+        core.config_set("autonomy.catch_up", on)
+        core.journal("action", "Keep Claude OS up to date turned %s%s" % (
+            "on" if on else "off", " (confirmed in the app window)" if on else ""), via="app")
+        h._json({"catch_up": on})
 
     def r_settings_notify(h, q, b):
         on = bool(b.get("native"))
@@ -715,6 +763,8 @@ def make_handler(app):
         ("POST", "/api/settings/music"): r_settings_music,
         ("POST", "/api/settings/notify"): r_settings_notify,
         ("POST", "/api/settings/night"): r_settings_night,
+        ("POST", "/api/settings/catch-up"): r_settings_catch_up,
+        ("POST", "/api/restart"): r_restart,
         ("GET", "/api/weather"): r_weather,
         ("POST", "/api/weather/city"): r_weather_city,
         ("POST", "/api/weather/coords"): r_weather_coords,
@@ -769,6 +819,7 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=
     httpd = bind(port, make_handler(app))
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
+    app.managed = exit_on_stdin_eof
     print("COS_SERVE_READY port=%d token=%s" % (app.port, app.token), flush=True)
     if exit_on_stdin_eof:
         def watch():

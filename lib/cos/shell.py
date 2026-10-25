@@ -28,22 +28,47 @@ def _music_now(max_age=20):
     return n
 
 
+def _caught_up_line():
+    """Once, after Claude OS moved itself forward (0011): what came in."""
+    done = core.cache_get("caught-up")
+    if not done:
+        return None
+    core.home("cache", "caught-up.json").unlink()
+    d = done["data"]
+    n = len(d["subjects"])
+    line = "  ↑ Claude OS caught up with main (%s, %s): %s%s — this session read the old CLAUDE.md; " \
+           "read it again for new commands" % (d["source"], core.ago(done["ts"]), " · ".join(d["subjects"][:3]),
+                                               " (+%d more)" % (n - 3) if n > 3 else "")
+    if d["protected"]:
+        line += "\n    the gate changed: %s" % ", ".join(d["protected"][:4])
+    return line
+
+
 def _catch_up_line():
     """What's merged on GitHub and not on this Mac, so a session never works from stale
-    Claude OS without knowing (friction #16). It never moves the code itself."""
+    Claude OS without knowing (friction #16). A terminal session catches up first when Keep
+    Claude OS up to date is on and the app isn't running (its server would mix versions)."""
     if os.environ.get("CLAUDE_OS_DAEMON"):
         return None
     from . import evolve
     try:
-        c = evolve.catch_up(fetch=True, source="boot")
+        terminal = not os.environ.get("CLAUDE_OS_APP") and not core.app_running("ClaudeOS")
+        c = (terminal and evolve.auto_catch_up("boot")) or evolve.catch_up(fetch=True, source="boot")
     except Exception:
         return None
+    if c["updated"]:
+        return _caught_up_line()
     if not c["behind"]:
         return None
     n, shown = len(c["subjects"]), c["subjects"][:3]
     line = "  ↓ Claude OS: %d change%s merged on GitHub, not on this Mac: %s%s" % (
         n, "" if n == 1 else "s", " · ".join(shown), " (+%d more)" % (n - 3) if n > 3 else "")
-    line += (" — not updated: %s" % c["why"]) if c["why"] else " — update: cos update apply claude-os --yes"
+    if c["why"]:
+        line += " — not updated: %s" % c["why"]
+    elif core.config()["autonomy"].get("catch_up"):
+        line += " — it comes in when Claude OS.app restarts (menu bar: Update)"
+    else:
+        line += " — update: cos update apply claude-os --yes"
     if c["protected"]:
         line += "\n    the gate changes too: %s" % ", ".join(c["protected"][:4])
     return line
@@ -69,9 +94,9 @@ def boot():
     open_f = [f for f in mem.frictions() if f["status"] == "open"]
     if open_f:
         lines.append("  friction: %d open (cos friction) — latest: %s" % (len(open_f), open_f[-1]["text"][:90]))
-    behind = _catch_up_line()
-    if behind:
-        lines.append(behind)
+    for line in (_caught_up_line(), _catch_up_line()):
+        if line:
+            lines.append(line)
     waiting = evolve.branches()
     if waiting:
         lines.append("  evolve: %d branch(es) awaiting review: %s (cos evolve)" % (len(waiting), ", ".join(waiting[:3])))

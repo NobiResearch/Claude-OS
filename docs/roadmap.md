@@ -6,13 +6,10 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **Keep Claude OS up to date** (0011, part two): the opt-in switch, in the app's native
-   dialog, that fast-forwards where no old code is loaded (the server's start, a terminal
-   boot, pulse while the app is closed), and an "update ready" note in the desktop.
-2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+1. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+2. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-4. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+3. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening

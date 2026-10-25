@@ -1,6 +1,7 @@
 import http.client
 import json
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 
@@ -112,16 +113,16 @@ class TestServerSecurity(TempHome):
         self.assertEqual(status, 200)
         self.assertIn("Apple Music", json.loads(data)["error"])
 
-    def answer_dialog(self, approved):
+    def answer_dialog(self, approved, what="night"):
         """Stand in for Claude OS.app: when the confirm link opens, write the dialog's answer."""
         from urllib.parse import parse_qs, urlparse
         from cos import core
         real_run = core.run
 
         def fake_run(cmd, **kw):
-            if cmd[:2] == ["open", "-g"] and cmd[2].startswith("claude-os://confirm/night"):
+            if cmd[:2] == ["open", "-g"] and cmd[2].startswith("claude-os://confirm/" + what):
                 rid = parse_qs(urlparse(cmd[2]).query)["rid"][0]
-                core.save_json(core.home("state", "confirm-night.json"), {"rid": rid, "approved": approved})
+                core.save_json(core.home("state", "confirm-%s.json" % what), {"rid": rid, "approved": approved})
                 return core.Result(0, "", "")
             return real_run(cmd, **kw)
         return fake_run
@@ -146,6 +147,46 @@ class TestServerSecurity(TempHome):
         self.assertFalse(reply["night_shift"])
         self.assertIn("only be turned on in Claude OS.app", reply["error"])
         self.assertFalse(core.config()["autonomy"]["night_shift"])
+
+    def test_keeping_up_to_date_turns_on_only_in_the_dialog_and_pins_the_repository(self):
+        from unittest import mock
+        from cos import core
+        core.home("state", "app.nonce").write_text("n0nce")
+        with mock.patch.object(server.core, "app_running", lambda name: name == "ClaudeOS"):
+            with mock.patch.object(server.core, "run", self.answer_dialog(False, "catch-up")):
+                reply = json.loads(self.request("POST", "/api/settings/catch-up", {"on": True})[2])
+            self.assertFalse(reply["catch_up"])
+            self.assertFalse(core.config()["autonomy"]["catch_up"])
+            with mock.patch.object(server.core, "run", self.answer_dialog(True, "catch-up")):
+                reply = json.loads(self.request("POST", "/api/settings/catch-up", {"on": True})[2])
+            self.assertTrue(reply["catch_up"])
+        auto = core.config()["autonomy"]
+        self.assertTrue(auto["catch_up"])
+        url = core.run(["git", "-C", str(core.ROOT), "config", "--get", "remote.origin.url"]).out
+        self.assertEqual(auto["catch_up_url"], url, "pinned to the origin it was turned on for")
+        self.assertIs(json.loads(self.request("GET", "/api/settings")[2])["catch_up"], True)
+        self.assertFalse(json.loads(self.request("POST", "/api/settings/catch-up", {"on": False})[2])["catch_up"])
+
+    def test_the_update_item_and_restart_are_only_for_the_app(self):
+        from unittest import mock
+        from cos import core
+        app = server.App("t")
+        self.assertFalse(server.code_state(app)["restart"], "a browser's server can't be restarted for it")
+        app.managed = True
+        self.assertFalse(server.code_state(app)["restart"], "nothing changed")
+        app.head = "0000000"
+        self.assertTrue(server.code_state(app)["restart"], "the checkout moved under it")
+        status, _, data = self.request("POST", "/api/restart", {})
+        self.assertEqual(status, 400)
+        exits = []
+        self.app.managed = True
+        with mock.patch.object(server.os, "_exit", exits.append):
+            status, _, data = self.request("POST", "/api/restart", {})
+            deadline = time.time() + 3
+            while not exits and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual((status, exits), (200, [server.RESTART]))
+        self.assertIn("restarted to update", core.read_journal(days=1)[-1]["msg"])
 
     def test_a_stale_or_forged_answer_doesnt_count(self):
         from unittest import mock

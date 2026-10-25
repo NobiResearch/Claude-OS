@@ -171,6 +171,74 @@ class TestCatchUp(Repos):
         self.assertIn("background job", c["why"])
 
 
+class TestKeepUpToDate(Repos):
+    def switch(self, on=True, url=None):
+        core.config_set("autonomy.catch_up", on)
+        core.config_set("autonomy.catch_up_url", url or self.origin)
+
+    def test_off_by_default_and_then_nothing_moves(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.assertFalse(core.config()["autonomy"]["catch_up"])
+        self.assertIsNone(evolve.auto_catch_up("pulse", cwd=self.live))
+
+    def test_on_it_moves_forward_and_the_next_banner_says_so_once(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.switch()
+        self.assertTrue(evolve.auto_catch_up("pulse", cwd=self.live)["updated"])
+        self.assertEqual(self.head(), self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
+        line = shell._caught_up_line()
+        self.assertIn("caught up with main (pulse", line)
+        self.assertIn("cos net (#42)", line)
+        self.assertIsNone(shell._caught_up_line(), "once")
+
+    def test_only_for_the_repository_it_was_turned_on_for(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.switch(url="https://github.com/someone-else/claude-os.git")
+        c = evolve.auto_catch_up("boot", cwd=self.live)
+        self.assertFalse(c["updated"])
+        self.assertIn("isn't the repository", c["why"])
+
+    def test_pulse_moves_forward_only_while_the_app_is_closed(self):
+        from cos import daemon
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.switch()
+        real = evolve.catch_up
+        with mock.patch.object(evolve, "catch_up", lambda **kw: real(**dict(kw, cwd=self.live))):
+            with mock.patch.object(core, "app_running", lambda name: name == "ClaudeOS"):
+                c = daemon.pulse_catch_up()
+            self.assertEqual((c["behind"], c["updated"]), (1, False), "the app's server would mix versions")
+            with mock.patch.object(core, "app_running", lambda name: False), \
+                    mock.patch.object(evolve, "git", lambda *a, **kw: evolve.core.run(
+                        ["git"] + list(a), cwd=self.live, timeout=kw.get("timeout", 60))):
+                self.assertTrue(daemon.pulse_catch_up()["updated"])
+        self.assertEqual(self.head(), self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
+
+    def test_the_server_catches_up_before_it_loads_and_starts_again(self):
+        from cos import cli
+        self.switch()
+
+        class Restarted(Exception):
+            pass
+
+        def execv(path, argv):
+            raise Restarted(argv)
+        with mock.patch.object(evolve, "auto_catch_up", return_value={"updated": True}), \
+                mock.patch.object(cli.os, "execv", execv), self.assertRaises(Restarted) as cm:
+            cli.main(["serve", "--port", "0", "--exit-on-stdin-eof"])
+        self.assertEqual(cm.exception.args[0][1:], [str(core.ROOT / "bin" / "cos"), "serve", "--port", "0",
+                                                    "--exit-on-stdin-eof"])
+        self.assertEqual(os.environ.pop("COS_CAUGHT_UP"), "1", "the new process doesn't catch up again")
+
+    def test_only_the_apps_dialog_turns_it_on(self):
+        from cos import cli
+        for key in ("autonomy.catch_up", "autonomy.night_shift"):
+            with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
+                cli.main(["config", key, "true"])
+            self.assertEqual(cm.exception.code, 2, key)
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(cli.main(["config", key, "false"]), 0, "off is always fine")
+
+
 class TestOrigin(Repos):
     stub_origin = False
 

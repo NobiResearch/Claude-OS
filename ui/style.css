@@ -57,6 +57,7 @@ button.mb-item:hover { background: var(--hover); }
 .mb-item.logo { color: var(--accent); }
 .mb-item.logo b { color: var(--text); font-weight: 600; }
 .mb-item.app { font-weight: 600; }
+.mb-item.update { color: var(--accent); font-weight: 600; }
 .mb-item.music { color: var(--muted); max-width: 340px; overflow: hidden; text-overflow: ellipsis; }
 .mb-item.clock { font-variant-numeric: tabular-nums; }
 .mb-spacer { flex: 1; }

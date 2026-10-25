@@ -144,6 +144,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     func serverDidExitUnexpectedly(status: Int32, stderr: String) {
         statusController.endpoint = nil
         windowController.serverWentAway()
+        if status == ServerController.plannedRestart {
+            // The desktop's Update: only the server restarts (it catches up first), the
+            // player keeps playing, and it doesn't count as a crash.
+            log("server restarting to update")
+            startServer()
+            return
+        }
         if let last = restartedAt, Date().timeIntervalSince(last) < Self.restartWindow {
             showServerAlert(title: "The Claude OS server stopped",
                             summary: "It exited (status \(status)) again soon after being restarted.",

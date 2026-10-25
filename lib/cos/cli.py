@@ -276,6 +276,9 @@ def config_cmd(args):
         value = json.loads(args.value)
     except ValueError:
         value = args.value
+    if args.key.startswith("autonomy.") and value:
+        # Night shift and Keep Claude OS up to date: only the app's own dialog turns them on.
+        core.die("turn that on in Claude OS.app: Settings › Permissions asks in its own dialog", 2)
     core.config_set(args.key, value)
     print("%s = %s" % (args.key, json.dumps(value)))
     return 0
@@ -432,6 +435,13 @@ def main(argv=None):
         print("Claude OS %s" % __version__)
         return 0
     if c == "serve":
+        if not args.demo and not os.environ.get("COS_CAUGHT_UP"):
+            # Before any of the server is loaded: catch up, then start again on the new code.
+            from . import evolve
+            c_ = evolve.auto_catch_up("app start")
+            if c_ and c_["updated"]:
+                os.environ["COS_CAUGHT_UP"] = "1"
+                os.execv(sys.executable, [sys.executable, str(core.ROOT / "bin" / "cos")] + argv)
         from . import server
         return server.main(args)
     if c == "app":
