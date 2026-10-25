@@ -71,39 +71,110 @@ class TestDecide(TempHome):
             "push url redirected": (request("git push -u origin night/x"), looking(push_url="https://example.com/x.git")),
             "not GitHub": (request("git push -u origin night/x"),
                            looking(url="https://example.com/x.git", push_url="https://example.com/x.git")),
-            "safety files": (request("git push -u origin night/x"), looking(paths=["lib/cos/hook.py"])),
-            "settings": (request("git push -u origin night/x"), looking(paths=[".claude/settings.json"])),
-            "the laws": (request("git push -u origin night/x"), looking(paths=["CLAUDE.md"])),
             "CI": (request("git push -u origin night/x"), looking(paths=[".github/workflows/test.yml"])),
             "guardian": (request("git push -u origin night/x"), looking(problems=[("abc message", "an email address")])),
             "hook not on a clean main": (request("git push -u origin night/x"), looking(clean_main=False)),
             "git couldn't list the changes": (request("git push -u origin night/x"), looking(paths=None)),
-            "shadows the standard library": (request("git push -u origin night/x"), looking(paths=["lib/json.py"])),
-            "package init": (request("git push -u origin night/x"), looking(paths=["lib/cos/__init__.py"])),
-            "compiled code": (request("git push -u origin night/x"), looking(paths=["lib/cos/__pycache__/music.cpython-39.pyc"])),
-            "the approval path": (request("git push -u origin night/x"), looking(paths=["lib/cos/chat.py"])),
         }
         for name, (req, look) in cases.items():
             ok, why = hook.decide(req, ON, look=look)
             self.assertFalse(ok, name)
 
-    def test_the_code_the_gate_leans_on_waits_for_the_human(self):
-        # Merged on one night, a change here would loosen the checks for the next.
-        for path in ("lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py"):
-            ok, why = hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=["ui/apps.js", path]))
-            self.assertFalse(ok, path)
-            self.assertIn("waits for the human", why)
-            self.assertIn(path, why)
-        self.assertTrue(hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=["lib/cos/updates.py"]))[0])
+    def test_a_pushed_branch_may_change_the_gate_but_not_ci(self):
+        # Pushed and unmerged, a change runs nowhere that matters; CI runs on push, though.
+        for path in ("lib/cos/hook.py", ".claude/settings.json", "CLAUDE.md", "lib/json.py", "lib/cos/core.py"):
+            self.assertTrue(hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=[path]))[0], path)
+        ok, why = hook.decide(request("git push -u origin night/x"), ON, look=looking(paths=[".github/workflows/x.yml"]))
+        self.assertFalse(ok)
+        self.assertIn("CI", why)
 
     def test_check_exits_one_when_it_would_ask(self):
-        args = mock.Mock(hook_cmd="check", branch="night/x", json=True)
+        args = mock.Mock(hook_cmd="check", target="night/x", json=True)
         real = hook.decide
-        for paths, rc in ((["lib/cos/evolve.py"], 1), (["lib/cos/updates.py"], 0)):
+        for paths, rc in (([".github/workflows/x.yml"], 1), (["lib/cos/updates.py"], 0)):
             with mock.patch.object(hook, "decide", lambda r, c: real(r, c, look=looking(paths=paths))), \
                     mock.patch.object(hook.core, "config", return_value=ON), redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(hook.main(args), rc, paths)
             self.assertEqual(json.loads(out.getvalue())["approve"], rc == 0)
+
+
+SHA1 = "a" * 40
+PR = {"number": 31, "state": "OPEN", "isDraft": False, "isCrossRepository": False, "headRefName": "night/x",
+      "headRefOid": SHA1, "baseRefName": "main", "url": "https://github.com/example/claude-os/pull/31", "title": "A thing",
+      "statusCheckRollup": [{"__typename": "CheckRun", "name": "test", "status": "COMPLETED", "conclusion": "SUCCESS"}]}
+GOOD_PR = dict(GOOD, main="main", local=SHA1, pr=PR)
+MERGE = "gh pr merge 31 --squash --delete-branch --match-head-commit " + SHA1
+
+
+def pr_looking(pr=None, **changes):
+    return lambda number, sha, cwd: dict(GOOD_PR, pr=dict(PR, **(pr or {})), **changes)
+
+
+class TestMerge(TempHome):
+    def decide(self, command=MERGE, look_pr=None, cfg=ON):
+        return hook.decide(request(command), cfg, look=looking(), look_pr=look_pr or pr_looking())
+
+    def test_the_one_merge_command(self):
+        self.assertEqual(hook.parse_merge(MERGE), (31, SHA1))
+        for cmd in (MERGE + " --admin", MERGE.replace("--squash", "--merge"), MERGE.replace("--squash", "--rebase"),
+                    "gh pr merge 31 --squash --delete-branch", "gh pr merge 31 --auto --squash --delete-branch --match-head-commit " + SHA1,
+                    "gh pr merge night/x --squash --delete-branch --match-head-commit " + SHA1,
+                    MERGE.replace(SHA1, SHA1[:39]), MERGE.replace(SHA1, "A" * 40), MERGE + "; rm -rf ~",
+                    "GH_REPO=x/y " + MERGE, MERGE.replace("31", "-R x/y 31"), "gh-axi pr merge 31", "gh api -X PUT repos/x/y/pulls/31/merge",
+                    "gh pr merge https://github.com/x/y/pull/31 --squash --delete-branch --match-head-commit " + SHA1, "", None):
+            self.assertIsNone(hook.parse_merge(cmd), repr(cmd))
+
+    def test_merges_a_green_night_pr_that_leaves_the_gate_alone(self):
+        ok, why = self.decide()
+        self.assertTrue(ok, why)
+        self.assertEqual(why, "merged #31 (night/x at aaaaaaaa)")
+
+    def test_everything_else_waits_for_the_human(self):
+        cases = {
+            "night shift off": dict(cfg=core.config()),
+            "the gate": dict(look_pr=pr_looking(paths=["lib/cos/cli.py"])),
+            "settings moved away": dict(look_pr=pr_looking(paths=[".claude/settings.json", "docs/x.json"])),
+            "unknown changes": dict(look_pr=pr_looking(paths=None)),
+            "guardian": dict(look_pr=pr_looking(problems=[("title", "an email address")])),
+            "unreadable PR": dict(look_pr=pr_looking(pr=None, **{})),
+            "another repository": dict(look_pr=pr_looking(pr={"url": "https://github.com/someone/else/pull/31"})),
+            "closed": dict(look_pr=pr_looking(pr={"state": "MERGED"})),
+            "draft": dict(look_pr=pr_looking(pr={"isDraft": True})),
+            "from a fork": dict(look_pr=pr_looking(pr={"isCrossRepository": True})),
+            "not night": dict(look_pr=pr_looking(pr={"headRefName": "feature/x"})),
+            "not into main": dict(look_pr=pr_looking(pr={"baseRefName": "release"})),
+            "head moved": dict(look_pr=pr_looking(pr={"headRefOid": "b" * 40})),
+            "local branch elsewhere": dict(look_pr=pr_looking(local="c" * 40)),
+            "checks pending": dict(look_pr=pr_looking(pr={"statusCheckRollup": [{"__typename": "CheckRun", "name": "test", "status": "IN_PROGRESS", "conclusion": ""}]})),
+            "checks failed": dict(look_pr=pr_looking(pr={"statusCheckRollup": [{"__typename": "CheckRun", "name": "test", "conclusion": "FAILURE"}]})),
+            "no test check": dict(look_pr=pr_looking(pr={"statusCheckRollup": [{"__typename": "CheckRun", "name": "lint", "conclusion": "SUCCESS"}]})),
+            "no checks": dict(look_pr=pr_looking(pr={"statusCheckRollup": []})),
+            "hook not on main": dict(look_pr=pr_looking(clean_main=False)),
+        }
+        for name, kw in cases.items():
+            if name == "unreadable PR":
+                kw = dict(look_pr=lambda n, s, c: dict(GOOD_PR, pr=None))
+            ok, why = self.decide(**kw)
+            self.assertFalse(ok, name)
+        self.assertIn("waits for the human's merge", self.decide(look_pr=pr_looking(paths=["lib/cos/server.py"]))[1])
+
+    def test_read_only_api_calls_pass_and_writes_ask(self):
+        for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files"):
+            self.assertTrue(hook.decide(request(cmd), core.config())[0], cmd)
+        for cmd in ("gh api -X PUT repos/x/y/pulls/31/merge", "gh api --method PUT repos/x/y/pulls/31/merge",
+                    "gh api repos/x/y/issues -f title=x", "gh api graphql -F query=x", "gh api graphql",
+                    "gh api repos/x/y/pulls/31/merge --input f", "gh api", "gh-axi api repos/x/y"):
+            self.assertFalse(hook.decide(request(cmd), ON)[0], cmd)
+
+    def test_merges_are_journaled(self):
+        out = io.StringIO()
+        with mock.patch.object(hook.core, "config", return_value=ON), \
+                mock.patch.object(hook, "decide", lambda r, c: (True, "merged #31 (night/x at aaaaaaaa)")), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(request(MERGE)))), redirect_stdout(out):
+            hook.permission()
+        self.assertTrue(json.loads(out.getvalue()))
+        lines = TestHookEntry.journal_lines(self)
+        self.assertTrue(any("night shift: merged #31" in l for l in lines))
 
 
 class TestHookEntry(TempHome):
@@ -131,7 +202,7 @@ class TestHookEntry(TempHome):
         self.assertEqual((rc, out), (0, ""), "an error falls through to the human")
 
     def test_asking_the_human_is_journaled_too(self):
-        self.run_hook(json.dumps(request("git push -u origin night/x")), look=looking(paths=["CLAUDE.md"]))
+        self.run_hook(json.dumps(request("git push -u origin night/x")), look=looking(paths=[".github/workflows/x.yml"]))
         self.assertTrue(any("asked the human" in l for l in self.journal_lines()))
 
     def journal_lines(self):
