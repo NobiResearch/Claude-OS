@@ -532,14 +532,16 @@ def report(res, query=None):
 def own_player_active():
     """Claude OS's player has a song, playing or paused: transport goes there, not to Music.
     While it plays, the app rewrites player.json every 2 seconds; paused, it goes quiet, so a
-    paused song counts for as long as the app holding it is running."""
+    paused song counts for as long as the app that paused it is running: written since this
+    launch (each launch rewrites app.nonce), not left over from one before."""
     own = player_state()
     if not own or not own.get("track"):
         return None
     if own.get("status") == "playing":
         return own if time.time() - own.get("ts", 0) <= 30 else None
-    if own.get("status") == "paused":
-        return own if core.app_running("ClaudeOS") else None
+    if own.get("status") == "paused" and core.app_running("ClaudeOS"):
+        launch = core.home("state", "app.nonce")
+        return own if not launch.exists() or own.get("ts", 0) >= launch.stat().st_mtime else None
     return None
 
 
