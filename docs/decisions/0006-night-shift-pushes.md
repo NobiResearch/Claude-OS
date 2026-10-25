@@ -72,3 +72,13 @@ journal. The morning brief lists the night's pushes.
 - **A `pre-push` git hook as the main safety.** It runs the branch's own copy of the guard,
   which the branch can change. The permission hook runs main's copy. A pre-push hook would
   still help pushes the human approves; it's on the roadmap.
+
+## Amendment, 2026-10-25 (weekly board)
+
+The first weekly meeting found a gap in condition 5. The hook runs main's own code, but a
+night shift also merges its own pull requests. A branch that loosened `core.py`, `cli.py`,
+`evolve.py` (which holds `guard_branch`) or `server.py` (which flips the switch) could be
+pushed and merged one night, and then the next night's checks would run on the loosened
+code. Those four files are now protected too, so changes to them wait for the human. Most
+night work still goes ahead: subsystem modules, the desktop (`ui/`), the app (`app/`), docs
+and tests.
