@@ -4,6 +4,9 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- Playing music from the chat inside Claude OS works. The check for "is Claude OS running?"
+  couldn't see the app from inside the app, so radio and songs said it wasn't running.
+
 - **Clicking a notification opens what it's about**: the board's minutes, the morning brief,
   evolve's branches or Background jobs. The click target comes from a fixed list, so a click
   only ever navigates.

@@ -166,3 +166,6 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   each turn's final text, and that's what the run files keep.
 - **`Write(path)` permission rules aren't used for files.** Claude Code warns that only
   `Edit(path)` rules are checked, and they cover every file-editing tool.
+- **macOS `pgrep` skips its own ancestors** unless you pass `-a`. Everything the app's chat
+  runs is a descendant of Claude OS.app, so `pgrep -x ClaudeOS` couldn't see the app from
+  inside it, and `cos music radio` said "Claude OS isn't running" from inside Claude OS.

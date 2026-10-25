@@ -65,8 +65,7 @@
       "Bash(git push*)"
     ],
     "deny": [
-      "Edit(~/.claude-os/config.json)",
-      "Write(~/.claude-os/config.json)"
+      "Edit(~/.claude-os/config.json)"
     ]
   },
   "hooks": {
