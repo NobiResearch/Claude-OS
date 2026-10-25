@@ -92,3 +92,19 @@ final class ExternalLinkTests: XCTestCase {
         }
     }
 }
+
+final class NotificationTargetTests: XCTestCase {
+    func testOnlyKnownTargets() {
+        XCTAssertEqual(NotifyTarget.allCases.map(\.rawValue), ["board", "brief", "evolve", "daemons"])
+        for bad in ["", "Board", "board ", "javascript:alert(1)", "board');alert(1);('", "settings"] {
+            XCTAssertNil(NotifyTarget(rawValue: bad), bad)
+        }
+    }
+
+    func testEachTargetIsAFixedScript() {
+        for target in NotifyTarget.allCases {
+            XCTAssertEqual(MainWindowController.openJS(target),
+                           "window.cos && window.cos.show && window.cos.show('\(target.rawValue)'); void 0")
+        }
+    }
+}

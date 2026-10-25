@@ -4,6 +4,10 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Clicking a notification opens what it's about**: the board's minutes, the morning brief,
+  evolve's branches or Background jobs. The click target comes from a fixed list, so a click
+  only ever navigates.
+
 - **Watch the board meet.** While a meeting runs, Evolution › Board shows "In session" and
   each seat waiting, deliberating or voted. When it ends, the minutes appear in the same
   place without the chatter that came before them. Settings and `cos daemon list` say when
