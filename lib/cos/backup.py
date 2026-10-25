@@ -20,7 +20,13 @@ from . import core
 
 SETTINGS = "x-apple.systempreferences:com.apple.Time-Machine-Settings.extension"
 ROOM = 2  # Apple's rule of thumb: a backup disk at least twice the size of what it backs up
-EMPTY = 1e9  # less than this in use counts as an empty disk
+EMPTY = 1e9  # an APFS disk with less than this in use is preferred as empty (it's never erased)
+# Partitions that hold no volume of their own: an APFS container's physical store (its
+# volumes are listed under the container), EFI, boot and recovery helpers.
+NOT_A_VOLUME = {"Apple_APFS", "EFI", "Apple_Boot", "Apple_APFS_Recovery", "Apple_APFS_ISC",
+                "Microsoft Reserved", "Apple_Free"}
+PARTITION_MAPS = {"GUID_partition_scheme", "FDisk_partition_scheme", "Apple_partition_scheme",
+                  "Apple_APFS_Container"}
 
 
 def parse_backup(text):
@@ -69,14 +75,16 @@ def to_back_up():
 def volume(info):
     """One volume from `diskutil info -plist`, or None for anything that isn't a physical
     external disk (the startup disk, disk images such as simulator runtimes)."""
-    if info.get("Internal") is not False or info.get("BusProtocol") == "Disk Image":
+    if info.get("Internal") is not False or info.get("BusProtocol") == "Disk Image" or not info.get("FilesystemType"):
         return None
     apfs = info.get("FilesystemType") == "apfs"
     size = info.get("APFSContainerSize") if apfs else info.get("TotalSize")
     free = info.get("APFSContainerFree") if apfs else info.get("FreeSpace")
     if not isinstance(size, int) or size <= 0:
         return None
-    used = size - free if isinstance(free, int) else None
+    # An unmounted volume that isn't APFS reports no free space at all: unknown, not full.
+    known = isinstance(free, int) and (apfs or bool(info.get("MountPoint")))
+    used = size - free if known else None
     return {"name": info.get("VolumeName") or "(no name)", "format": info.get("FilesystemName") or "unformatted",
             "apfs": apfs, "size": size, "used": used, "mounted": bool(info.get("MountPoint"))}
 
@@ -86,27 +94,32 @@ def disks():
     listing = _plist(["diskutil", "list", "-plist", "external"]) or {}
     ids = []
     for entry in listing.get("AllDisksAndPartitions") or []:
-        for part in (entry.get("Partitions") or []) + (entry.get("APFSVolumes") or []):
-            if part.get("DeviceIdentifier"):
-                ids.append(part["DeviceIdentifier"])
+        parts = (entry.get("Partitions") or []) + (entry.get("APFSVolumes") or [])
+        if not parts and entry.get("Content") not in PARTITION_MAPS:
+            parts = [entry]  # one filesystem across the whole disk, no partition map
+        ids += [p["DeviceIdentifier"] for p in parts
+                if p.get("DeviceIdentifier") and p.get("Content") not in NOT_A_VOLUME]
     out, seen = [], set()
     for ident in ids:
         info = _plist(["diskutil", "info", "-plist", ident]) or {}
         v = volume(info)
-        container = info.get("APFSContainerReference")
-        if not v or (container and container in seen):
+        if not v:
             continue
+        container = info.get("APFSContainerReference") if v["apfs"] else None
+        if container in seen:
+            continue  # one line per container: its volumes share the space
         if container:
             seen.add(container)
+        v["id"] = ident
         out.append(v)
     return out
 
 
 def judge(v, need):
     """Whether a disk would do, and what Time Machine would do to it, in plain words."""
-    empty = v["used"] is not None and v["used"] < EMPTY
+    empty = v["apfs"] and v["used"] is not None and v["used"] < EMPTY
     v["fits"] = bool(need) and v["size"] >= ROOM * need
-    v["erases"] = not v["apfs"] and not empty
+    v["erases"] = not v["apfs"]  # Time Machine reformats anything that isn't APFS
     v["empty"] = empty
     if not need:
         v["verdict"] = "can't tell whether it's big enough"
@@ -117,14 +130,16 @@ def judge(v, need):
     else:
         v["verdict"] = "big enough"
     if v["erases"]:
-        v["verdict"] += "; Time Machine would erase it to use it, files and all"
-    elif v["apfs"] and not empty:
+        v["verdict"] += "; Time Machine would reformat it, erasing everything on it%s" % (
+            " (%s in use)" % core.human_bytes(v["used"]) if v["used"] is not None else "")
+    elif not empty:
         v["verdict"] += "; Time Machine can usually add its own volume beside your files"
     return v
 
 
 def best(vols):
-    """The one to suggest: big enough, and nothing on it would be erased. Empty disks first."""
+    """The one to suggest: big enough, and nothing on it would be erased (so APFS only).
+    Empty disks first. A disk Time Machine would reformat is never suggested."""
     ok = [v for v in vols if v["fits"] and not v["erases"]]
     return max(ok, key=lambda v: (v["empty"], v["size"])) if ok else None
 
@@ -135,7 +150,7 @@ def check():
     vols = [judge(v, need) for v in disks()]
     pick = best(vols)
     return {"configured": (tm or {}).get("configured"), "to_back_up": need, "disks": vols,
-            "suggest": pick["name"] if pick else None}
+            "suggest": pick["id"] if pick else None}
 
 
 def render(r):
@@ -153,11 +168,12 @@ def render(r):
     else:
         print("\nConnected disks:")
         for v in r["disks"]:
-            print("  %s %-18s %-8s %s%s · %s" % ("●" if v["name"] == r["suggest"] else "·", v["name"][:18], v["format"][:8],
+            print("  %s %-18s %-8s %s%s · %s" % ("●" if v["id"] == r["suggest"] else "·", v["name"][:18], v["format"][:8],
                                                 core.human_bytes(v["size"]),
                                                 (", %s free" % core.human_bytes(v["size"] - v["used"])) if v["used"] is not None else "",
                                                 v["verdict"]))
-        print("\nSuggested: %s." % r["suggest"] if r["suggest"]
+        pick = [v["name"] for v in r["disks"] if v["id"] == r["suggest"]]
+        print("\nSuggested: %s (●)." % pick[0] if pick
               else "\nNone of these is a good fit without erasing something; a disk of at least %s would be." % (
                   core.human_bytes(ROOM * need) if need else "twice your used space"))
     print("Set it up: `cos backup setup` opens Time Machine's settings; you choose the disk there.")
