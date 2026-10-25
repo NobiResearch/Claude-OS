@@ -847,6 +847,21 @@
               : "Waiting for macOS to ask you.")),
           notifyToggle));
 
+        // Night shift (decision 0006): Claude pushes its own night/* branches while you're away.
+        const nightToggle = h("input", { type: "checkbox", class: "switch" });
+        nightToggle.checked = !!s.night_shift;
+        nightToggle.addEventListener("change", async () => {
+          if (nightToggle.checked && !(await COS.confirm({ title: "Turn on night shift?", body: "Claude may push its own night/… branches of Claude OS and open pull requests without asking you, so overnight work doesn't stall. Never main, never a force push. Every commit is checked for private data first, and changes to Claude OS's own permissions still wait for you.", ok: "Turn on" }))) { nightToggle.checked = false; return; }
+          await api("/api/settings/night", { body: { on: nightToggle.checked } });
+          draw();
+        });
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Night shift", s.night_shift ? pill("ok", "on") : pill("note", "off")),
+            h("div", { class: "small" }, "Let Claude push its own night/… branches and open pull requests for Claude OS while you're away. Never main, never a force push; every commit is checked for private data, and changes to Claude OS's own permissions still wait for you."),
+            h("div", { class: "muted small" }, s.night_shift ? "On: each push is in your journal and tomorrow's brief." : "Off: every push asks you first.")),
+          nightToggle));
+
         // Calendar & Reminders (decision 0002): read-only, only after the human clicks Connect.
         const calOn = s.calendar === "connected";
         box.appendChild(h("div", { class: "daemon" },

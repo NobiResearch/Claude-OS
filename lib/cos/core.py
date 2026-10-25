@@ -260,6 +260,7 @@ DEFAULT_CONFIG = {
     "weather": {},
     "notify": {"enabled": True, "native": False},
     "pulse": {"low_disk_gb": 20, "backup_check": True},
+    "autonomy": {"night_shift": False},  # decision 0006: only the human turns this on
 }
 
 

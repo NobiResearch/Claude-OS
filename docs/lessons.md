@@ -144,3 +144,12 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   milliseconds with a plist (an empty dict means no destination) and needs no permission.
   `tmutil latestbackup` can try to mount a network or removable destination; avoid it in
   background checks.
+
+## Claude Code
+
+- **`ask` rules always prompt, even in auto mode**, and an `allow` in `settings.local.json`
+  can't override a project `ask`: deny, then ask, then allow apply across all settings files.
+  To answer one prompt automatically, use a `PermissionRequest` hook. In that hook, exit
+  code 2 means *deny*, so it must exit 0 and print nothing when unsure.
+- **`--max-budget-usd` applies on a Pro or Max plan too.** It checks Claude Code's estimate at
+  API prices and stops the run, even though nothing is charged.

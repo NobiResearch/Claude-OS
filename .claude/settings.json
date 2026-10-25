@@ -63,6 +63,10 @@
       "Bash(./bin/cos startup --full*)",
       "Bash(cos startup --full*)",
       "Bash(git push*)"
+    ],
+    "deny": [
+      "Edit(~/.claude-os/config.json)",
+      "Write(~/.claude-os/config.json)"
     ]
   },
   "hooks": {
@@ -73,6 +77,18 @@
             "type": "command",
             "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos boot",
             "timeout": 15
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos hook permission || true",
+            "timeout": 30
           }
         ]
       }
