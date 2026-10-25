@@ -4,6 +4,9 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- `cos friction add`, `cos remember` and `cos memory --forget` print one clear line instead
+  of a traceback when private state can't be written (as in a sandboxed run).
+
 - **Night shift** (Settings › Permissions, off by default): while you're away, Claude can
   push its own `night/…` branches and open pull requests for Claude OS without stalling on
   a prompt until morning. Never `main`, never a force push. Every commit and message is

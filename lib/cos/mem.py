@@ -60,13 +60,24 @@ def close_friction(fid, note=None):
     return None
 
 
+def cant_write(err):
+    """One clear line instead of a traceback when private state is read-only (a sandbox)."""
+    core.die("can't write private state in %s (%s)" % (core.home(), err.strerror or err))
+
+
 def friction_main(args):
     if args.friction_cmd == "add":
-        item = add_friction(" ".join(args.text), area=args.area)
+        try:
+            item = add_friction(" ".join(args.text), area=args.area)
+        except OSError as e:
+            cant_write(e)
         print("friction #%d logged. evolve will look at it." % item["id"])
         return 0
     if args.friction_cmd == "close":
-        f = close_friction(args.id, note=args.note)
+        try:
+            f = close_friction(args.id, note=args.note)
+        except OSError as e:
+            cant_write(e)
         if not f:
             core.die("no friction #%d" % args.id)
         print("closed #%d" % args.id)
@@ -113,14 +124,20 @@ def forget(pattern):
 
 
 def remember_main(args):
-    remember(" ".join(args.fact))
+    try:
+        remember(" ".join(args.fact))
+    except OSError as e:
+        cant_write(e)
     print("remembered.")
     return 0
 
 
 def memory_main(args):
     if args.forget:
-        n = forget(args.forget)
+        try:
+            n = forget(args.forget)
+        except OSError as e:
+            cant_write(e)
         print("forgot %d line(s)." % n)
         return 0
     print(memory_text().strip() or "Memory is empty. Teach me with: cos remember \"...\"")
