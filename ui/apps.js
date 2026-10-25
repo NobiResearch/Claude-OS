@@ -466,6 +466,21 @@
                 : btn("Upgrade selected", () => { const n = selected(); if (n.length) apply(key, n, "Upgrade " + n.length + " package" + (n.length > 1 ? "s" : "")); }, "primary small"),
               h("span", { class: "muted small" }, "Majors and downgrades are unticked: they can break things."))));
         });
+        // Claude OS itself (decision 0011): what's merged on GitHub and not on this Mac yet.
+        const co = src["claude-os"];
+        if (co) {
+          const it = (co.items || [])[0];
+          root.appendChild(card("Claude OS" + (it ? " · " + it.changes.length : ""),
+            !it ? h("div", { class: "muted" }, "Up to date with GitHub.")
+              : h("div", null,
+                h("div", { class: "upd-list" }, it.changes.slice(0, 8).map((c) => h("div", { class: "upd" }, h("span", null, c)))),
+                it.changes.length > 8 ? h("div", { class: "muted small" }, "… and " + (it.changes.length - 8) + " more") : null,
+                (it.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Claude OS's own safety checks: " + it.protected.slice(0, 4).join(", ")) : null,
+                co.error ? h("div", { class: "muted small" }, "Not updated: " + co.error + ".") : null,
+                h("div", { class: "row gap" },
+                  btn("Ask Claude to update", () => COS.ask("Bring Claude OS up to date with what's merged on GitHub."), "primary small"),
+                  h("span", { class: "muted small" }, "It asks you first; then Update in the menu bar restarts onto it.")))));
+        }
         if ((data.missing_tools || []).includes("mas")) root.appendChild(h("div", { class: "muted small pad-t" }, "Tip: `brew install mas` lets Claude OS see App Store updates too."));
       }
       load(false);
