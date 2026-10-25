@@ -172,3 +172,10 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **`git diff --name-only` shows a moved file under its new name only.** A check on paths
   needs `--no-renames`, or moving `.claude/settings.json` to `docs/` looks like adding a docs
   file. A failed `git diff` is also not "no changes": treat it as a reason to ask.
+- **Local Network privacy covers ping.** Apple's TN3179 lists TCP and UDP, but a ping to the
+  router from a third-party terminal app failed with `sendto: No route to host` while the
+  router was right there in `arp -n`. Only Terminal.app, SSH, root and launchd daemons are
+  exempt; everything else (an app's helpers, Claude OS.app's chat, Warp, iTerm) needs the
+  Local Network permission, and the first try may show the human an alert. `cos net` reads
+  the ARP table instead, which sends no packets. CoreWLAN's signal properties need no
+  permission; only the network's name and the like need Location.
