@@ -82,7 +82,7 @@ cos app             # builds, installs and opens Claude OS.app
 | syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
 | apps | `.claude/skills/` | `/music` `/tidy` `/update` `/startup` `/brief` `/board` `/lab` `/evolve` |
 | colleagues | `.claude/agents/` | the board (architect, guardian, steward, skeptic) and the lab's scouts |
-| daemons | `etc/daemons.json` | `pulse` (free), `morning`, `evolve`, `board` (opt-in, budget-capped) |
+| daemons | `etc/daemons.json` | `pulse` (free), `morning`, `evolve`, `board` (opt-in, time-limited; budget-capped with an API key) |
 | memory | `~/.claude-os/` | journal, friction, memory, caches; private, never in git |
 
 ### Syscalls

@@ -77,7 +77,8 @@ in parallel.
 **Daemons** (`etc/daemons.json` → launchd). `pulse` is plain Python and keeps caches warm
 so boot and the status line stay instant and offline. The LLM daemons (`morning`,
 `evolve`, `board`) run headless Claude Code with an allowlist, a deny-list no definition
-can override (`ALWAYS_DENIED`), a budget cap and a timeout. They're opt-in.
+can override (`ALWAYS_DENIED`) and a timeout. They're opt-in. A budget cap applies when
+Claude is billed per token (an API key); on a Pro or Max plan the timeout is the limit.
 
 Defense in depth for headless runs, strongest first:
 
