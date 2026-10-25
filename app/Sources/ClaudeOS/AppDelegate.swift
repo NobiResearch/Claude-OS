@@ -23,7 +23,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         _ = AppURL.nonce  // write this launch's link nonce before any claude-os:// link is handled
         Task { @MainActor in Agenda.shared.start() }  // only reads if the human connected it before
         Task { @MainActor [weak self] in
-            Notifier.shared.onOpen = { self?.summon() }
+            Notifier.shared.onOpen = { target in self?.openFromNotification(target) }
             Notifier.shared.start()
         }
         config = AppConfig.load()
@@ -105,6 +105,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     func summon() {
         activate()
         windowController.summon()
+    }
+
+    /// A click on a notification: the view it names (the board's minutes, the brief…), or
+    /// the desktop's prompt when it names none.
+    func openFromNotification(_ target: NotifyTarget?) {
+        guard let target = target else { return summon() }
+        activate()
+        windowController.open(target)
     }
 
     private func activate() {

@@ -7,12 +7,21 @@ import UserNotifications
 /// anything: `cos` writes each notification to ~/.claude-os/state/outbox/*.json and then
 /// opens claude-os://notify/flush, which carries nothing. Permission is asked only when the
 /// human turns the setting on (claude-os://notify/authorize).
+
+/// Where a click on a notification may land (decision 0007). A note in the outbox can name
+/// one of these (`core.NOTIFY_TARGETS`); anything else just brings the desktop up. A click
+/// only ever navigates.
+enum NotifyTarget: String, CaseIterable {
+    case board, brief, evolve, daemons
+}
+
 @MainActor
 final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     static let shared = Notifier()
 
-    /// What clicking a notification does (the app delegate brings the desktop up).
-    var onOpen: (() -> Void)?
+    /// What clicking a notification does (the app delegate brings the desktop up, on the
+    /// note's target if it named one).
+    var onOpen: ((NotifyTarget?) -> Void)?
 
     private let center = UNUserNotificationCenter.current()
     private static let maxPerFlush = 20
@@ -59,6 +68,9 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
             content.subtitle = String((note["subtitle"] as? String ?? "").prefix(120))
             content.body = String((note["body"] as? String ?? "").prefix(600))
             if note["sound"] as? Bool == true { content.sound = .default }
+            if let raw = note["target"] as? String, let target = NotifyTarget(rawValue: raw) {
+                content.userInfo = ["target": target.rawValue]
+            }
             let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
             try? await center.add(request)
         }
@@ -85,6 +97,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
     }
 
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        await MainActor.run { onOpen?() }
+        let target = (response.notification.request.content.userInfo["target"] as? String).flatMap(NotifyTarget.init(rawValue:))
+        await MainActor.run { onOpen?(target) }
     }
 }

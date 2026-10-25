@@ -630,11 +630,13 @@
   });
 
   // ------------------------------------------------------------ Evolution
+  const EVOLUTION_TABS = ["Friction", "Branches", "Board", "Roadmap"];
   COS.register({
     id: "evolution", title: "Evolution", icon: "evolution", color: "linear-gradient(140deg,#8fcf7c,#3f8a3a)", size: [720, 640],
     keywords: "evolve board friction roadmap improve lab", dockGap: true,
-    render(w) {
-      tabs(w, ["Friction", "Branches", "Board", "Roadmap"], {
+    onReopen(w, arg) { if (w.showTab && EVOLUTION_TABS.includes(arg)) w.showTab(arg); },
+    render(w, arg) {
+      w.showTab = tabs(w, EVOLUTION_TABS, {
         Friction(pane) {
           const input = h("input", { class: "search", placeholder: "What got in your way? (Claude OS will work on it)" });
           const add = async () => {
@@ -772,7 +774,7 @@
           pane.appendChild(root);
           loading(root, async () => { const d = await api("/api/doc?name=roadmap"); root.innerHTML = MD.render(d.text); });
         },
-      });
+      }, EVOLUTION_TABS.includes(arg) ? arg : undefined).show;
       function paintDiff(el, text) {
         clear(el);
         text.split("\n").slice(0, 3000).forEach((line) => el.appendChild(h("div", { class: line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : line.startsWith("@@") ? "hunk" : "" }, line || " ")));

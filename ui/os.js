@@ -512,9 +512,17 @@
     document.getElementById("desktop").addEventListener("scroll", (e) => { e.target.scrollTop = 0; e.target.scrollLeft = 0; });
   }
 
+  // Where a notification's click lands (Notifier.swift, decision 0007): a fixed view per
+  // target. Anything else does nothing.
+  const VIEWS = { board: ["evolution", "Board"], evolve: ["evolution", "Branches"], brief: ["feeds", "brief"], daemons: ["settings"] };
+  function show(target) {
+    const view = Object.prototype.hasOwnProperty.call(VIEWS, target) ? VIEWS[target] : null;
+    return view ? open(view[0], view[1]) : null;
+  }
+
   const COS = window.cos = window.COS = {
     api, stream, job, h, clear, icon, fmt, store, toast, confirm: confirmDialog,
-    register, open, close, focus, wins, badge, on, state, summon,
+    register, open, close, focus, wins, badge, on, state, summon, show,
     refreshStatus: pollStatus, refreshMusic: pollMusic,
     ask: (text) => { const w = open("claude"); if (w && w.ask) w.ask(text); },
   };

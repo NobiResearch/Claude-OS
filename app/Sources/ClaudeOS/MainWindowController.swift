@@ -11,6 +11,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
     private var endpoint: ServerEndpoint?
     private var pageLoaded = false
     private var pendingSummon = false
+    private var pendingTarget: NotifyTarget?
     private var loadRetries = 0
 
     private static let autosaveName = "ClaudeOSMainWindow"
@@ -81,6 +82,31 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
     private func runSummon() {
         pendingSummon = false
         webView.evaluateJavaScript(Self.summonJS, completionHandler: nil)
+    }
+
+    /// Bring the window up on one view: where a notification's click lands.
+    func open(_ target: NotifyTarget) {
+        show()
+        if pageLoaded {
+            runOpen(target)
+        } else {
+            pendingTarget = target
+        }
+    }
+
+    private func runOpen(_ target: NotifyTarget) {
+        pendingTarget = nil
+        webView.evaluateJavaScript(Self.openJS(target), completionHandler: nil)
+    }
+
+    /// A fixed script per target; nothing from the note is ever pasted into it.
+    static func openJS(_ target: NotifyTarget) -> String {
+        switch target {
+        case .board: return "window.cos && window.cos.show && window.cos.show('board'); void 0"
+        case .brief: return "window.cos && window.cos.show && window.cos.show('brief'); void 0"
+        case .evolve: return "window.cos && window.cos.show && window.cos.show('evolve'); void 0"
+        case .daemons: return "window.cos && window.cos.show && window.cos.show('daemons'); void 0"
+        }
     }
 
     // MARK: loading
@@ -171,6 +197,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
         pageLoaded = true
         loadRetries = 0
         if pendingSummon { runSummon() }
+        if let target = pendingTarget { runOpen(target) }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
