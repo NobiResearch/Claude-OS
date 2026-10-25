@@ -146,6 +146,7 @@ def _lock(name):
 def pulse():
     """Keep the caches behind boot/statusline fresh; nag only when it matters."""
     from . import status as st, feeds, updates, clean
+    st.refresh_backup()
     s = st.collect(include_slow=False)
     core.cache_put("status", s)
     st.record_trend(s)

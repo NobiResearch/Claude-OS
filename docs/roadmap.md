@@ -6,23 +6,14 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **Backup signal** (decision 0005, approved with conditions; read them there):
-   `status.backup()` runs `tmutil destinationinfo -X` (plist; `core.run` with a timeout) and
-   returns `{"configured": bool}` or `None` when unknown. `cos status` and `daemon.pulse()`
-   refresh a `backup` cache when it's older than a day; `status.signals()` adds a `note` (never `warn`) "Time Machine isn't set up"
-   when the cache says not configured, unless `config pulse.backup_check` is false (add it
-   to `DEFAULT_CONFIG`, default true). No `tmutil latestbackup`, no destination names in the
-   text. Done when: tests with fixture plists (empty dict, one destination, command failure,
-   garbage output) pass; `cos status` shows the note on a Mac without Time Machine; the
-   `/tidy` or `/update` skill doesn't need to change.
-2. **Claude OS everywhere** (research: [claude-code-plugin](research/claude-code-plugin.md);
+1. **Claude OS everywhere** (research: [claude-code-plugin](research/claude-code-plugin.md);
    board first, it touches permissions and privacy): the repo as a local Claude Code plugin
    named `cos`, so `/music`, `/tidy`, `/update`, `/startup`, `/brief` work in any directory.
    First verify in-place loading from a local-directory marketplace on this Mac.
-3. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-4. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+3. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-5. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+4. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening
@@ -41,7 +32,8 @@ what, where, and how we'll know it works.
 - `cos net`: Wi-Fi quality, DNS, captive-portal and VPN checks (0005: its own proposal;
   the network name is personal and reading it needs Location).
 - Focus modes via Shortcuts (`cos focus work|off`).
-- Time Machine: last backup age as a pulse signal.
+- Time Machine: last backup age, once it can be read without mounting the destination
+  (0005; today `cos status` only says whether Time Machine is set up).
 - Photo library duplicate report (read-only).
 - Mail triage. Privacy-heavy: board review first.
 

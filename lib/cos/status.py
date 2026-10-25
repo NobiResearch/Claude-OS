@@ -1,6 +1,7 @@
 """cos status — vitals of the Mac, plus signals worth acting on."""
 
 import os
+import plistlib
 import re
 import time
 
@@ -102,6 +103,33 @@ def security():
     }
 
 
+def parse_backup(text):
+    """`tmutil destinationinfo -X` is a plist, an empty dict when Time Machine has no
+    destination. Anything we can't read is unknown (None), and unknown is never a signal."""
+    try:
+        data = plistlib.loads(text.encode("utf-8"))
+    except Exception:
+        return None
+    if not isinstance(data, dict):
+        return None
+    if not data:
+        return {"configured": False}
+    dests = data.get("Destinations")
+    return {"configured": bool(dests)} if isinstance(dests, list) else None
+
+
+def backup():
+    """Is Time Machine set up? Never mounts or names the destination (decision 0005)."""
+    r = core.run(["tmutil", "destinationinfo", "-X"], timeout=10)
+    return parse_backup(r.out) if r.ok and r.out else None
+
+
+def refresh_backup(max_age=24 * 3600):
+    """Keep the `backup` cache that signals() reads; off with `cos config pulse.backup_check false`."""
+    if core.config()["pulse"].get("backup_check", True) and not core.cache_get("backup", max_age=max_age):
+        core.cache_put("backup", backup())
+
+
 def system():
     v = core.run(["sw_vers"], timeout=3).out
     fields = dict(re.findall(r"(\w+):\s+(.+)", v))
@@ -118,7 +146,8 @@ def signals(s):
     """Turn raw vitals into a short list of things worth a human's attention."""
     out = []
     d = s["disk"]
-    low_gb = core.config()["pulse"]["low_disk_gb"]
+    pulse = core.config()["pulse"]
+    low_gb = pulse["low_disk_gb"]
     if d["free"] < low_gb * 1024 ** 3 or d["free_pct"] < 10:
         out.append(("warn", "disk low: %s free" % core.human_bytes(d["free"])))
     elif d["free_pct"] < 20:
@@ -152,6 +181,9 @@ def signals(s):
         if safe > 5 * 1024 ** 3:
             out.append(("note", "%s safely reclaimable (scanned %s)" % (
                 core.human_bytes(safe), core.ago(scan["ts"]))))
+    tm = core.cache_get("backup")
+    if tm and pulse.get("backup_check", True) and (tm["data"] or {}).get("configured") is False:
+        out.append(("note", "Time Machine isn't set up"))
     return out
 
 
@@ -259,6 +291,7 @@ def render(s):
 
 
 def main(args):
+    refresh_backup(max_age=0)  # asked for by the human, so fresh (tmutil answers in milliseconds)
     s = collect()
     core.cache_put("status", s)
     core.emit(s, args.json, render)
