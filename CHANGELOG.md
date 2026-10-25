@@ -4,6 +4,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- Night shift's push check closes four gaps the board found: a moved file now counts under
+  its old name too, a file in `lib/` that could shadow Python's own modules counts as a
+  safety file, a failed `git diff` asks you instead of passing, and the hook only approves
+  while it runs from a clean main.
+
 - Pausing in Claude OS's player keeps the paused song on screen, and play resumes it, however
   long the pause. Before, it fell back to whatever the Music app last had. Play and pause
   also no longer swap the cover image back and forth.

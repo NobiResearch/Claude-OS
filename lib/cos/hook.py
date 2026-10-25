@@ -26,7 +26,41 @@ BRANCH = re.compile(r"night/[A-Za-z0-9._-]+")
 # the switch, so a branch merged one night can't loosen the next night's checks.
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
              "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py",
-             "lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py")
+             "lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py",
+             "lib/cos/__init__.py", "lib/cos/chat.py")
+
+
+def protected(path):
+    """Is this path part of the gate? Also anything Python loads before Claude OS's own code:
+    bin/cos puts lib/ first on sys.path, so a lib/json.py would stand in for the standard
+    library's inside this very hook, and compiled .pyc files can skip their source."""
+    if path in PROTECTED or path.startswith(PROTECTED):
+        return True
+    if path.startswith("lib/") and not path.startswith("lib/cos/"):
+        return True
+    return "__pycache__/" in path or path.endswith((".pyc", ".pth"))
+
+
+def changed(git, base, branch):
+    """Every path the branch touches, or None if git can't say. --no-renames: git lists a
+    moved file under its new name only, so moving .claude/settings.json away would look
+    like a new file in docs/."""
+    r = git("diff", "--no-renames", "--name-only", "%s...%s" % (base, branch))
+    return r.out.splitlines() if r.ok else None
+
+
+def clean_main(base):
+    """The hook runs from the live checkout, so that checkout must be main with nothing of
+    the gate changed locally: no edits, no untracked files, no commits origin hasn't got."""
+    from . import evolve
+    root = str(core.ROOT)
+    def git(*args):
+        return core.run(["git", "-C", root] + list(args), timeout=10)
+    if git("symbolic-ref", "--short", "HEAD").out != evolve.main_branch():
+        return False
+    status = git("status", "--porcelain", "--", "lib", "bin", ".claude", "CLAUDE.md", "etc", "githooks")
+    local = git("diff", "--no-renames", "--name-only", base, "HEAD")
+    return status.ok and not status.out.strip() and local.ok and not any(protected(p) for p in local.out.splitlines())
 
 
 def parse_push(command):
@@ -58,10 +92,11 @@ def inspect(branch, cwd):
     head = git("rev-parse", "--verify", "--quiet", "refs/heads/" + branch).out
     return {
         "same_repo": top.ok and ours.ok and top.out == ours.out,
+        "clean_main": clean_main(base),
         "head": head,
         "url": git("remote", "get-url", "origin").out,
         "push_url": git("remote", "get-url", "--push", "origin").out,
-        "paths": git("diff", "--name-only", "%s...%s" % (base, branch)).out.splitlines() if head else [],
+        "paths": changed(git, base, branch) if head else [],
         "problems": evolve.guard_branch(branch, base=base) if head else [],
         "guard_ok": guard is not None,
     }
@@ -81,12 +116,16 @@ def decide(request, cfg, look=inspect):
     facts = look(branch, request.get("cwd") or str(core.ROOT))
     if not facts.get("same_repo"):
         return False, "not a checkout of Claude OS"
+    if not facts.get("clean_main"):
+        return False, "the hook isn't running from a clean main"
     if not facts.get("head"):
         return False, "no local branch %s" % branch
     url = facts.get("url") or ""
     if not url or facts.get("push_url") != url or not re.match(r"(https://github\.com/|git@github\.com:)[\w.-]+/[\w.-]+$", url):
         return False, "origin isn't a plain GitHub remote"
-    touched = [p for p in facts.get("paths") or [] if p.startswith(PROTECTED) or p in PROTECTED]
+    if facts.get("paths") is None:
+        return False, "couldn't list what the branch changes"
+    touched = [p for p in facts["paths"] if protected(p)]
     if touched:
         return False, "changes Claude OS's safety files (%s): that waits for the human" % ", ".join(touched[:3])
     if facts.get("problems"):

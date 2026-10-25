@@ -10,7 +10,7 @@ from helpers import TempHome
 from cos import core, hook
 
 ON = {"autonomy": {"night_shift": True}}
-GOOD = {"same_repo": True, "head": "0123456789abcdef", "url": "https://github.com/example/claude-os.git",
+GOOD = {"same_repo": True, "clean_main": True, "head": "0123456789abcdef", "url": "https://github.com/example/claude-os.git",
         "push_url": "https://github.com/example/claude-os.git", "paths": ["lib/cos/status.py", "tests/test_status.py"],
         "problems": []}
 
@@ -76,6 +76,12 @@ class TestDecide(TempHome):
             "the laws": (request("git push -u origin night/x"), looking(paths=["CLAUDE.md"])),
             "CI": (request("git push -u origin night/x"), looking(paths=[".github/workflows/test.yml"])),
             "guardian": (request("git push -u origin night/x"), looking(problems=[("abc message", "an email address")])),
+            "hook not on a clean main": (request("git push -u origin night/x"), looking(clean_main=False)),
+            "git couldn't list the changes": (request("git push -u origin night/x"), looking(paths=None)),
+            "shadows the standard library": (request("git push -u origin night/x"), looking(paths=["lib/json.py"])),
+            "package init": (request("git push -u origin night/x"), looking(paths=["lib/cos/__init__.py"])),
+            "compiled code": (request("git push -u origin night/x"), looking(paths=["lib/cos/__pycache__/music.cpython-39.pyc"])),
+            "the approval path": (request("git push -u origin night/x"), looking(paths=["lib/cos/chat.py"])),
         }
         for name, (req, look) in cases.items():
             ok, why = hook.decide(req, ON, look=look)
@@ -137,7 +143,31 @@ class TestHookEntry(TempHome):
         return lines
 
 
-class TestInspect(unittest.TestCase):
+class TestInspect(TempHome):
+    def test_a_moved_file_counts_under_its_old_name_too(self):
+        repo = os.path.join(self.tmp, "repo")
+        def git(*args):
+            return core.run(["git", "-C", repo] + list(args), timeout=30)
+        core.run(["git", "init", "-q", "-b", "main", repo], timeout=30)
+        os.makedirs(os.path.join(repo, ".claude"))
+        with open(os.path.join(repo, ".claude", "settings.json"), "w") as f:
+            f.write("{}\n")
+        for args in (("add", "-A"), ("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "a"),
+                     ("switch", "-qc", "night/move"), ("mv", ".claude/settings.json", "docs.json"),
+                     ("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-qm", "b")):
+            self.assertTrue(git(*args).ok, args)
+        paths = hook.changed(git, "main", "night/move")
+        self.assertIn(".claude/settings.json", paths)
+        self.assertTrue(any(hook.protected(p) for p in paths))
+        self.assertIsNone(hook.changed(git, "no-such-base", "night/move"), "git failing isn't 'no changes'")
+
+    def test_what_counts_as_the_gate(self):
+        for path in ("lib/json.py", "lib/sitecustomize.py", "lib/cos/__init__.py", "lib/cos/hook.py",
+                     "lib/cos/__pycache__/x.pyc", "x.pth", ".claude/settings.json", "CLAUDE.md"):
+            self.assertTrue(hook.protected(path), path)
+        for path in ("lib/cos/music.py", "ui/apps.js", "tests/test_hook.py", "docs/lessons.md", "CHANGELOG.md"):
+            self.assertFalse(hook.protected(path), path)
+
     def test_reads_this_repository(self):
         facts = hook.inspect("night/does-not-exist-%d" % os.getpid(), str(core.ROOT))
         self.assertTrue(facts["same_repo"])
