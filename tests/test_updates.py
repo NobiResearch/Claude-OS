@@ -1,7 +1,7 @@
 import json
 import unittest
 
-import helpers  # noqa: F401  (puts lib/ on sys.path)
+from helpers import TempHome
 
 from cos import updates
 
@@ -131,6 +131,71 @@ class TestUnchecked(unittest.TestCase):
             self.assertEqual(updates.check_npm(), {"items": [], "error": "couldn't check"})
             self.assertEqual(updates.check_mas()["error"], "couldn't check")
             self.assertEqual(updates.check_rustup()["error"], "couldn't check")
+
+
+class TestApplyOutput(TempHome):
+    BREW = """==> Upgrading 2 outdated packages:
+harfbuzz 14.2.0 -> 15.0.0
+cairo 1.18.4 -> 1.18.6
+==> Pouring harfbuzz--15.0.0.arm64.bottle.tar.gz
+Warning: The post-install step did not complete successfully
+You can try again using:
+  brew postinstall harfbuzz
+==> Pouring cairo--1.18.6.arm64.bottle.tar.gz
+Error: Could not symlink lib/pkgconfig/cairo.pc
+Target /opt/homebrew/lib/pkgconfig/cairo.pc
+already exists. You may want to remove it:
+  rm '/opt/homebrew/lib/pkgconfig/cairo.pc'
+==> Summary
+"""
+
+    def test_each_notice_keeps_its_details(self):
+        blocks = updates.notices(self.BREW.splitlines(True))
+        self.assertEqual(len(blocks), 2)
+        self.assertEqual(blocks[0][0], "Warning: The post-install step did not complete successfully")
+        self.assertIn("  brew postinstall harfbuzz", blocks[0])
+        self.assertIn("already exists. You may want to remove it:", blocks[1])
+        self.assertNotIn("==> Pouring cairo--1.18.6.arm64.bottle.tar.gz", blocks[0])
+
+    def test_npm_notices(self):
+        out = ["npm warn deprecated x@1: no longer supported\n", "added 3 packages in 2s\n", "npm error code EACCES\n",
+               "npm error path /usr/local/lib/node_modules\n"]
+        blocks = updates.notices(out)
+        self.assertEqual([b[0] for b in blocks], ["npm warn deprecated x@1: no longer supported", "npm error code EACCES",
+                                                  "npm error path /usr/local/lib/node_modules"])
+
+    def test_apply_streams_both_streams_and_reports_what_stayed_outdated(self):
+        import io
+        import os
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core
+        seen = {}
+
+        def fake_stream(cmd, on_line, **kw):
+            seen["cmd"] = cmd
+            for line in self.BREW.splitlines(True):
+                on_line(line)
+            return core.Result(1, "", "")
+
+        with mock.patch.object(updates.core, "stream", fake_stream), \
+                mock.patch.object(updates, "still_outdated", lambda names: ["cairo"]), \
+                redirect_stdout(io.StringIO()) as out:
+            rc = updates.apply("brew", ["harfbuzz", "cairo"], yes=True)
+        text = out.getvalue()
+        self.assertEqual(rc, 1)
+        self.assertEqual(seen["cmd"][:3], ["/bin/sh", "-c", 'exec "$0" "$@" 2>&1'])
+        self.assertEqual(seen["cmd"][3:], ["brew", "upgrade", "harfbuzz", "cairo"], "arguments pass through untouched")
+        self.assertIn("==> Upgrading 2 outdated packages:", text)
+        self.assertIn("brew postinstall harfbuzz", text)
+        self.assertIn("Still outdated after the upgrade: cairo", text)
+        self.assertIn("Full output:", text)
+        folder = str(core.home("runs", "updates"))
+        logs = os.listdir(folder)
+        self.assertEqual(len(logs), 1)
+        self.assertEqual(oct(os.stat(os.path.join(folder, logs[0])).st_mode & 0o777), "0o600")
+        entry = core.read_journal(days=1, kind="action")[-1]
+        self.assertEqual(entry["still_outdated"], ["cairo"])
 
 
 if __name__ == "__main__":
