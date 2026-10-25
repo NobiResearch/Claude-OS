@@ -73,7 +73,7 @@ class TestClaudeOSPlayer(TempHome):
         from contextlib import redirect_stdout
         from cos import music
         core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
-                                                            "track": "Awake", "artist": "Tycho"})
+                                                            "track": "Paper Lanterns", "artist": "The Quiet Hours"})
         sent, told = [], []
         orig_cmd, orig_tell = music.player_command, music._tell
         music.player_command = lambda cmd, **k: sent.append(cmd) or {"ok": True, "state": {"loved": True}}
@@ -84,12 +84,12 @@ class TestClaudeOSPlayer(TempHome):
         finally:
             music.player_command, music._tell = orig_cmd, orig_tell
         self.assertEqual((rc, sent, told), (0, ["love"], []), "the Music app must not be touched")
-        self.assertIn("Awake — Tycho", out.getvalue())
+        self.assertIn("Paper Lanterns — The Quiet Hours", out.getvalue())
 
     def _fake_player(self, state, music):
         sent, told = [], []
         orig = music.player_command, music._tell, music.player_enabled, music.playlists, core.app_running
-        music.player_command = lambda cmd, **k: sent.append((cmd, k.get("extra"))) or {"ok": True, "state": dict(state)}
+        music.player_command = lambda cmd, **k: sent.append((cmd, k.get("extra") or k.get("catalog_id"))) or {"ok": True, "state": dict(state)}
         music._tell = lambda body, timeout=10: told.append(body)
         music.player_enabled = lambda: True
         music.playlists = lambda: [{"name": "Deep Work", "tracks": 12}, {"name": "Rock", "tracks": 3}]
@@ -102,7 +102,7 @@ class TestClaudeOSPlayer(TempHome):
 
     def test_playlists_play_in_our_player(self):
         from cos import music
-        sent, told = self._fake_player({"status": "playing", "track": "Awake", "playlist": "Deep Work"}, music)
+        sent, told = self._fake_player({"status": "playing", "track": "Paper Lanterns", "playlist": "Deep Work"}, music)
         res = music.play_playlist("deep work", shuffle=True)
         self.assertTrue(res["ok"])
         self.assertEqual(sent, [("play-playlist", {"name": "Deep Work", "shuffle": "1"})])
@@ -124,24 +124,79 @@ class TestClaudeOSPlayer(TempHome):
         from contextlib import redirect_stdout
         from cos import music
         core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
-                                                            "track": "Awake", "playlist": "Deep Work"})
-        sent, told = self._fake_player({"status": "playing", "track": "Montana", "artist": "Tycho"}, music)
+                                                            "track": "Paper Lanterns", "playlist": "Deep Work"})
+        sent, told = self._fake_player({"status": "playing", "track": "Glass Harbor", "artist": "The Quiet Hours"}, music)
         with redirect_stdout(io.StringIO()) as out:
             music.transport("next")
             music.transport("prev")
         self.assertEqual([c for c, _ in sent], ["next", "previous"])
-        self.assertIn("Montana — Tycho", out.getvalue())
+        self.assertIn("Glass Harbor — The Quiet Hours", out.getvalue())
         self.assertEqual(told, [], "the Music app must not be touched")
 
     def test_next_on_a_single_song_stops_it(self):
         import io, time
         from contextlib import redirect_stdout
         from cos import music
-        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing", "track": "Awake"})
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing", "track": "Paper Lanterns"})
         sent, _ = self._fake_player({"status": "stopped"}, music)
         with redirect_stdout(io.StringIO()):
             music.transport("next")
         self.assertEqual([c for c, _ in sent], ["stop"])
+
+    def test_radio_starts_from_the_best_catalog_pick(self):
+        from cos import music
+        sent, told = self._fake_player({"status": "playing", "track": "Paper Lanterns", "station": "Paper Lanterns Station",
+                                        "radio": "Paper Lanterns — The Quiet Hours"}, music)
+        orig = music.catalog_search
+        music.catalog_search = lambda q, limit=10: {"error": None, "results": [
+            {"name": "Paper Lanterns", "artist": "The Quiet Hours", "id": "1234", "url": "", "track_number": 1}]}
+        self.addCleanup(setattr, music, "catalog_search", orig)
+        res = music.radio("something calm")
+        self.assertTrue(res["ok"])
+        self.assertEqual(sent, [("radio", "1234")])
+        self.assertEqual((res["station"], res["now"]["station"], told), ("Paper Lanterns Station",) * 2 + ([],))
+
+    def test_radio_from_what_plays_needs_a_catalog_song(self):
+        import time
+        from cos import music
+        sent, _ = self._fake_player({"status": "playing"}, music)
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Paper Lanterns", "id": "i.LibraryOnly1"})
+        res = music.radio()
+        self.assertFalse(res["ok"])
+        self.assertIn("no station", res["error"])
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Paper Lanterns", "id": "1234"})
+        self.assertTrue(music.radio()["ok"])
+        self.assertEqual([c for c, _ in sent], ["radio"], "only the catalog song starts a radio")
+
+    def test_radio_needs_our_player(self):
+        from cos import music
+        self._fake_player({}, music)
+        music.player_enabled = lambda: False
+        self.assertIn("Apple Music", music.radio("anything")["error"])
+
+    def test_next_on_a_station_skips_instead_of_stopping(self):
+        import io, time
+        from contextlib import redirect_stdout
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Paper Lanterns", "station": "Paper Lanterns Station"})
+        sent, _ = self._fake_player({"status": "playing", "track": "Glass Harbor", "artist": "The Quiet Hours"}, music)
+        with redirect_stdout(io.StringIO()):
+            music.transport("next")
+        self.assertEqual([c for c, _ in sent], ["next"])
+
+    def test_like_journals_the_song_the_player_rated(self):
+        import io, time
+        from contextlib import redirect_stdout
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Paper Lanterns", "station": "Paper Lanterns Station"})
+        self._fake_player({"loved": True, "track": "Glass Harbor", "artist": "The Quiet Hours"}, music)
+        with redirect_stdout(io.StringIO()):
+            music.like()
+        self.assertIn("Glass Harbor", core.read_journal(days=1, kind="music")[-1]["msg"])
 
     def test_catalog_id_from_song_links(self):
         from cos import music

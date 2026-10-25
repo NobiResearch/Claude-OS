@@ -57,7 +57,8 @@ class TestCli(TempHome):
         os.environ["CLAUDE_OS_DAEMON"] = "morning"
         try:
             for argv in (["cal", "connect"], ["weather", "set", "Lisbon"], ["feeds", "add", "https://x.example/feed"],
-                         ["config", "notify.native", "true"], ["music", "play", "anything"], ["music", "like"]):
+                         ["config", "notify.native", "true"], ["music", "play", "anything"], ["music", "like"],
+                         ["music", "radio"], ["music", "radio", "anything"]):
                 with self.assertRaises(SystemExit) as cm:
                     self.cos(*argv)
                 self.assertEqual(cm.exception.code, 3, argv)

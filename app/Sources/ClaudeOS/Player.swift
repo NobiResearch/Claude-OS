@@ -11,6 +11,7 @@ import MusicKit
 ///   claude-os://music/play?id=<digits>   play a catalog song by its Apple Music id
 ///   claude-os://music/play-library?title=…&artist=…   play a song from the human's library
 ///   claude-os://music/play-playlist?name=…&shuffle=1|0  play one of the human's playlists
+///   claude-os://music/radio?id=<digits>  a catalog song, then similar music (its station)
 ///   claude-os://music/pause | resume | stop | next | previous
 ///   claude-os://music/shuffle?on=1|0
 ///   claude-os://music/love               love the current song in the human's Apple Music
@@ -23,6 +24,7 @@ enum MusicCommand: Equatable {
     case play(id: String)
     case playLibrary(title: String, artist: String)
     case playPlaylist(name: String, shuffle: Bool?)
+    case radio(id: String)
     case shuffle(on: Bool)
 
     init?(url: URL) {
@@ -38,10 +40,10 @@ enum MusicCommand: Equatable {
         case "previous": self = .previous
         case "love": self = .love
         case "unlove": self = .unlove
-        case "play":
+        case "play", "radio":
             let id = value("id")
             guard !id.isEmpty, id.allSatisfy({ $0.isASCII && $0.isNumber }) else { return nil }
-            self = .play(id: id)
+            self = url.path.hasSuffix("radio") ? .radio(id: id) : .play(id: id)
         case "play-library":
             let title = value("title")
             guard !title.isEmpty, title.count <= 200 else { return nil }
@@ -66,6 +68,9 @@ final class Player {
     private let player = ApplicationMusicPlayer.shared
     private var current: Song?
     private var playlist: String?  // the playlist playing, if any; then the queue says which song
+    private var radioSeed: Song?   // radio: the song it started from (decision 0005)
+    private var station: String?   // radio: the station playing after it, if Apple Music had one
+    private var note: String?      // something worth saying that isn't an error
     private var lovedID: String?
     private var requestID: String?
     private var lastError: String?
@@ -90,7 +95,7 @@ final class Player {
             return
         }
         switch command {
-        case .authorize, .play, .playLibrary, .playPlaylist:
+        case .authorize, .play, .playLibrary, .playPlaylist, .radio:
             guard Self.appleMusicEnabled else {
                 lastError = "Apple Music in Claude OS is off (Settings › Permissions)"
                 write()
@@ -105,10 +110,11 @@ final class Player {
             case .play(let id): await play(id: id)
             case .playLibrary(let title, let artist): await playLibrary(title: title, artist: artist)
             case .playPlaylist(let name, let shuffle): await playPlaylist(name: name, shuffle: shuffle)
+            case .radio(let id): await startRadio(id: id)
             case .pause: player.pause(); ticker?.invalidate(); lastError = nil; await settledWrite()
             case .resume: try? await player.play(); startTicking(); lastError = nil; await settledWrite()
             case .stop:
-                player.stop(); ticker?.invalidate(); current = nil; playlist = nil; lastError = nil
+                player.stop(); ticker?.invalidate(); forget(); lastError = nil
                 await settledWrite()
             case .next: await skip { try await $0.skipToNextEntry() }
             case .previous: await skip { try await $0.skipToPreviousEntry() }
@@ -140,8 +146,8 @@ final class Player {
             }
             player.queue = [song]
             try await player.play()
+            forget()
             current = song
-            playlist = nil
             lastError = nil
             startTicking()
         } catch {
@@ -171,8 +177,8 @@ final class Player {
             }
             player.queue = [song]
             try await player.play()
+            forget()
             current = song
-            playlist = nil
             lastError = nil
             startTicking()
         } catch {
@@ -201,7 +207,7 @@ final class Player {
             if let shuffle = shuffle { player.state.shuffleMode = shuffle ? .songs : .off }
             player.queue = [list]
             try await player.play()
-            current = nil
+            forget()
             playlist = list.name
             lastError = nil
             startTicking()
@@ -210,6 +216,61 @@ final class Player {
         }
         write()
     }
+
+    /// Radio (0005): the song first, then similar music. Apple Music's station for the song
+    /// if it has one, else the artist's; if neither, the song alone, and player.json says so
+    /// (`station` missing), so the worst case is today's single song.
+    private func startRadio(id: String) async {
+        if MusicAuthorization.currentStatus != .authorized {
+            guard await authorize() else { return }
+        }
+        do {
+            let request = MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: MusicItemID(id))
+            guard let song = try await request.response().items.first else {
+                lastError = "Apple Music doesn't have song \(id) in this storefront"
+                write()
+                return
+            }
+            let detailed = (try? await song.with([.station, .artists])) ?? song
+            var found = detailed.station
+            if found == nil, let artist = detailed.artists?.first {
+                found = try? await artist.with([.station]).station
+            }
+            forget()
+            player.queue = [song]
+            try await player.play()
+            radioSeed = song
+            current = song
+            if let found = found {
+                do {
+                    try await player.queue.insert(found, position: .tail)
+                    station = found.name
+                    current = nil
+                } catch {
+                    note = "Apple Music wouldn't queue its station, so the song plays alone"
+                }
+            } else {
+                note = "Apple Music has no station for it, so the song plays alone"
+            }
+            lastError = nil
+            startTicking()
+        } catch {
+            lastError = "MusicKit couldn't start the radio: \(error.localizedDescription)"
+        }
+        write()
+    }
+
+    /// Whatever played before: a new command starts from a clean slate.
+    private func forget() {
+        current = nil
+        playlist = nil
+        radioSeed = nil
+        station = nil
+        note = nil
+    }
+
+    /// A playlist or a station moves along by itself: then the queue says what's playing.
+    private var queueMoves: Bool { playlist != nil || station != nil }
 
     private func skip(_ move: (ApplicationMusicPlayer) async throws -> Void) async {
         do {
@@ -222,19 +283,19 @@ final class Player {
         await settledWrite()
     }
 
-    /// The song the queue is on: a playlist moves along by itself.
+    /// The song playing. While the queue moves by itself, only its current entry counts:
+    /// never an earlier song, so `love` can't rate the wrong one.
     private var nowPlaying: Song? {
-        if playlist != nil, let entry = player.queue.currentEntry, case .song(let song)? = entry.item {
-            return song
-        }
-        return current
+        guard queueMoves else { return current }
+        if let entry = player.queue.currentEntry, case .song(let song)? = entry.item { return song }
+        return nil
     }
 
     /// "Love" the current song in the human's Apple Music (the same as ♥ in Music), via the
     /// Apple Music API's ratings endpoint. MusicDataRequest adds both tokens itself.
     private func rate(love: Bool) async {
         guard let song = nowPlaying else {
-            lastError = "nothing is playing in Claude OS"
+            lastError = queueMoves ? "can't tell which song is playing, so nothing was rated" : "nothing is playing in Claude OS"
             write()
             return
         }
@@ -259,14 +320,17 @@ final class Player {
         write()
     }
 
-    /// Keep player.json fresh while something plays (position, end of song).
+    /// Keep player.json fresh while something plays (position, end of song). A few quiet
+    /// ticks in a row end it, so the moment between two songs of a queue doesn't.
     private func startTicking() {
         ticker?.invalidate()
+        var quiet = 0
         ticker = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self = self else { return }
                 self.write()
-                if self.player.state.playbackStatus != .playing { self.ticker?.invalidate() }
+                quiet = self.player.state.playbackStatus == .playing ? 0 : quiet + 1
+                if quiet >= 3 { self.ticker?.invalidate() }
             }
         }
     }
@@ -285,6 +349,9 @@ final class Player {
         ]
         state["shuffle"] = player.state.shuffleMode == .songs
         if let name = playlist { state["playlist"] = name }
+        if let seed = radioSeed { state["radio"] = "\(seed.title) — \(seed.artistName)" }
+        if let name = station { state["station"] = name }
+        if let note = note { state["note"] = note }
         if let song = nowPlaying {
             state["id"] = song.id.rawValue
             state["track"] = song.title
@@ -294,6 +361,9 @@ final class Player {
             state["position"] = player.playbackTime
             state["artwork"] = song.artwork?.url(width: 600, height: 600)?.absoluteString ?? ""
             state["loved"] = lovedID == song.id.rawValue
+        } else if queueMoves, let entry = player.queue.currentEntry {
+            state["track"] = entry.title  // a station's entry may not be a Song; still say what's on
+            state["artist"] = entry.subtitle ?? ""
         }
         if let error = lastError { state["error"] = error }
         if let rid = requestID { state["rid"] = rid }

@@ -82,6 +82,8 @@ def build_parser():
     mc = msub.add_parser("catalog")
     mc.add_argument("query", nargs="+")
     mc.add_argument("--limit", type=int, default=10)
+    mr = msub.add_parser("radio", help="a song, then similar music (its Apple Music station)")
+    mr.add_argument("query", nargs="*")
     msub.add_parser("playlists")
     ml = msub.add_parser("playlist")
     ml.add_argument("name", nargs="+")
@@ -268,7 +270,7 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 # Fine at the human's request, never from a background job (a feed or calendar invite could
 # be steering it): anything that plays, changes or rates music.
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
-                                         "playlist", "shuffle", "like", "unlike")}
+                                         "playlist", "shuffle", "like", "unlike", "radio")}
 
 
 def mutation(args):
