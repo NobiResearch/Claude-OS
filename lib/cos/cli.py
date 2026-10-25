@@ -11,7 +11,7 @@ COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
     "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook", "security",
-    "net",
+    "net", "backup",
 }
 
 INTRO = """\
@@ -25,6 +25,7 @@ syscalls (what Claude uses; you can too):
   status                    vitals and signals
   security                  FileVault, SIP, firewall, Gatekeeper · security on firewall --yes
   net [--speed]             is it the Wi-Fi, the router or the internet? · --speed: networkQuality
+  backup [setup]            Time Machine, and which connected disk could hold it · setup: its settings
   clean [--deep]            reclaimable space · clean apply <id>... --yes
   update [--fetch]          what's outdated, Claude OS too · update apply <source> --yes
   music ...                 now | play <q> | pause | next | find | catalog | playlists | playlist <name> | like
@@ -114,6 +115,9 @@ def build_parser():
     su = cmd("startup", "what starts with this Mac (read-only)")
     su.add_argument("--full", action="store_true",
                     help="macOS's full login items list, apps included (macOS asks for an admin password)")
+    bk = cmd("backup", "Time Machine, and which connected disk could hold the backups (read-only)")
+    bk_sub = bk.add_subparsers(dest="backup_cmd")
+    bk_sub.add_parser("setup", help="open Time Machine's settings; you choose the disk there")
     nt = cmd("net", "is it the Wi-Fi, the router or the internet? (read-only)")
     nt.add_argument("--speed", action="store_true",
                     help="measure throughput with macOS's networkQuality (about 20 seconds; uses data)")
@@ -301,7 +305,7 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
     ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
-    ("net", "--speed")}
+    ("net", "--speed"), ("backup", "setup")}
 
 
 def daemon_refused(args):
@@ -315,6 +319,8 @@ def daemon_refused(args):
         key = ("startup", "--full") if args.full else None
     elif args.cmd == "net":
         key = ("net", "--speed") if args.speed else None
+    elif args.cmd == "backup":
+        key = ("backup", args.backup_cmd)
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None
@@ -403,6 +409,9 @@ def main(argv=None):
     if c == "net":
         from . import net
         return net.main(args)
+    if c == "backup":
+        from . import backup
+        return backup.main(args)
     if c == "hook":
         from . import hook
         return hook.main(args)

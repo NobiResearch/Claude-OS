@@ -1,7 +1,6 @@
 """cos status — vitals of the Mac, plus signals worth acting on."""
 
 import os
-import plistlib
 import re
 import time
 
@@ -126,24 +125,13 @@ def security():
 
 
 def parse_backup(text):
-    """`tmutil destinationinfo -X` is a plist, an empty dict when Time Machine has no
-    destination. Anything we can't read is unknown (None), and unknown is never a signal."""
-    try:
-        data = plistlib.loads(text.encode("utf-8"))
-    except Exception:
-        return None
-    if not isinstance(data, dict):
-        return None
-    if not data:
-        return {"configured": False}
-    dests = data.get("Destinations")
-    return {"configured": bool(dests)} if isinstance(dests, list) else None
+    from . import backup as bk  # the reader lives with `cos backup` (decision 0012)
+    return bk.parse_backup(text)
 
 
 def backup():
-    """Is Time Machine set up? Never mounts or names the destination (decision 0005)."""
-    r = core.run(["tmutil", "destinationinfo", "-X"], timeout=10)
-    return parse_backup(r.out) if r.ok and r.out else None
+    from . import backup as bk
+    return bk.state()
 
 
 def refresh_backup(max_age=24 * 3600):
@@ -205,7 +193,7 @@ def signals(s):
                 core.human_bytes(safe), core.ago(scan["ts"]))))
     tm = core.cache_get("backup")
     if tm and pulse.get("backup_check", True) and (tm["data"] or {}).get("configured") is False:
-        out.append(("note", "Time Machine isn't set up"))
+        out.append(("note", "Time Machine isn't set up: cos backup"))
     return out
 
 
