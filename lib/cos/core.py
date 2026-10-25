@@ -259,7 +259,7 @@ DEFAULT_CONFIG = {
     "music": {"storefront": None, "apple_music": False},
     "weather": {},
     "notify": {"enabled": True, "native": False},
-    "pulse": {"low_disk_gb": 20},
+    "pulse": {"low_disk_gb": 20, "backup_check": True},
 }
 
 

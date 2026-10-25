@@ -140,3 +140,7 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 
 - **Battery health on Apple Silicon:** `ioreg -rn AppleSmartBattery` reports
   `"MaxCapacity" = <percent>` directly; `AppleRawMaxCapacity` may be absent.
+- **Time Machine without side effects:** `tmutil destinationinfo -X` answers in
+  milliseconds with a plist (an empty dict means no destination) and needs no permission.
+  `tmutil latestbackup` can try to mount a network or removable destination; avoid it in
+  background checks.

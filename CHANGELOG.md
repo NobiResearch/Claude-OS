@@ -4,6 +4,12 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Backup signal**: `cos status`, the boot banner and the morning brief say "Time Machine
+  isn't set up" when it isn't, as a quiet note (never a notification). Pulse checks once a
+  day with `tmutil destinationinfo`, which never mounts or names a backup disk. Back up
+  another way? `cos config pulse.backup_check false`
+  ([0005](docs/decisions/0005-radio-and-backup-signal.md)).
+
 ## 0.7.0 — 2026-10-25
 
 Music that keeps going, and a safer Claude OS. Built overnight
