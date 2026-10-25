@@ -19,6 +19,16 @@ class TestRunFiles(unittest.TestCase):
         self.assertEqual(server.split_run("# Good morning\n\nRain."), ("# Good morning\n\nRain.", ""))
         self.assertEqual(server.split_run("Fixed a thing\n\n---\nstderr:\nnoise")[0], "Fixed a thing")
 
+    def test_one_cover_per_song(self):
+        from unittest import mock
+        from cos import server
+        with mock.patch.object(server, "artwork_for", lambda track, artist: "https://art.example/%s.jpg" % track):
+            own = server.with_artwork({"track": "A", "artist": "B", "artwork": "musicKit://artwork/transient/600x600?id=1"})
+            app = server.with_artwork({"track": "A", "artist": "B"})
+            self.assertEqual(own["artwork"], app["artwork"], "play/pause answers and polls agree")
+            self.assertEqual(server.with_artwork({"track": "A", "artwork": "https://x/y.jpg"})["artwork"], "https://x/y.jpg")
+            self.assertNotIn("artwork", server.with_artwork({"track": None}))
+
 
 class TestServerSecurity(TempHome):
     def setUp(self):

@@ -55,7 +55,8 @@ return out
 
 def _own_now(st):
     """Claude OS's player state, shaped like now()."""
-    return {"running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
+    state = st.get("status") if st.get("status") in ("playing", "paused") else "playing"
+    return {"running": True, "state": state, "track": st.get("track"), "artist": st.get("artist"),
             "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
             "volume": None, "shuffle": bool(st.get("shuffle")), "repeat": "off", "player": "Claude OS",
             "playlist": st.get("playlist"), "radio": st.get("radio"), "station": st.get("station"),
@@ -63,9 +64,17 @@ def _own_now(st):
 
 
 def now():
-    own = player_state(max_age=30)
-    if own and own.get("status") == "playing" and own.get("track"):
+    own = own_player_active()
+    if own and own["status"] == "playing":
         return _own_now(own)
+    app = _music_app_now()
+    # Paused in Claude OS is still the song on screen, unless Music is playing something else.
+    if own and app.get("state") != "playing":
+        return _own_now(own)
+    return app
+
+
+def _music_app_now():
     if not core.app_running("Music"):
         return {"running": False}
     r = _tell(NOW_SCRIPT, timeout=6)
@@ -521,9 +530,17 @@ def report(res, query=None):
 
 
 def own_player_active():
-    """Claude OS's player has a song, playing or paused: transport goes there, not to Music."""
-    own = player_state(max_age=30)
-    return own if own and own.get("track") and own.get("status") in ("playing", "paused") else None
+    """Claude OS's player has a song, playing or paused: transport goes there, not to Music.
+    While it plays, the app rewrites player.json every 2 seconds; paused, it goes quiet, so a
+    paused song counts for as long as the app holding it is running."""
+    own = player_state()
+    if not own or not own.get("track"):
+        return None
+    if own.get("status") == "playing":
+        return own if time.time() - own.get("ts", 0) <= 30 else None
+    if own.get("status") == "paused":
+        return own if core.app_running("ClaudeOS") else None
+    return None
 
 
 def transport(cmd):
@@ -573,8 +590,8 @@ def volume(level):
 
 def like():
     # Love what's actually playing: Claude OS's own player first, the Music app otherwise.
-    own = player_state(max_age=30)
-    if own and own.get("track") and own.get("status") in ("playing", "paused"):
+    own = own_player_active()
+    if own:
         res = player_command("love", wait=10)
         if not res.get("ok") or not res["state"].get("loved"):
             print("✗ couldn't love it: %s" % (res.get("error") or "Apple Music didn't confirm"))
@@ -598,8 +615,8 @@ def like():
 
 
 def unlike():
-    own = player_state(max_age=30)
-    if not (own and own.get("track") and own.get("status") in ("playing", "paused")):
+    own = own_player_active()
+    if not own:
         print("✗ unlike works on what's playing in Claude OS")
         return 1
     res = player_command("unlove", wait=10)
