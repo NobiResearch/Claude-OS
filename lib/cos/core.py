@@ -12,8 +12,10 @@ import signal
 import ssl
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
+from collections import deque
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -76,6 +78,72 @@ def run(cmd, timeout=30, input=None, env=None, cwd=None):
         _killpg(p)
         raise
     return Result(p.returncode, out.strip(), err.strip())
+
+
+def stream(cmd, on_line, timeout=30, input=None, env=None, cwd=None):
+    """Like run(), but each stdout line goes to on_line as it arrives (and isn't kept). Same
+    promises: never raises for a missing binary or a timeout, and the whole process group
+    dies on timeout, on Ctrl-C, on any error here and when the command ends. The deadline
+    doesn't wait for output, stderr drains on its own thread (the last lines are kept), and
+    an on_line that fails loses that line, not the run."""
+    full_env = None
+    if env:
+        full_env = dict(os.environ)
+        full_env.update(env)
+    try:
+        p = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE if input is not None else subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8",
+            errors="replace", env=full_env, cwd=cwd, start_new_session=True,
+        )
+    except FileNotFoundError:
+        return Result(127, "", "command not found: %s" % cmd[0])
+    except OSError as e:
+        return Result(126, "", "cannot run %s: %s" % (cmd[0], e))
+    tail = deque(maxlen=40)
+    expired = threading.Event()
+
+    def read_stderr():
+        for line in p.stderr:
+            tail.append(line.rstrip())
+
+    def expire():
+        expired.set()
+        _killpg(p)
+
+    reader = threading.Thread(target=read_stderr, daemon=True)
+    reader.start()
+    timer = threading.Timer(timeout, expire)
+    timer.daemon = True
+    timer.start()
+    finished = False
+    try:
+        if input is not None:
+            try:
+                p.stdin.write(input)
+                p.stdin.close()
+            except OSError:
+                pass  # it exited (or was killed) before reading its input
+        for line in p.stdout:
+            try:
+                on_line(line)
+            except Exception:
+                pass
+        finished = True
+    finally:
+        timer.cancel()
+        if finished:  # give it a moment to exit by itself after closing its output
+            try:
+                p.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                pass
+        _killpg(p)  # also takes any grandchildren still holding on
+        p.wait()
+        reader.join(timeout=2)
+    err = "\n".join(tail).strip()
+    if expired.is_set():
+        return Result(124, "", ("timed out after %ss\n%s" % (timeout, err)).strip())
+    return Result(p.returncode, "", err)
 
 
 def _killpg(p):
@@ -365,13 +433,20 @@ def native_notifications():
     return status.get("authorization") == "authorized" and app_running("ClaudeOS")
 
 
-def notify(message, title="Claude OS", subtitle=None, sound=None):
+# The only places a click on a notification may open. The app checks the same list and maps
+# each to a fixed view; a click only ever navigates.
+NOTIFY_TARGETS = ("board", "brief", "evolve", "daemons")
+
+
+def notify(message, title="Claude OS", subtitle=None, sound=None, target=None):
     if not config()["notify"]["enabled"]:
         return Result(0, "", "notifications disabled")
     if native_notifications():
         # The text goes in a private file; the link that wakes the app carries nothing.
         import uuid
         note = {"title": title, "subtitle": subtitle or "", "body": message, "sound": bool(sound)}
+        if target in NOTIFY_TARGETS:
+            note["target"] = target
         path = home("state", "outbox", "%d-%s.json" % (int(time.time() * 1000), uuid.uuid4().hex[:8]))
         try:
             with open(path, "w") as f:

@@ -125,7 +125,18 @@ def latest_run(name):
     runs = sorted(core.home("runs", name).glob("*.md")) if core.home("runs", name).is_dir() else []
     if not runs:
         return None
-    return {"file": runs[-1].name, "ts": runs[-1].stat().st_mtime, "text": runs[-1].read_text()}
+    text, details = split_run(runs[-1].read_text())
+    return {"file": runs[-1].name, "ts": runs[-1].stat().st_mtime, "text": text, "details": details}
+
+
+def split_run(text):
+    """-> (the document, what came before it). A run narrates as it goes ("Steward is in…")
+    before its first `# ` heading; older runs also end in a stderr section."""
+    text = text.split("\n\n---\nstderr:\n", 1)[0]
+    m = re.search(r"^# ", text, re.M)
+    if not m or m.start() == 0:
+        return text, ""
+    return text[m.start():], text[:m.start()].strip()
 
 
 # ---------------------------------------------------------------- the handler
@@ -613,7 +624,8 @@ def make_handler(app):
         h._json(latest_run("morning") or {})
 
     def r_board(h, q, b):
-        h._json({"latest": latest_run("board"), "decisions": decisions()})
+        from . import daemon
+        h._json({"latest": latest_run("board"), "decisions": decisions(), "live": daemon.live("board")})
 
     def r_doc(h, q, b):
         text = read_doc(q.get("name"))

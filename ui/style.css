@@ -419,6 +419,19 @@ table.mini tr:last-child td { border-bottom: 0; }
 .seat { padding: 12px 10px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--line); text-align: center; }
 .seat-mark { color: var(--accent); font-size: 16px; }
 .seat-name { font-weight: 600; margin-top: 4px; }
+.in-session .seat { transition: opacity 0.3s, border-color 0.3s; }
+.in-session .seat.waiting { opacity: 0.45; }
+.in-session .seat.working { border-color: var(--accent); }
+.in-session .seat.working .seat-mark { animation: seat-pulse 1.6s ease-in-out infinite; }
+.in-session .seat.voted.approve { border-color: var(--ok); }
+.in-session .seat.voted.amend { border-color: var(--warn); }
+.in-session .seat.voted.reject { border-color: var(--bad); }
+@keyframes seat-pulse { 50% { opacity: 0.35; } }
+.session { margin: -4px 0 14px; padding: 10px 12px; border-radius: 11px; background: var(--accent-soft); }
+.live-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: var(--accent); animation: seat-pulse 1.6s ease-in-out infinite; }
+.run-details { margin-top: 12px; }
+.run-details summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+@media (prefers-reduced-motion: reduce) { .in-session .seat.working .seat-mark, .live-dot { animation: none; } }
 .timeline { margin-top: 6px; }
 .tl-day { margin: 16px 0 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .tl-row { display: flex; align-items: baseline; gap: 10px; padding: 6px 4px; border-bottom: 1px solid var(--line); }
