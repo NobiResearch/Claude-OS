@@ -4,6 +4,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Playlists play in Claude OS's own player** (with "Apple Music in Claude OS" on), from
+  `cos music playlist <name>` or the desktop's Music app. Next, previous and shuffle go to
+  that player too, so "not this one" skips inside the playlist; `next` on a single song
+  stops it. The Music app is still the fallback.
+
 - **Security review fixes** (a fresh review of everything since v0.2):
   - `claude-os://` links that change something (play, rate, permission prompts) need this
     launch's nonce from `~/.claude-os/state/app.nonce`, so a web page or feed link can't make

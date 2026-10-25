@@ -9,13 +9,10 @@ what, where, and how we'll know it works.
 1. **"Leave in 10 minutes"**: a notification before calendar events with a location, using
    travel time. After native notifications, once the calendar has events (0004).
 2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **Playlists in the one player**: `MusicLibraryRequest<Playlist>`, so "play my Deep Work
-   playlist" plays in Claude OS too.
-4. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
-   so the human's own automations become syscalls.
-5. **Brief at a time that fits the calendar**: the morning daemon runs before the first event.
-6. **`cos shortcuts`** (vetoed as first proposed, 0004): `list` free; `run` only as a
-   mutation (ask rule, refused in daemons).
+3. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
+   so the human's own automations become syscalls. As first proposed it was vetoed (0004):
+   `list` is free; `run` only as a mutation (ask rule, refused in daemons).
+4. **Brief at a time that fits the calendar**: the morning daemon runs before the first event.
 
 ## Hardening
 
@@ -48,3 +45,4 @@ what, where, and how we'll know it works.
   location, stable signing.
 - v0.5: calendar & reminders, weather alerts, loving the right song.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).
+- After v0.6: native notifications, the security review's fixes, playlists in the one player.
