@@ -190,15 +190,24 @@ def audit(full=False):
             "flagged": sum(1 for i in unique if i["findings"]), "full": full, "note": note}
 
 
+NAME_WIDTH = 46
+
+
+def fit(name, width):
+    """A name that fits the column, cut with an ellipsis rather than silently."""
+    return name if len(name) <= width else name[:width - 1] + "…"
+
+
 def render(data):
     if data.get("error"):
         print(data["error"])
         return
     print("%d things start with this Mac (%d on), %d worth a look\n" % (len(data["items"]), data["enabled"], data["flagged"]))
+    width = min(max([len(i["name"] or "?") for i in data["items"]] + [10]), NAME_WIDTH)
     for i in data["items"]:
         mark = "⚠" if i["findings"] else ("●" if i["enabled"] else "○")
         who = i.get("authority") or i["developer"] or "?"
-        print("%s %-34s %-14s %s" % (mark, (i["name"] or "?")[:34], i["type"], who))
+        print("%s %-*s %-14s %s" % (mark, width, fit(i["name"] or "?", width), i["type"], who))
         for f in i["findings"]:
             print("    %s" % f)
     print("\n● on  ○ off  ⚠ worth a look · change these in System Settings › General › Login Items & Extensions")
