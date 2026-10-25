@@ -4,6 +4,9 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- `cos update` says "couldn't check" for npm, the App Store or Rust when it can't reach them
+  (offline, say), instead of a reassuring "up to date".
+
 - **Night shift opens pull requests for everything and merges the safe ones.** Work that
   touches Claude OS's core no longer stays on your Mac until morning. It's pushed, CI
   runs, and the pull request waits for your merge; everything else merges by itself. The

@@ -443,7 +443,7 @@
           const s = src[key];
           if (!s) return;
           const items = s.items || [];
-          if (!items.length) { root.appendChild(card(label, h("div", { class: "muted" }, "Up to date."))); return; }
+          if (!items.length) { root.appendChild(card(label, h("div", { class: "muted" }, s.error === "couldn't check" ? "Couldn't check (offline?)." : "Up to date."))); return; }
           const checks = {};
           const look = (it) => it.look || (it.major ? "major" : "");
           const lookPill = { major: "major", downgrade: "downgrade", scheme: "new scheme" };
