@@ -143,6 +143,7 @@
     pause: '<path d="M7 4h4v16H7zM13 4h4v16h-4z" fill="currentColor" stroke="none"/>',
     next: '<path d="M5 4v16l10-8Z" fill="currentColor" stroke="none"/><path d="M18 4v16"/>',
     prev: '<path d="M19 4v16L9 12Z" fill="currentColor" stroke="none"/><path d="M6 4v16"/>',
+    radio: '<circle cx="12" cy="12" r="1.8"/><path d="M8.5 15.5a5 5 0 0 1 0-7M15.5 8.5a5 5 0 0 1 0 7M5.6 18.4a9 9 0 0 1 0-12.8M18.4 5.6a9 9 0 0 1 0 12.8"/>',
     heart: '<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z"/>',
     refresh: '<path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 4v5h-5"/>',
     send: '<path d="M4 12 20 4l-6 16-3-7Z"/>',

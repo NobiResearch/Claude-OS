@@ -8,7 +8,8 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
   OS's own player, then keeps going with similar music from its Apple Music station (the
   artist's if the song has none); with no argument it starts from the song playing now.
   `next` skips within it, and `like` rates the song actually playing. If Apple Music has no
-  station, the song plays alone and `cos` says so. The `/music` skill uses radio for moods.
+  station, the song plays alone and `cos` says so. The `/music` skill uses radio for moods,
+  and the desktop's Music app has a Radio button next to ⏭.
   *Not yet tried on real playback (built overnight).*
 
 - **Playlists play in Claude OS's own player** (with "Apple Music in Claude OS" on), from

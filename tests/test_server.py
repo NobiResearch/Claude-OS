@@ -64,6 +64,15 @@ class TestServerSecurity(TempHome):
         self.assertEqual(self.request("POST", "/api/clean/apply", {"ids": ["../../etc"]})[0], 400)
         self.assertEqual(self.request("POST", "/api/evolve/merge", {"branch": "main"})[0], 400)
 
+    def test_radio_button_reaches_the_player_route(self):
+        from cos import music
+        orig = music.player_enabled
+        music.player_enabled = lambda: False
+        self.addCleanup(setattr, music, "player_enabled", orig)
+        status, _, data = self.request("POST", "/api/music/play", {"radio": True})
+        self.assertEqual(status, 200)
+        self.assertIn("Apple Music", json.loads(data)["error"])
+
     def test_docs_are_whitelisted(self):
         self.assertEqual(self.request("GET", "/api/doc?name=roadmap")[0], 200)
         self.assertEqual(self.request("GET", "/api/doc?name=../CLAUDE")[0], 404)

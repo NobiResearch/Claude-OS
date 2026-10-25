@@ -484,6 +484,7 @@
           h("button", { class: "np-btn", title: "Previous", onclick: () => control("prev") }, icon("prev", 18)),
           playBtn,
           h("button", { class: "np-btn", title: "Next", onclick: () => control("next") }, icon("next", 18)),
+          h("button", { class: "np-btn", title: "Radio: keep going with similar music", onclick: () => play({ radio: true }, "a radio from this song") }, icon("radio", 17)),
           h("button", { class: "np-btn", title: "Love", onclick: () => control("like").then(() => toast("♥ Saved to your favourites", "ok")) }, icon("heart", 16)),
           vol)));
       const search = h("input", { class: "search", placeholder: "Search your library and Apple Music…" });
@@ -503,7 +504,7 @@
         else if (!n.track) { title.textContent = "Nothing loaded"; artist.textContent = ""; times.textContent = ""; }
         else {
           title.textContent = n.track;
-          artist.textContent = [n.artist, n.album].filter(Boolean).join(" — ") + (n.playlist ? " · from " + n.playlist : "");
+          artist.textContent = [n.artist, n.album].filter(Boolean).join(" — ") + (n.playlist ? " · from " + n.playlist : n.station ? " · radio" : "");
           if (document.activeElement !== vol) vol.value = Math.max(1, n.volume || 1);
         }
         if (n.artwork !== artUrl) {
