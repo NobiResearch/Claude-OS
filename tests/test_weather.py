@@ -238,6 +238,9 @@ class TestClaudeOSPlayer(TempHome):
                 mock.patch.object(music, "_music_app_now", lambda: {"running": False}):
             self.assertEqual(music.now(), {"running": False}, "the app that held it is gone")
             self.assertIsNone(music.own_player_active())
+        core.home("state", "app.nonce").write_text("n0nce\n")  # the app restarted after the pause
+        with mock.patch.object(music.core, "app_running", lambda name: name == "ClaudeOS"):
+            self.assertIsNone(music.own_player_active(), "a new launch doesn't hold the old song")
 
 
 if __name__ == "__main__":
