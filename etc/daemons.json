@@ -37,6 +37,8 @@
     "allowed_tools": [
       "Bash(bin/cos *)",
       "Bash(python3 -m unittest *)",
+      "Bash(/usr/bin/python3 -m unittest *)",
+      "Bash(node --check *)",
       "Bash(git status*)",
       "Bash(git diff*)",
       "Bash(git log*)",

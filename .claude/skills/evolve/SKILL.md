@@ -38,6 +38,8 @@ parallel with a short brief) and follow their conditions. A Guardian `reject` me
 ## 4. Verify
 
 - `python3 -m unittest discover -s tests` passes.
+  Also under macOS's own Python (`/usr/bin/python3 -m unittest discover -s tests`), the
+  oldest one Claude OS supports, and `node --check ui/<file>.js` for any JavaScript you changed.
 - `bin/cos guard --all` is clean (no personal data anywhere in the repo).
 - Run the changed command for real, read-only, and look at the output.
 
