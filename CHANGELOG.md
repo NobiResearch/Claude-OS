@@ -1,6 +1,7 @@
 # Changelog
 
-User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
+User-visible changes to Claude OS. Each pull request adds its entry as a file in `changes/`;
+they're folded in here at each release (the desktop shows them under **Unreleased** until then).
 
 ## Unreleased
 
