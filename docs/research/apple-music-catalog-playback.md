@@ -1,7 +1,8 @@
 # Can Claude OS play any Apple Music song, not just library tracks?
 
 - **Asked:** 2026-10-24, during the founding build
-- **Status:** open (tracked as friction; see the roadmap's Research section)
+- **Status:** answered in v0.4: Claude OS's own MusicKit player plays catalog songs (decision
+  0003, amended); library songs (v0.6), playlists and radio followed. Kept for the record.
 
 ## Answer so far
 

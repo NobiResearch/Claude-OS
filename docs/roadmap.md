@@ -15,10 +15,14 @@ what, where, and how we'll know it works.
    text. Done when: tests with fixture plists (empty dict, one destination, command failure,
    garbage output) pass; `cos status` shows the note on a Mac without Time Machine; the
    `/tidy` or `/update` skill doesn't need to change.
-2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+2. **Claude OS everywhere** (research: [claude-code-plugin](research/claude-code-plugin.md);
+   board first, it touches permissions and privacy): the repo as a local Claude Code plugin
+   named `cos`, so `/music`, `/tidy`, `/update`, `/startup`, `/brief` work in any directory.
+   First verify in-place loading from a local-directory marketplace on this Mac.
+3. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+4. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-4. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+5. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening
@@ -28,8 +32,9 @@ what, where, and how we'll know it works.
 
 ## Research (for `/lab`)
 
-- What's the cheapest, sturdiest menu bar presence? (SwiftBar plugin vs. a tiny Swift app.)
-- Packaging Claude OS skills as a Claude Code plugin so they work from any directory.
+- Nothing open. Answered: [Apple Music catalog playback](research/apple-music-catalog-playback.md)
+  (Claude OS's own MusicKit player), [Claude OS as a plugin](research/claude-code-plugin.md);
+  the menu bar presence is Claude OS.app's status item.
 
 ## Ideas
 
