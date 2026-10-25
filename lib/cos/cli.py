@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup",
+    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook",
 }
 
 INTRO = """\
@@ -104,6 +104,11 @@ def build_parser():
     su = cmd("startup", "what starts with this Mac (read-only)")
     su.add_argument("--full", action="store_true",
                     help="macOS's full login items list, apps included (macOS asks for an admin password)")
+    hk = cmd("hook", "Claude Code hooks (night shift pushes, decision 0006)")
+    hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
+    hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
+    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch on its own?")
+    hk_check.add_argument("branch")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
     ca_sub = ca_.add_subparsers(dest="cal_cmd")
@@ -365,6 +370,9 @@ def main(argv=None):
     if c == "startup":
         from . import startup
         return startup.main(args)
+    if c == "hook":
+        from . import hook
+        return hook.main(args)
     if c in ("log", "friction", "remember", "memory"):
         from . import mem
         return getattr(mem, c + "_main" if c != "log" else "log_main")(args)

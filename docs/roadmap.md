@@ -18,6 +18,8 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
+- **A `pre-push` hook** that runs the Guardian over the pushed range, for pushes the human
+  approves (0006: the night shift's own pushes are already checked by main's guard).
 - **Deny-by-default sandbox for model-written tests**: today it's allow-default minus
   writes, the network and private folders; move to an explicit allowlist (board, Guardian).
 

@@ -382,7 +382,8 @@ def make_handler(app):
                  "music": {"apple_music": bool(cfg["music"].get("apple_music")),
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},
-                 "weather": {"name": place.get("name"), "source": place.get("source")}})
+                 "weather": {"name": place.get("name"), "source": place.get("source")},
+                 "night_shift": bool(cfg["autonomy"].get("night_shift"))})
 
     def r_settings_music(h, q, b):
         from . import music
@@ -395,6 +396,12 @@ def make_handler(app):
             return h._json({"apple_music": True, "authorization": st.get("authorization"), "error": res.get("error")})
         core.run(["open", music.MEDIA_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
         h._json({"apple_music": False})
+
+    def r_settings_night(h, q, b):
+        on = bool(b.get("on"))
+        core.config_set("autonomy.night_shift", on)
+        core.journal("action", "Night shift turned %s" % ("on" if on else "off"), via="app")
+        h._json({"night_shift": on})
 
     def r_settings_notify(h, q, b):
         on = bool(b.get("native"))
@@ -643,6 +650,7 @@ def make_handler(app):
         ("POST", "/api/agenda/connect"): r_agenda_connect,
         ("POST", "/api/settings/music"): r_settings_music,
         ("POST", "/api/settings/notify"): r_settings_notify,
+        ("POST", "/api/settings/night"): r_settings_night,
         ("GET", "/api/weather"): r_weather,
         ("POST", "/api/weather/city"): r_weather_city,
         ("POST", "/api/weather/coords"): r_weather_coords,

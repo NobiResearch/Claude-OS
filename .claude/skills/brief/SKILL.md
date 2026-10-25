@@ -15,6 +15,7 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos update --json` (cached data is fine; don't `--fetch` here).
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
 - `bin/cos friction` and `bin/cos evolve`: what the OS itself needs.
+- `bin/cos log --days 1 --kind action`: anything the night shift pushed ("night shift: pushed …").
 - The boot banner's memory: what they care about.
 
 ## Write
@@ -38,7 +39,8 @@ then the link. Prefer depth over news. Skip duplicates across feeds.
 A single delightful item: a surprising idea, a beautiful essay, an xkcd. Optional.
 
 ## Claude OS
-Only if there's something: an evolve branch waiting for review, or open friction.
+Only if there's something: an evolve branch waiting for review, open friction, or one line
+listing what the night shift pushed ("Night shift: pushed night/x, night/y"). Nothing on quiet nights.
 ```
 
 ## Rules

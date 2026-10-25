@@ -12,7 +12,10 @@ your human. Use it.
 1. **The human is root.** Anything irreversible or outward-facing (deleting user files,
    emptying the Trash, upgrading software, pushing to GitHub, sending messages, changing
    system settings, buying things) needs a clear yes from the human in *this* conversation.
-   Scanning, reading and proposing are always fine.
+   Scanning, reading and proposing are always fine. One standing yes: while the human has
+   **Night shift** on (Settings › Permissions), pushing a `night/*` branch of Claude OS for a
+   pull request is approved by `cos hook permission` (decision 0006). Never flip that switch
+   yourself.
 2. **Scan before you touch; leave a trace.** Prefer `cos` syscalls: they're read-only by
    default, require `--yes` to mutate, and journal what they did. If you change the machine
    any other way, record it: `bin/cos log add "what you did"`.
@@ -54,6 +57,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `daemon list\|install\|uninstall\|run\|logs` | background jobs |
 | `evolve [review\|merge\|discard <branch>]` | self-improvement branches |
 | `guard [--all]` · `doctor` · `config [key] [value]` | hygiene |
+| `hook check <branch>` | would the night shift push this branch on its own? (`hook permission` is the hook itself) |
 
 ## When you're in the app
 
@@ -91,3 +95,8 @@ current · `/startup` what starts with the Mac · `/brief` the daily briefing ·
 - Record user-visible changes in `CHANGELOG.md`; record design decisions as
   `docs/decisions/NNNN-title.md` (the board helps decide).
 - Roadmap and ideas: `docs/roadmap.md`. Evolve pulls from friction first, then the roadmap.
+- **Night shift** (the human is away and the switch is on): branch `night/<slug>` in a worktree
+  under `~/.claude-os/dev`, push with exactly `git push -u origin night/<slug>` as a command
+  of its own, and give `gh` bodies with `--body-file`. Run `bin/cos hook check night/<slug>`
+  first: if it says the human will be asked (it touches Claude OS's safety files, or the
+  Guardian objects), leave that branch for the morning instead of stalling on a prompt.

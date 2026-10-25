@@ -4,6 +4,14 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Night shift** (Settings › Permissions, off by default): while you're away, Claude can
+  push its own `night/…` branches and open pull requests for Claude OS without stalling on
+  a prompt until morning. Never `main`, never a force push. Every commit and message is
+  checked for private data first, and branches that change Claude OS's own permissions,
+  laws, CI or guard still wait for you. Each push is journaled and listed in the next
+  morning's brief. `cos hook check <branch>` shows what it would decide
+  ([0006](docs/decisions/0006-night-shift-pushes.md)).
+
 - **Daemons on a Pro or Max plan run without a dollar cap.** The cap is Claude Code's
   estimate at API prices, so on a flat plan it only cut runs short (a weekly board meeting
   could stop halfway). The daemons' time limits still bound every run. With an API key,
