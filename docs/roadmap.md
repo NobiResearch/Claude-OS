@@ -6,13 +6,21 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **"Leave in 10 minutes"**: a notification before calendar events with a location, using
-   travel time. After native notifications, once the calendar has events (0004).
-2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **`cos shortcuts`**: `list` and `run <name> [--input text]` bridge to the Shortcuts CLI,
-   so the human's own automations become syscalls. As first proposed it was vetoed (0004):
-   `list` is free; `run` only as a mutation (ask rule, refused in daemons).
-4. **Brief at a time that fits the calendar**: the morning daemon runs before the first event.
+1. **Backup signal** (decision 0005, approved with conditions; read them there):
+   `status.backup()` runs `tmutil destinationinfo -X` (plist; `core.run` with a timeout) and
+   returns `{"configured": bool}` or `None` when unknown. `cos status` and `daemon.pulse()`
+   refresh a `backup` cache when it's older than a day; `status.signals()` adds a `note` (never `warn`) "Time Machine isn't set up"
+   when the cache says not configured, unless `config pulse.backup_check` is false (add it
+   to `DEFAULT_CONFIG`, default true). No `tmutil latestbackup`, no destination names in the
+   text. Done when: tests with fixture plists (empty dict, one destination, command failure,
+   garbage output) pass; `cos status` shows the note on a Mac without Time Machine; the
+   `/tidy` or `/update` skill doesn't need to change.
+2. **Radio in the one player** (0005): being built interactively.
+3. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+4. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+   are shortcuts worth running.
+5. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+   events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening
 
@@ -21,15 +29,13 @@ what, where, and how we'll know it works.
 
 ## Research (for `/lab`)
 
-- Reliable Apple Music *catalog* playback without UI scripting: MusicKit helper app? A
-  Shortcuts action that accepts a catalog item? URL parameters? Start from
-  [what we know](research/apple-music-catalog-playback.md).
 - What's the cheapest, sturdiest menu bar presence? (SwiftBar plugin vs. a tiny Swift app.)
 - Packaging Claude OS skills as a Claude Code plugin so they work from any directory.
 
 ## Ideas
 
-- `cos net`: Wi-Fi quality, DNS, captive-portal and VPN checks.
+- `cos net`: Wi-Fi quality, DNS, captive-portal and VPN checks (0005: its own proposal;
+  the network name is personal and reading it needs Location).
 - Focus modes via Shortcuts (`cos focus work|off`).
 - Time Machine: last backup age as a pulse signal.
 - Photo library duplicate report (read-only).
