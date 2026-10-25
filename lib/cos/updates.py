@@ -95,17 +95,30 @@ def check_brew(fetch=False):
         return {"items": [], "error": (r.err or r.out)[:200]}
 
 
+# A fixed phrase, never the tool's own words: npm's errors name log files under the home folder.
+UNCHECKED = "couldn't check"
+
+
+def parse_npm_outdated(rc, out):
+    """`npm outdated -g --json` -> items, or None if npm couldn't check. Exit 1 with packages
+    is normal (something is outdated); an "error" object, or a failure with nothing listed, is
+    npm not reaching its registry (offline, sandboxed), which isn't "up to date"."""
+    try:
+        data = json.loads(out or "{}")
+    except ValueError:
+        return None
+    if not isinstance(data, dict) or "error" in data or (rc != 0 and not data):
+        return None
+    return [_classify({"name": name, "kind": "npm", "installed": v.get("current"), "latest": v.get("latest")})
+            for name, v in data.items() if isinstance(v, dict)]
+
+
 def check_npm():
     if not core.which("npm"):
         return None
     r = core.run(["npm", "outdated", "-g", "--json"], timeout=90)
-    try:
-        data = json.loads(r.out or "{}")
-    except ValueError:
-        return {"items": [], "error": r.err[:200]}
-    items = [_classify({"name": name, "kind": "npm", "installed": v.get("current"), "latest": v.get("latest")})
-             for name, v in data.items()]
-    return {"items": items, "error": None}
+    items = parse_npm_outdated(r.rc, r.out)
+    return {"items": items or [], "error": None if items is not None else UNCHECKED}
 
 
 def check_mas():
@@ -118,7 +131,7 @@ def check_mas():
         if m:
             items.append({"name": m.group(2), "id": m.group(1), "kind": "app-store",
                           "installed": m.group(3), "latest": m.group(4)})
-    return {"items": items, "error": None}
+    return {"items": items, "error": UNCHECKED if not r.ok and not items else None}
 
 
 def check_rustup():
@@ -132,7 +145,8 @@ def check_rustup():
             vers = re.findall(r"(\d+\.\d+\.\d+)", line)
             items.append({"name": name, "kind": "rustup", "installed": vers[0] if vers else "?",
                           "latest": vers[-1] if vers else "?"})
-    return {"items": items, "error": None}
+    # rustup check exits 100 when updates are available; only a failure with nothing parsed is unchecked
+    return {"items": items, "error": UNCHECKED if r.rc not in (0, 100) and not items else None}
 
 
 def check(fetch=False):
@@ -173,7 +187,7 @@ def render(data):
             continue
         items = s["items"]
         if not items:
-            print("%s: up to date" % label)
+            print("%s: %s" % (label, UNCHECKED if s.get("error") == UNCHECKED else "up to date"))
             continue
         looks = [i for i in items if _look_of(i)]
         print("%s: %d outdated%s" % (label, len(items), (", %d to look at first" % len(looks)) if looks else ""))

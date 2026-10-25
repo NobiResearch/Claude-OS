@@ -103,5 +103,35 @@ class TestLook(unittest.TestCase):
         self.assertLess(text.index("ssl"), text.index("jq"))  # look-first items sort to the top
 
 
+class TestUnchecked(unittest.TestCase):
+    def test_npm_offline_is_not_up_to_date(self):
+        offline = json.dumps({"error": {"code": "ENOTFOUND", "summary": "request failed"}})
+        self.assertIsNone(updates.parse_npm_outdated(1, offline))
+        self.assertIsNone(updates.parse_npm_outdated(1, ""))
+        self.assertIsNone(updates.parse_npm_outdated(1, "not json"))
+        self.assertEqual(updates.parse_npm_outdated(0, "{}"), [], "really up to date")
+        rows = updates.parse_npm_outdated(1, json.dumps({"gh-axi": {"current": "0.1.35", "latest": "0.1.43"}}))
+        self.assertEqual([r["name"] for r in rows], ["gh-axi"], "exit 1 with packages is normal")
+
+    def test_an_unchecked_source_never_says_up_to_date(self):
+        import io
+        from contextlib import redirect_stdout
+        data = {"sources": {"npm": {"items": [], "error": updates.UNCHECKED}, "rustup": {"items": [], "error": None}},
+                "total": 0, "fetched": False, "missing_tools": []}
+        with redirect_stdout(io.StringIO()) as out:
+            updates.render(data)
+        self.assertIn("npm (global): couldn't check", out.getvalue())
+        self.assertIn("Rust: up to date", out.getvalue())
+
+    def test_the_tools_own_words_never_show(self):
+        from unittest import mock
+        from cos import core
+        with mock.patch.object(updates.core, "which", return_value="/usr/bin/x"), \
+                mock.patch.object(updates.core, "run", return_value=core.Result(1, "", "npm error A complete log is in /Users/someone/.npm/_logs/x.log")):
+            self.assertEqual(updates.check_npm(), {"items": [], "error": "couldn't check"})
+            self.assertEqual(updates.check_mas()["error"], "couldn't check")
+            self.assertEqual(updates.check_rustup()["error"], "couldn't check")
+
+
 if __name__ == "__main__":
     unittest.main()
