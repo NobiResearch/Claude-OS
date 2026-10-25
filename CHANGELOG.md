@@ -4,6 +4,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Daemons on a Pro or Max plan run without a dollar cap.** The cap is Claude Code's
+  estimate at API prices, so on a flat plan it only cut runs short (a weekly board meeting
+  could stop halfway). The daemons' time limits still bound every run. With an API key,
+  which bills per token, the caps stay.
+
 - **Backup signal**: `cos status`, the boot banner and the morning brief say "Time Machine
   isn't set up" when it isn't, as a quiet note (never a notification). Pulse checks once a
   day with `tmutil destinationinfo`, which never mounts or names a backup disk. Back up

@@ -1,3 +1,5 @@
+import json
+import os
 import unittest
 
 from helpers import TempHome
@@ -42,6 +44,30 @@ class TestDaemons(TempHome):
                 self.assertIn(must, denied, name)
             self.assertIn("--max-budget-usd", cmd)
             self.assertNotEqual(spec.get("permission_mode"), "bypassPermissions", name)
+
+    def test_the_budget_cap_is_for_api_billing(self):
+        spec = daemon.definitions()["board"]
+        self.assertIn("--max-budget-usd", daemon.claude_command(spec))
+        self.assertNotIn("--max-budget-usd", daemon.claude_command(spec, capped=False))
+        plan = {"loggedIn": True, "authMethod": "claude.ai", "subscriptionType": "max"}
+        self.assertTrue(daemon.parse_auth(json.dumps(plan)))
+        for other in (dict(plan, subscriptionType="enterprise"), dict(plan, authMethod="api_key"),
+                      dict(plan, loggedIn=False)):
+            self.assertFalse(daemon.parse_auth(json.dumps(other)), other)
+        self.assertFalse(daemon.parse_auth("not json"))
+
+    def test_an_api_key_always_keeps_the_cap(self):
+        from unittest import mock
+        from cos import core
+        plan = json.dumps({"loggedIn": True, "authMethod": "claude.ai", "subscriptionType": "max"})
+        with mock.patch.object(daemon.core, "run", return_value=core.Result(0, plan, "")):
+            with mock.patch.dict(os.environ, {"ANTHROPIC_API_KEY": "x"}):
+                self.assertFalse(daemon.on_subscription())
+            with mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("ANTHROPIC_API_KEY", None)
+                self.assertTrue(daemon.on_subscription())
+        with mock.patch.object(daemon.core, "run", return_value=core.Result(127, "", "command not found")):
+            self.assertFalse(daemon.on_subscription(), "unknown keeps the cap")
 
 
 if __name__ == "__main__":

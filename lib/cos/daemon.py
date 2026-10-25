@@ -1,8 +1,10 @@
 """cos daemon — scheduled background work via launchd.
 
 Daemons are defined in etc/daemons.json. `builtin` daemons are plain Python
-(free); `prompt` daemons run headless Claude Code with a tool allowlist, a
-budget cap and a timeout. Output of every run lands in ~/.claude-os/runs/.
+(free); `prompt` daemons run headless Claude Code with a tool allowlist and a
+timeout, plus a budget cap when Claude is billed per token (an API key; a Pro or Max plan
+has no per-run cost, so its runs aren't cut short). Output of every run lands in
+~/.claude-os/runs/.
 """
 
 import datetime as dt
@@ -174,10 +176,28 @@ def pulse():
     return "pulse ok: %s free%s" % (core.human_bytes(s["disk"]["free"]), ("; " + "; ".join(warn)) if warn else "")
 
 
-def claude_command(spec):
+def parse_auth(text):
+    """`claude auth status` JSON -> True for a Pro or Max plan, False for anything else."""
+    try:
+        data = json.loads(text)
+    except ValueError:
+        return False
+    return isinstance(data, dict) and data.get("loggedIn") is True and data.get("authMethod") == "claude.ai" \
+        and data.get("subscriptionType") in ("pro", "max")
+
+
+def on_subscription():
+    """Is headless Claude covered by a flat plan? An API key always wins, and it bills per token."""
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return False
+    r = core.run(["claude", "auth", "status"], timeout=20)
+    return r.ok and parse_auth(r.out)
+
+
+def claude_command(spec, capped=True):
     cmd = ["claude", "-p", "--output-format", "text",
            "--permission-mode", spec.get("permission_mode", "dontAsk")]
-    if spec.get("budget_usd"):
+    if capped and spec.get("budget_usd"):
         cmd += ["--max-budget-usd", str(spec["budget_usd"])]
     if spec.get("allowed_tools"):
         cmd += ["--allowedTools"] + spec["allowed_tools"]
@@ -195,7 +215,9 @@ def run_llm(name, spec):
         workspace = evolve.new_workspace()
         cwd = workspace["path"]
     env = {"CLAUDE_OS_DAEMON": name, "CLAUDE_OS_HOME": str(core.home())}
-    r = core.run(claude_command(spec), input=spec["prompt"], cwd=cwd, env=env,
+    # The cap is Claude Code's estimate at API prices: real money with an API key, but on a
+    # Pro or Max plan it only cut runs short (the timeout still bounds them).
+    r = core.run(claude_command(spec, capped=not on_subscription()), input=spec["prompt"], cwd=cwd, env=env,
                  timeout=int(spec.get("timeout_minutes", 10)) * 60)
     stamp = dt.datetime.now().strftime("%Y-%m-%d-%H%M")
     out_path = core.home("runs", name, stamp + ".md")
