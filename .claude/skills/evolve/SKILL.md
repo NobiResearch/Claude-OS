@@ -41,6 +41,11 @@ parallel with a short brief) and follow their conditions. A Guardian `reject` me
 
 ## 4. Verify
 
+In a nightly run, type each command below exactly as written, one per call: no `cd`, no
+pipes (`| tail`), no `2>&1`, nothing chained with `&&`. A headless run can only run what
+matches its allowlist, and anything longer no longer matches, so it's refused with no one
+to ask. You're already in your clone's root.
+
 - `python3 -m unittest discover -s tests` passes.
   Also under macOS's own Python (`/usr/bin/python3 -m unittest discover -s tests`), the
   oldest one Claude OS supports, and `node --check ui/<file>.js` for any JavaScript you changed.
