@@ -186,3 +186,8 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   `plutil` on `/Library/Preferences/com.apple.TimeMachine.plist` is denied, but `defaults
   export /Library/Preferences/com.apple.TimeMachine -` returns it through `cfprefsd`.
 - **In zsh, `log` is a builtin.** Use `/usr/bin/log show …` for the unified log.
+- **A PermissionRequest hook sees the whole Bash command.** `cd ~/.claude-os/dev/work &&
+  git push -u origin night/x` isn't `git push -u origin night/x`, so the night shift's hook
+  gave no answer and every such push asked the sleeping human. Run approved commands bare,
+  one per call (worktrees share refs, so pushing from the live checkout works), and write
+  commit messages and pull request bodies to files instead of heredocs.

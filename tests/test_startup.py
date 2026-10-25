@@ -99,5 +99,25 @@ class TestStartup(unittest.TestCase):
         self.assertIn("--full", data["note"])
 
 
+class TestRenderNames(unittest.TestCase):
+    def render(self, names):
+        import io
+        from contextlib import redirect_stdout
+        from cos import startup
+        items = [{"name": n, "findings": [], "enabled": True, "type": "launch agent", "developer": "Someone"} for n in names]
+        with redirect_stdout(io.StringIO()) as out:
+            startup.render({"items": items, "enabled": len(items), "flagged": 0})
+        return out.getvalue().splitlines()[2:2 + len(items)]
+
+    def test_long_names_fit_the_column_and_never_vanish_silently(self):
+        lines = self.render(["com.example.short", "com.example.a-rather-long-helper-name-x"])
+        self.assertIn("com.example.a-rather-long-helper-name-x ", lines[1], "whole, the column grew")
+        self.assertEqual(lines[0].index("launch agent"), lines[1].index("launch agent"), "still a column")
+        long = "com.example." + "x" * 60
+        cut = self.render([long])[0]
+        self.assertIn("…", cut)
+        self.assertNotIn(long, cut)
+
+
 if __name__ == "__main__":
     unittest.main()
