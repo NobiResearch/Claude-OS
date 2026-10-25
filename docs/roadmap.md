@@ -22,6 +22,14 @@ what, where, and how we'll know it works.
   approves (0006: the night shift's own pushes are already checked by main's guard).
 - **Deny-by-default sandbox for model-written tests**: today it's allow-default minus
   writes, the network and private folders; move to an explicit allowlist (board, Guardian).
+- **Merge the morning queue with one approval** (0006, second amendment; Steward): one
+  `cos` command that merges the night's waiting pull requests in order, rebasing each onto
+  the new main and settling CHANGELOG-only conflicts, and stops at the first real conflict.
+- **A native confirmation for turning Night shift on** (0006; Guardian): today the desktop
+  page itself can call `/api/settings/night`, so a merged change to `ui/` could flip it.
+  Ask in the app's own window, where page code can't click for the human.
+- **A Guardian scan of pull request bodies** before `gh pr create|edit|comment` publishes
+  them (0006; Guardian). Titles are already checked at merge.
 
 ## Research (for `/lab`)
 
