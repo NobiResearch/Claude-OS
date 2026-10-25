@@ -116,9 +116,23 @@ def read_doc(name):
     else:
         return None
     try:
-        return path.read_text()
+        text = path.read_text()
     except OSError:
         return None
+    return with_changes(text, core.ROOT / "changes") if name == "changelog" else text
+
+
+def with_changes(text, folder):
+    """The changelog as it will read at the next release: each pull request's entry file in
+    changes/ (newest first), under ## Unreleased."""
+    entries = sorted((p for p in folder.glob("[0-9]*.md")), key=lambda p: p.name, reverse=True) if folder.is_dir() else []
+    pending = "\n".join(p.read_text().strip() + "\n" for p in entries)
+    if not pending:
+        return text
+    head = "## Unreleased\n"
+    if head not in text:
+        return text.rstrip() + "\n\n" + head + "\n" + pending
+    return text.replace(head, head + "\n" + pending, 1)
 
 
 def decisions():

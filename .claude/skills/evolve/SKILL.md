@@ -31,7 +31,8 @@ parallel with a short brief) and follow their conditions. A Guardian `reject` me
 ## 3. Build it
 
 - Follow `CLAUDE.md` ("Working on Claude OS itself"): stdlib only, existing style, tests.
-- Add or update tests in `tests/`. Add a line under `## Unreleased` in `CHANGELOG.md`.
+- Add or update tests in `tests/`. Write the changelog entry as its own file,
+  `changes/YYYY-MM-DD-<slug>.md` (see `changes/README.md`); don't edit `CHANGELOG.md`.
 - Update docs that the change makes wrong (README, CLAUDE.md syscall table, skills).
 - Add a lesson to `docs/lessons.md` if you learned something about macOS the hard way.
 

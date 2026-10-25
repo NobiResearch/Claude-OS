@@ -30,6 +30,24 @@ class TestRunFiles(unittest.TestCase):
             self.assertNotIn("artwork", server.with_artwork({"track": None}))
 
 
+class TestChanges(TempHome):
+    def test_pending_entries_show_under_unreleased_newest_first(self):
+        import os
+        from pathlib import Path
+        from cos import server
+        folder = Path(self.tmp) / "changes"
+        folder.mkdir()
+        (folder / "README.md").write_text("# not an entry")
+        (folder / "2026-10-25-a.md").write_text("- older\n")
+        (folder / "2026-10-26-b.md").write_text("- newer\n")
+        text = server.with_changes("# Changelog\n\n## Unreleased\n\n- merged before\n\n## 0.7.0\n", folder)
+        self.assertLess(text.index("- newer"), text.index("- older"))
+        self.assertLess(text.index("- older"), text.index("- merged before"))
+        self.assertNotIn("not an entry", text)
+        self.assertEqual(server.with_changes("# Changelog\n", Path(self.tmp) / "none"), "# Changelog\n")
+        self.assertIn("## Unreleased\n\n- newer", server.with_changes("# Changelog\n", folder))
+
+
 class TestServerSecurity(TempHome):
     def setUp(self):
         super().setUp()

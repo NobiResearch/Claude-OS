@@ -94,8 +94,9 @@ current · `/startup` what starts with the Mac · `/brief` the daily briefing ·
   functions, plain dicts, `core.run`/`core.osascript` for processes (they never raise).
 - Tests: `python3 -m unittest discover -s tests` must pass before any commit. Tests use a
   temporary `CLAUDE_OS_HOME`; never touch real state in tests.
-- Record user-visible changes in `CHANGELOG.md`; record design decisions as
-  `docs/decisions/NNNN-title.md` (the board helps decide).
+- Record user-visible changes as their own file, `changes/YYYY-MM-DD-<slug>.md` (see
+  `changes/README.md`), never by editing `CHANGELOG.md`, so pull requests can't conflict
+  over it; record design decisions as `docs/decisions/NNNN-title.md` (the board helps decide).
 - Roadmap and ideas: `docs/roadmap.md`. Evolve pulls from friction first, then the roadmap.
 - **Night shift** (the human is away and the switch is on):
   - Start each `night/<slug>` branch from `origin/main` in a worktree under `~/.claude-os/dev`.
