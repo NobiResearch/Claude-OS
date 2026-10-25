@@ -445,12 +445,14 @@
           const items = s.items || [];
           if (!items.length) { root.appendChild(card(label, h("div", { class: "muted" }, "Up to date."))); return; }
           const checks = {};
-          const rows = items.slice().sort((a, b) => (b.major - a.major) || a.name.localeCompare(b.name)).map((it) => {
+          const look = (it) => it.look || (it.major ? "major" : "");
+          const lookPill = { major: "major", downgrade: "downgrade", scheme: "new scheme" };
+          const rows = items.slice().sort((a, b) => (!!look(b) - !!look(a)) || a.name.localeCompare(b.name)).map((it) => {
             const cb = h("input", { type: "checkbox" });
-            cb.checked = !it.major && !it.pinned;
+            cb.checked = !look(it) && !it.pinned;
             checks[it.name] = cb;
             return h("label", { class: "upd" }, cb, h("span", { class: "upd-name" }, it.name), h("span", { class: "muted mono" }, it.installed + " → " + it.latest),
-              it.major ? pill("warn", "major") : null, it.pinned ? pill("note", "pinned") : null);
+              look(it) ? pill("warn", lookPill[look(it)] || look(it)) : null, it.pinned ? pill("note", "pinned") : null);
           });
           const selected = () => Object.keys(checks).filter((n) => checks[n].checked);
           root.appendChild(card(label + " · " + items.length,
@@ -458,7 +460,7 @@
             h("div", { class: "row gap" },
               key === "rustup" ? btn("Update Rust", () => apply("rustup", [], "Update Rust"), "primary small")
                 : btn("Upgrade selected", () => { const n = selected(); if (n.length) apply(key, n, "Upgrade " + n.length + " package" + (n.length > 1 ? "s" : "")); }, "primary small"),
-              h("span", { class: "muted small" }, "Major versions are unticked: they can break things."))));
+              h("span", { class: "muted small" }, "Majors and downgrades are unticked: they can break things."))));
         });
         if ((data.missing_tools || []).includes("mas")) root.appendChild(h("div", { class: "muted small pad-t" }, "Tip: `brew install mas` lets Claude OS see App Store updates too."));
       }

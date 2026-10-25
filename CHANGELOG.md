@@ -9,6 +9,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
   day with `tmutil destinationinfo`, which never mounts or names a backup disk. Back up
   another way? `cos config pulse.backup_check false`
   ([0005](docs/decisions/0005-radio-and-backup-signal.md)).
+- **Updates flag downgrades and new version schemes.** When Homebrew or npm's "latest" is
+  *lower* than what's installed, `cos update` marks it ▼ (downgrade); when a build number
+  or year turns into an ordinary version (say 9430 → 0.7.0), it's marked ≠ instead of a
+  misleading "major". Both count as "look first" next to ▲ majors, and the desktop's
+  Updates app leaves them unticked.
 
 ## 0.7.0 — 2026-10-25
 

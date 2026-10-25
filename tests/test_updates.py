@@ -40,6 +40,65 @@ class TestParsers(unittest.TestCase):
         self.assertFalse(by["jq"]["major"])
         self.assertTrue(by["jq"]["pinned"])
         self.assertEqual(by["firefox"]["kind"], "cask")
+        self.assertEqual(by["ffmpeg"]["look"], "major")
+        self.assertIsNone(by["jq"]["look"])
+
+    def test_brew_downgrade_and_scheme(self):
+        blob = json.dumps({"formulae": [
+            {"name": "ssl", "installed_versions": ["3.6.5"], "current_version": "3.5.9"},
+            {"name": "llm", "installed_versions": ["9430"], "current_version": "0.7.0"},
+            {"name": "rebuilt", "installed_versions": ["9.0.2"], "current_version": "9.0.2_1"},
+        ]})
+        by = {i["name"]: i for i in updates.parse_brew_outdated(blob)}
+        self.assertEqual(by["ssl"]["look"], "downgrade")
+        self.assertFalse(by["ssl"]["major"])
+        self.assertEqual(by["llm"]["look"], "scheme")
+        self.assertIsNone(by["rebuilt"]["look"])
+
+
+class TestLook(unittest.TestCase):
+    def test_look(self):
+        cases = [
+            ("1.5.1", "1.16.0", None),            # numeric, not string, comparison
+            ("1.4.2", "1.5", None),
+            ("2.19", "2.19.1", None),
+            ("4.7.1_1", "4.7.2", None),           # brew revision on the old side
+            ("2.1.12_2", "2.1.12_1", "downgrade"),  # revision went backwards
+            ("3.6b", "3.8", None),
+            ("2026.5.1", "2026.10.3", None),      # calendar versions compare normally
+            ("2025.1", "2026.1", "major"),
+            ("1.2.3,456", "1.2.4,460", None),     # cask build suffix is ignored
+            ("20240722", "1.0.0", "scheme"),
+            ("0.7.0", "9431", "scheme"),
+            ("26.0.1", "27.0.1.0.3", "major"),
+            ("6.0.0-beta.1", "5.9.2", "downgrade"),  # npm "latest" behind an installed prerelease
+            ("?", "1.0", "major"),                # unknown installed version: look first
+            ("1.0", "latest", "major"),
+        ]
+        for installed, latest, want in cases:
+            self.assertEqual(updates._look(installed, latest), want, (installed, latest))
+
+    def test_render_marks(self):
+        import io
+        from contextlib import redirect_stdout
+        data = {"fetched": True, "missing_tools": [], "sources": {"brew": {"items": [
+            updates._classify({"name": "ssl", "kind": "formula", "installed": "3.6.5", "latest": "3.5.9"}),
+            updates._classify({"name": "llm", "kind": "formula", "installed": "9430", "latest": "0.7.0"}),
+            updates._classify({"name": "jq", "kind": "formula", "installed": "1.7", "latest": "1.7.1"}),
+            {"name": "old", "kind": "formula", "installed": "1.0", "latest": "2.0", "major": True},  # pre-`look` cache
+        ]}}}
+        out = io.StringIO()
+        with redirect_stdout(out):
+            updates.render(data)
+        text = out.getvalue()
+        self.assertIn("4 outdated, 3 to look at first", text)
+        self.assertIn("▼ ssl", text)
+        self.assertIn("(downgrade)", text)
+        self.assertIn("≠ llm", text)
+        self.assertIn("(new version scheme)", text)
+        self.assertIn("▲ old", text)
+        self.assertIn("· jq", text)
+        self.assertLess(text.index("ssl"), text.index("jq"))  # look-first items sort to the top
 
 
 if __name__ == "__main__":
