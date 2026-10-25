@@ -13,7 +13,8 @@ the human has "Night shift" on in Settings, it approves two things and nothing e
   request that touches the gate waits for the human's merge.
 
 It also lets read-only `gh api <path>` calls through, which the merge rules otherwise ask
-about. Anything else, any doubt, any error: it prints nothing and the human's normal prompt
+about, and pull request text (`gh pr create|edit|comment` with a title and a body) once the
+Guardian has read it, whatever the switch says: that's a check, not a grant. Anything else, any doubt, any error: it prints nothing and the human's normal prompt
 appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
 human's own GitHub login, and decision 0006 lists the spellings these rules don't catch.
 
@@ -25,6 +26,7 @@ argument it lists the night's pull requests that wait for the human.
 import json
 import os
 import re
+import shlex
 import sys
 
 from . import core
@@ -114,6 +116,66 @@ def parse_merge(command):
     if not words[3].isdigit() or not SHA.fullmatch(words[7]):
         return None
     return int(words[3]), words[7]
+
+
+PR_TEXT = {("gh", "pr", "create"), ("gh", "pr", "edit"), ("gh", "pr", "comment")}
+EXPANDS = re.compile(r"[$`\n\r]")  # nothing the shell would expand, and one line
+
+
+def parse_pr_text(command):
+    """`gh pr create|edit|comment` publishing only a title and a body -> {"texts", "body_file"},
+    or None. Titles have spaces, so this parses quotes, but anything a shell would expand or
+    chain makes it None."""
+    if not isinstance(command, str) or EXPANDS.search(command):
+        return None
+    try:
+        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
+        lex.whitespace_split = True
+        words = list(lex)
+    except ValueError:
+        return None
+    if any(w and set(w) <= set("();<>|&") for w in words) or tuple(words[:3]) not in PR_TEXT:
+        return None
+    texts, body_file, number, rest, i = [], None, False, words[3:], 0
+    while i < len(rest):
+        w, value = rest[i], rest[i + 1] if i + 1 < len(rest) else None
+        if w in ("--title", "-t", "--body", "-b") and value is not None:
+            texts.append(value)
+            i += 2
+        elif w in ("--body-file", "-F") and value not in (None, "-") and body_file is None:
+            body_file = value
+            i += 2
+        elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[\w./-]+", value):
+            i += 2
+        elif w == "--draft":
+            i += 1
+        elif w.isdigit() and not number and words[2] in ("edit", "comment"):
+            number = True
+            i += 1
+        else:
+            return None
+    if not texts and body_file is None:
+        return None
+    return {"texts": texts, "body_file": body_file}
+
+
+def decide_pr_text(parsed, cwd):
+    """The Guardian over what a pull request's title and body would publish."""
+    from . import guard
+    texts = [("title", t) for t in parsed["texts"]]
+    if parsed["body_file"]:
+        path = os.path.join(cwd, os.path.expanduser(parsed["body_file"]))
+        try:
+            if os.path.getsize(path) > 256 * 1024:
+                return False, "the body file is too big to check"
+            with open(path, errors="replace") as f:
+                texts.append(("body", f.read()))
+        except OSError:
+            return False, "couldn't read the body file"
+    problems = guard.text_problems(texts)
+    if problems:
+        return False, "the Guardian found %d problem(s) in what this would publish" % len(problems)
+    return True, "the Guardian checked what this publishes"
 
 
 def parse_api_read(command):
@@ -256,6 +318,9 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
     command = (request.get("tool_input") or {}).get("command")
     if parse_api_read(command):
         return True, "a read-only gh api call"
+    pr_text = parse_pr_text(command)
+    if pr_text:  # a safety check, not a grant: clean text passes whatever the switch says
+        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     if not (cfg.get("autonomy") or {}).get("night_shift"):
         return False, "night shift is off"
     cwd = request.get("cwd") or str(core.ROOT)
@@ -275,9 +340,10 @@ def permission():
         request = json.loads(sys.stdin.read() or "{}")
         approve, why = decide(request, core.config())
         command = str((request.get("tool_input") or {}).get("command", ""))[:200]
-        if approve and not why.startswith("a read-only"):
+        if approve and not why.startswith(("a read-only", "the Guardian checked")):
             core.journal("action", "night shift: " + (why if why.startswith("merged") else "pushed " + why), via="hook")
-        elif not approve and command.startswith(("git push", "gh pr merge", "gh-axi pr merge")):
+        elif not approve and command.startswith(("git push", "gh pr merge", "gh-axi pr merge", "gh pr create",
+                                                 "gh pr edit", "gh pr comment")):
             core.journal("permission", "night shift: asked the human (%s): %s" % (why, command), via="hook")
         if approve:
             print(json.dumps(ALLOW))

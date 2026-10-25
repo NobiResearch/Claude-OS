@@ -106,7 +106,31 @@ def scan(paths, read):
     return problems
 
 
+def text_problems(texts):
+    """[(label, text)] -> problems: the Guardian over words about to be published outside the
+    repository's files (a pull request's title and body)."""
+    patterns = SECRET_PATTERNS + personal_patterns()
+    return [p for label, text in texts for p in check_text(label, text, patterns)]
+
+
 def main(args):
+    if args.text:
+        texts = []
+        for name in args.text:
+            try:
+                with open(name, errors="replace") as f:
+                    texts.append((os.path.basename(name), f.read()))
+            except OSError as e:
+                core.die("can't read %s: %s" % (name, e.strerror))
+        problems = text_problems(texts)
+        if not problems:
+            if not args.quiet:
+                print("guard: clean (%d text%s checked)" % (len(texts), "" if len(texts) == 1 else "s"))
+            return 0
+        print("guard: blocked — this would be published.")
+        for path, why in problems:
+            print("  %s: %s" % (path, why))
+        return 1
     if args.all:
         paths = publishable()
 
