@@ -39,8 +39,7 @@ what, where, and how we'll know it works.
 
 ## Ideas
 
-- `cos net`: Wi-Fi quality, DNS, captive-portal and VPN checks (0005: its own proposal;
-  the network name is personal and reading it needs Location).
+- A Network card in Vitals for `cos net` (0010), once friction shows it's asked for.
 - Focus modes via Shortcuts (`cos focus work|off`).
 - Time Machine: last backup age, once it can be read without mounting the destination
   (0005; today `cos status` only says whether Time Machine is set up).

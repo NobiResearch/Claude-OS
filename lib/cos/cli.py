@@ -11,6 +11,7 @@ COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
     "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook", "security",
+    "net",
 }
 
 INTRO = """\
@@ -23,6 +24,7 @@ INTRO = """\
 syscalls (what Claude uses; you can too):
   status                    vitals and signals
   security                  FileVault, SIP, firewall, Gatekeeper · security on firewall --yes
+  net [--speed]             is it the Wi-Fi, the router or the internet? · --speed: networkQuality
   clean [--deep]            reclaimable space · clean apply <id>... --yes
   update [--fetch]          what's outdated · update apply <source> --yes
   music ...                 now | play <q> | pause | next | find | catalog | playlists | playlist <name> | like
@@ -112,6 +114,9 @@ def build_parser():
     su = cmd("startup", "what starts with this Mac (read-only)")
     su.add_argument("--full", action="store_true",
                     help="macOS's full login items list, apps included (macOS asks for an admin password)")
+    nt = cmd("net", "is it the Wi-Fi, the router or the internet? (read-only)")
+    nt.add_argument("--speed", action="store_true",
+                    help="measure throughput with macOS's networkQuality (about 20 seconds; uses data)")
     hk = cmd("hook", "Claude Code hooks (night shift pushes and merges, decision 0006)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
@@ -292,7 +297,8 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 # deny-list, and able to start yet more) or a server or a build.
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
-    ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full")}
+    ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
+    ("net", "--speed")}
 
 
 def daemon_refused(args):
@@ -304,6 +310,8 @@ def daemon_refused(args):
         key = ("memory", "--forget") if args.forget else None
     elif args.cmd == "startup":
         key = ("startup", "--full") if args.full else None
+    elif args.cmd == "net":
+        key = ("net", "--speed") if args.speed else None
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None
@@ -356,6 +364,9 @@ def main(argv=None):
     if args.cmd == "startup" and args.full and argv[:2] != ["startup", "--full"]:
         # It summons macOS's password dialog, so the ask rule must be able to see it.
         core.die("write it as `cos startup --full …`, so permission rules can see it.", 2)
+    if args.cmd == "net" and args.speed and argv[:2] != ["net", "--speed"]:
+        # It moves real data (a few hundred MB on a fast line), so the ask rule must see it.
+        core.die("write it as `cos net --speed …`, so permission rules can see it.", 2)
     c = args.cmd
     if c == "ask":
         return ask(" ".join(args.question))
@@ -386,6 +397,9 @@ def main(argv=None):
     if c == "startup":
         from . import startup
         return startup.main(args)
+    if c == "net":
+        from . import net
+        return net.main(args)
     if c == "hook":
         from . import hook
         return hook.main(args)

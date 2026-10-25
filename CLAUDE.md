@@ -45,6 +45,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 |---|---|
 | `status` | vitals (disk, memory, battery, uptime, security posture, top processes) + signals |
 | `security` · `security on firewall --yes` | FileVault, SIP, firewall, Gatekeeper and how to turn each on; the firewall is the one switch a command flips, only on, through macOS's password dialog |
+| `net` · `net --speed` | is it the Wi-Fi, the router or the internet? One verdict, a few seconds, nothing identifying; `--speed` runs macOS's networkQuality (~20 s, uses data) |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
 | `update [--fetch]` | macOS, Homebrew, npm, mas, rustup; `update apply <source> [names] --yes` |
 | `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|radio [<q>]\|like\|history\|setup` | Apple Music (songs and playlists play inside Claude OS when "Apple Music in Claude OS" is on) |
