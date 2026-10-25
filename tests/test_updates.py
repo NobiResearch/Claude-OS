@@ -62,6 +62,8 @@ class TestLook(unittest.TestCase):
             ("1.5.1", "1.16.0", None),            # numeric, not string, comparison
             ("1.4.2", "1.5", None),
             ("2.19", "2.19.1", None),
+            ("1.0.0", "1.0", None),               # trailing zeros are the same version
+            ("2.0", "2.0.0_1", None),
             ("4.7.1_1", "4.7.2", None),           # brew revision on the old side
             ("2.1.12_2", "2.1.12_1", "downgrade"),  # revision went backwards
             ("3.6b", "3.8", None),

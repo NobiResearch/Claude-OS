@@ -11,8 +11,10 @@ description: Keep macOS and installed software up to date. Use when the human as
 2. **Triage** into three groups and keep it short:
    - **Do now**: macOS security updates, and anything that is a security fix you know of.
    - **Routine**: patch/minor bumps of Homebrew formulae, casks, npm globals. Batch them.
-   - **Look first**: major-version bumps (marked ▲), pinned packages, things that tend to
-     break toolchains (python, node, openssl, postgres, llvm). Say why in a few words.
+   - **Look first**: major-version bumps (▲), downgrades where "latest" is lower than what's
+     installed (▼, usually a tap or formula rollback: say so, don't apply by default), new
+     version schemes (≠, a build number became a version), pinned packages, and things that
+     tend to break toolchains (python, node, openssl, postgres, llvm). Say why in a few words.
 3. **Ask** what to apply. Offer a sensible default ("routine now, majors later?").
 4. **Apply** what's approved:
    - `bin/cos update apply brew --yes` (all) or `bin/cos update apply brew <names…> --yes`

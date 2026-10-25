@@ -55,9 +55,15 @@ def _major(v):
 
 
 def _version(v):
-    """'3.6.5_1' -> ((3, 6, 5), 1): leading numbers plus brew's revision; a cask's ',build' is dropped."""
+    """'3.6.5_1' -> ((3, 6, 5), 1): leading numbers (trailing zeros dropped, so 1.0 == 1.0.0)
+    plus brew's revision; a cask's ',build' is dropped."""
     m = re.match(r"(\d+(?:\.\d+)*)(?:_(\d+))?", str(v or "").split(",")[0])
-    return (tuple(int(p) for p in m.group(1).split(".")), int(m.group(2) or 0)) if m else None
+    if not m:
+        return None
+    parts = [int(p) for p in m.group(1).split(".")]
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts), int(m.group(2) or 0)
 
 
 def _look(installed, latest):
