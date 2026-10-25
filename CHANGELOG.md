@@ -4,6 +4,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- Background jobs can't write the memory (`remember`, `memory --forget`), start another
+  Claude (`ask`), a server or an app build. A feed item steering the morning brief could
+  otherwise plant "facts" in every future boot banner, or start Claude sessions without the
+  daemon's budget and deny-list.
+
 - The morning brief talks to you as "you" and doesn't guess things about you (a rehearsal
   of the first headless brief guessed a gender).
 

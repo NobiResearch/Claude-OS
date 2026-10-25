@@ -267,10 +267,25 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
             ("app", "install"), ("app", "open"), ("cal", "connect"), ("weather", "set"), ("weather", "clear"),
             ("feeds", "add"), ("feeds", "mute"), ("config",)}
 
-# Fine at the human's request, never from a background job (a feed or calendar invite could
-# be steering it): anything that plays, changes or rates music.
+# Fine at the human's request, never from a background job (a feed item or calendar invite
+# could be steering it): anything that plays, changes or rates music; writing the memory
+# every session's boot banner shows; starting more Claude (without the daemon's budget and
+# deny-list, and able to start yet more) or a server or a build.
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
-                                         "playlist", "shuffle", "like", "unlike", "radio")}
+                                         "playlist", "shuffle", "like", "unlike", "radio")} | {
+    ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build")}
+
+
+def daemon_refused(args):
+    if args.cmd == "music":
+        key = ("music", args.music_cmd)
+    elif args.cmd == "app":
+        key = ("app", args.app_cmd)
+    elif args.cmd == "memory":
+        key = ("memory", "--forget") if args.forget else None
+    else:
+        key = (args.cmd,)
+    return key if key in DAEMON_REFUSED else None
 
 
 def mutation(args):
@@ -313,8 +328,9 @@ def main(argv=None):
     key = mutation(args)
     if key:
         check_mutation(key, argv)
-    if os.environ.get("CLAUDE_OS_DAEMON") and args.cmd == "music" and ("music", args.music_cmd) in DAEMON_REFUSED:
-        core.die("`cos music %s` is not allowed in a headless daemon run" % args.music_cmd, 3)
+    refused = daemon_refused(args) if os.environ.get("CLAUDE_OS_DAEMON") else None
+    if refused:
+        core.die("`cos %s` is not allowed in a headless daemon run" % " ".join(refused), 3)
     c = args.cmd
     if c == "ask":
         return ask(" ".join(args.question))

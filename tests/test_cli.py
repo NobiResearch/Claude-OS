@@ -58,11 +58,14 @@ class TestCli(TempHome):
         try:
             for argv in (["cal", "connect"], ["weather", "set", "Lisbon"], ["feeds", "add", "https://x.example/feed"],
                          ["config", "notify.native", "true"], ["music", "play", "anything"], ["music", "like"],
-                         ["music", "radio"], ["music", "radio", "anything"]):
+                         ["music", "radio"], ["music", "radio", "anything"], ["remember", "a fact"],
+                         ["memory", "--forget", "a fact"], ["ask", "anything"], ["serve"], ["app", "build"]):
                 with self.assertRaises(SystemExit) as cm:
                     self.cos(*argv)
                 self.assertEqual(cm.exception.code, 3, argv)
             rc, _ = self.cos("config")  # reading the config is fine
+            self.assertEqual(rc, 0)
+            rc, _ = self.cos("memory")  # and reading the memory
             self.assertEqual(rc, 0)
         finally:
             del os.environ["CLAUDE_OS_DAEMON"]
