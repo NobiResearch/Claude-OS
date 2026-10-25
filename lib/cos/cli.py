@@ -26,7 +26,7 @@ syscalls (what Claude uses; you can too):
   security                  FileVault, SIP, firewall, Gatekeeper · security on firewall --yes
   net [--speed]             is it the Wi-Fi, the router or the internet? · --speed: networkQuality
   clean [--deep]            reclaimable space · clean apply <id>... --yes
-  update [--fetch]          what's outdated · update apply <source> --yes
+  update [--fetch]          what's outdated, Claude OS too · update apply <source> --yes
   music ...                 now | play <q> | pause | next | find | catalog | playlists | playlist <name> | like
   feeds                     unread headlines · feeds list | add <url> | mute <url> | mark-read
   log · friction · remember · memory        the OS's memory
@@ -64,7 +64,7 @@ def build_parser():
     u.add_argument("--fetch", action="store_true", help="refresh Homebrew metadata first")
     usub = u.add_subparsers(dest="update_cmd")
     ua = usub.add_parser("apply")
-    ua.add_argument("source", choices=["brew", "npm", "mas", "rustup", "macos"])
+    ua.add_argument("source", choices=["brew", "npm", "mas", "rustup", "macos", "claude-os"])
     ua.add_argument("names", nargs="*")
     ua.add_argument("--yes", action="store_true")
     usub.add_parser("check")

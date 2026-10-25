@@ -25,8 +25,8 @@ def git(*args, cwd=None, timeout=60):
     return core.run(["git"] + list(args), cwd=str(cwd or core.ROOT), timeout=timeout)
 
 
-def main_branch():
-    r = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD")
+def main_branch(cwd=None):
+    r = git("symbolic-ref", "--short", "refs/remotes/origin/HEAD", cwd=cwd)
     if r.ok and "/" in r.out:
         return r.out.split("/", 1)[1]
     return "main"
@@ -188,8 +188,111 @@ def merge_via_pr(branch, commits):
     r = _gh("pr", "merge", branch, "--squash", "--delete-branch", timeout=180)
     if not r.ok:
         core.die("merge failed: %s" % r.err[:300])
-    if git("rev-parse", "--abbrev-ref", "HEAD").out == main_branch() and not git("status", "--porcelain").out:
-        git("pull", "--quiet", "--ff-only", "origin", main_branch(), timeout=180)
+    catch_up(apply=True, fetch="force", source="evolve merge")
+
+
+# ---------------------------------------------------------------- catching up (decision 0011)
+
+GITHUB_COMMITTER = "GitHub <noreply@github.com>"
+SQUASHED = re.compile(r"\(#\d+\)$")
+# Nothing from the incoming tree runs (core.hooksPath is relative, so a merged githooks/
+# post-merge would), and nothing can stop to ask for a login: a boot must never stall.
+SAFE_GIT = ["-c", "core.hooksPath=/dev/null", "-c", "credential.helper="]
+QUIET = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
+FETCH_EVERY = 600
+
+
+def _origin_problem(cwd):
+    """Why origin can't be taken for Claude OS on GitHub, or None."""
+    from . import hook
+    if not hook.GITHUB.match(git("config", "--get", "remote.origin.url", cwd=cwd).out or ""):
+        return "origin isn't a GitHub repository"
+    if git("config", "--get-regexp", r"^url\..*insteadof$", cwd=cwd).out:
+        return "a url.*.insteadOf rule could send the fetch somewhere else"
+    return None
+
+
+def _stranger(base, cwd):
+    """The first incoming commit that isn't GitHub squash-merging a pull request, or None.
+    Main's ruleset only allows those, so anything else is worth a human's look."""
+    out = git("log", "--first-parent", "--format=%H%x1f%P%x1f%cn <%ce>%x1f%s", "HEAD.." + base, cwd=cwd).out
+    for line in filter(None, out.splitlines()):
+        sha, parents, committer, subject = (line.split("\x1f") + ["", "", ""])[:4]
+        if len(parents.split()) != 1 or committer != GITHUB_COMMITTER or not SQUASHED.search(subject):
+            return sha[:7]
+    return None
+
+
+def catch_up(apply=False, fetch=True, source="cli", cwd=None):
+    """Where the live checkout stands against main on GitHub; with apply, fast-forward it.
+
+    Only a clean main with no commits of its own moves, only forward, and only over commits
+    GitHub made by squash-merging a pull request. fetch: True fetches when the last fetch is
+    10 minutes old, "force" always, False never. The answer is cached for the boot banner."""
+    from . import hook
+    cwd = str(cwd or core.ROOT)
+    main = main_branch(cwd)
+    base = "origin/" + main
+    origin = _origin_problem(cwd)
+    fetched = None
+    if fetch and not origin and (fetch == "force" or not core.cache_get("catch-up-fetch", max_age=FETCH_EVERY)):
+        r = core.run(["git"] + SAFE_GIT + ["fetch", "--quiet", "--no-tags", "--no-recurse-submodules", "origin", main],
+                     cwd=cwd, timeout=8 if fetch == "force" else 4, env=QUIET)
+        fetched = r.ok
+        core.cache_put("catch-up-fetch", {"ok": r.ok})
+    counts = git("rev-list", "--left-right", "--count", "HEAD..." + base, cwd=cwd).out.split()
+    ahead, behind = (int(counts[0]), int(counts[1])) if len(counts) == 2 else (0, 0)
+    out = {"behind": behind, "ahead": ahead, "head": git("rev-parse", "--short", "HEAD", cwd=cwd).out,
+           "latest": git("rev-parse", "--short", base, cwd=cwd).out, "subjects": [], "protected": [],
+           "paths": [], "updated": False, "fetched": fetched, "why": None}
+    if behind:
+        out["subjects"] = git("log", "--format=%s", "HEAD.." + base, cwd=cwd).out.splitlines()
+        out["paths"] = git("diff", "--no-renames", "--name-only", "HEAD", base, cwd=cwd).out.splitlines()
+        out["protected"] = [p for p in out["paths"] if hook.protected(p)]
+    stranger = _stranger(base, cwd) if behind else None
+    if len(counts) != 2:
+        out["why"] = "git can't compare it with %s" % base
+    elif git("symbolic-ref", "--short", "HEAD", cwd=cwd).out != main:
+        out["why"] = "the checkout isn't on %s" % main
+    elif git("status", "--porcelain", "--untracked-files=no", cwd=cwd).out.strip():
+        out["why"] = "it has uncommitted changes"
+    elif ahead:
+        out["why"] = "it has %d commit%s GitHub hasn't got" % (ahead, "" if ahead == 1 else "s")
+    elif origin:
+        out["why"] = origin
+    elif stranger:
+        out["why"] = "commit %s didn't come from a GitHub pull request merge" % stranger
+    elif apply and (os.environ.get("CLAUDE_OS_DAEMON") or os.environ.get("COS_SANDBOXED")):
+        out["why"] = "a background job never moves Claude OS's own code"
+    if apply and behind and not out["why"]:
+        _fast_forward(out, base, cwd, source)
+    core.cache_put("catch-up", out)
+    return out
+
+
+def _fast_forward(out, base, cwd, source):
+    import fcntl
+    lock = open(str(core.home("state", "catch-up.lock")), "w")
+    try:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            out["why"] = "another catch-up is running"
+            return
+        old = git("rev-parse", "HEAD", cwd=cwd).out
+        r = core.run(["git"] + SAFE_GIT + ["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", base],
+                     cwd=cwd, timeout=60, env=QUIET)
+        if not r.ok:
+            out["why"] = "git refused the fast-forward: %s" % (r.err or r.out)[:200]
+            return
+        out.update(updated=True, head=git("rev-parse", "--short", "HEAD", cwd=cwd).out, ahead=0)
+        core.journal("action", "Claude OS caught up with %s: %d change%s" % (
+                         base, out["behind"], "" if out["behind"] == 1 else "s"),
+                     source=source, old=old, new=git("rev-parse", "HEAD", cwd=cwd).out,
+                     subjects=out["subjects"][:20], protected=out["protected"], undo="git reset --keep %s" % old)
+        out["behind"] = 0
+    finally:
+        lock.close()
 
 
 def main(args):

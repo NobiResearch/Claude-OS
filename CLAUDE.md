@@ -47,7 +47,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `security` · `security on firewall --yes` | FileVault, SIP, firewall, Gatekeeper and how to turn each on; the firewall is the one switch a command flips, only on, through macOS's password dialog |
 | `net` · `net --speed` | is it the Wi-Fi, the router or the internet? One verdict, a few seconds, nothing identifying; `--speed` runs macOS's networkQuality (~20 s, uses data) |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
-| `update [--fetch]` | macOS, Homebrew, npm, mas, rustup; `update apply <source> [names] --yes` |
+| `update [--fetch]` | macOS, Homebrew, npm, mas, rustup, and Claude OS itself (what's merged on GitHub and not here); `update apply <source> [names] --yes` |
 | `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|radio [<q>]\|like\|history\|setup` | Apple Music (songs and playlists play inside Claude OS when "Apple Music in Claude OS" is on) |
 | `feeds [--since H] [--category C] [--all] [--mark-read]` | unread headlines; `feeds list\|add <url>\|mute <url>\|mark-read` |
 | `weather` · `weather set "<city>"` · `weather clear` | forecast + alerts for the place the human chose (off until they do) |

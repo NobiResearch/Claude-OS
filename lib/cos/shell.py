@@ -1,7 +1,8 @@
 """cos boot / statusline — what Claude (and you) see when Claude OS starts.
 
 `boot` runs as Claude Code's SessionStart hook: its output becomes part of
-Claude's context, so it must be fast (no network) and dense.
+Claude's context, so it must be fast and dense. Its one network call is a git fetch of
+main, at most every 10 minutes and never longer than 4 seconds (decision 0011).
 `statusline` feeds Claude Code's status bar and must be faster still.
 """
 
@@ -27,6 +28,27 @@ def _music_now(max_age=20):
     return n
 
 
+def _catch_up_line():
+    """What's merged on GitHub and not on this Mac, so a session never works from stale
+    Claude OS without knowing (friction #16). It never moves the code itself."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return None
+    from . import evolve
+    try:
+        c = evolve.catch_up(fetch=True, source="boot")
+    except Exception:
+        return None
+    if not c["behind"]:
+        return None
+    n, shown = len(c["subjects"]), c["subjects"][:3]
+    line = "  ↓ Claude OS: %d change%s merged on GitHub, not on this Mac: %s%s" % (
+        n, "" if n == 1 else "s", " · ".join(shown), " (+%d more)" % (n - 3) if n > 3 else "")
+    line += (" — not updated: %s" % c["why"]) if c["why"] else " — update: cos update apply claude-os --yes"
+    if c["protected"]:
+        line += "\n    the gate changes too: %s" % ", ".join(c["protected"][:4])
+    return line
+
+
 def boot():
     from . import status, mem, daemon, evolve
     s = status.collect(include_slow=False)
@@ -47,6 +69,9 @@ def boot():
     open_f = [f for f in mem.frictions() if f["status"] == "open"]
     if open_f:
         lines.append("  friction: %d open (cos friction) — latest: %s" % (len(open_f), open_f[-1]["text"][:90]))
+    behind = _catch_up_line()
+    if behind:
+        lines.append(behind)
     waiting = evolve.branches()
     if waiting:
         lines.append("  evolve: %d branch(es) awaiting review: %s (cos evolve)" % (len(waiting), ", ".join(waiting[:3])))

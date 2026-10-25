@@ -151,9 +151,18 @@ def check_rustup():
     return {"items": items, "error": UNCHECKED if r.rc not in (0, 100) and not items else None}
 
 
+def check_claude_os():
+    """Claude OS itself: what's merged on GitHub and not on this Mac yet (decision 0011)."""
+    from . import evolve
+    c = evolve.catch_up(fetch=True, source="update")
+    items = [{"name": "Claude OS", "installed": c["head"], "latest": c["latest"], "changes": c["subjects"],
+              "protected": c["protected"]}] if c["behind"] else []
+    return {"items": items, "error": c["why"] if items else None}
+
+
 def check(fetch=False):
     jobs = {"macos": check_macos, "brew": lambda: check_brew(fetch), "npm": check_npm,
-            "mas": check_mas, "rustup": check_rustup}
+            "mas": check_mas, "rustup": check_rustup, "claude-os": check_claude_os}
     with ThreadPoolExecutor(len(jobs)) as pool:
         futures = {k: pool.submit(fn) for k, fn in jobs.items()}
         sources = {k: f.result() for k, f in futures.items()}
@@ -199,11 +208,30 @@ def render(data):
                                              NOTES.get(look, ""), " (pinned)" if it.get("pinned") else ""))
         if len(items) > 12:
             print("  … and %d more" % (len(items) - 12))
+    render_claude_os(src.get("claude-os"))
     if not data["fetched"] and src.get("brew"):
         print("\n(brew metadata not refreshed; `cos update --fetch` asks Homebrew for the latest)")
     if data["missing_tools"]:
         print("tip: `brew install mas` lets Claude OS see App Store updates too")
-    print("\nupgrade with: cos update apply brew|npm|mas|rustup [names...] --yes · macOS: cos update apply macos")
+    print("\nupgrade with: cos update apply brew|npm|mas|rustup [names...] --yes · macOS: cos update apply macos"
+          " · Claude OS: cos update apply claude-os --yes")
+
+
+def render_claude_os(s):
+    if not s or not s["items"]:
+        return
+    it = s["items"][0]
+    n = len(it["changes"])
+    print("Claude OS: %d change%s merged on GitHub, not on this Mac (%s → %s)"
+          % (n, "" if n == 1 else "s", it["installed"], it["latest"]))
+    for subject in it["changes"][:8]:
+        print("  · %s" % subject)
+    if n > 8:
+        print("  … and %d more" % (n - 8))
+    if it["protected"]:
+        print("  ! the gate changes too: %s" % ", ".join(it["protected"][:6]))
+    if s.get("error"):
+        print("  not updated: %s" % s["error"])
 
 
 PROGRESS = re.compile(r"^(==> (Upgrading|Installing|Pouring|Summary)\b|added \d+|changed \d+|updated \d+|info: )")
@@ -237,7 +265,40 @@ def still_outdated(names):
         return []
 
 
+def apply_claude_os(yes):
+    """Fast-forward the live checkout to main on GitHub, through evolve.catch_up's guards."""
+    from . import evolve
+    c = evolve.catch_up(fetch="force", source="update")
+    if not c["behind"]:
+        print("Claude OS is up to date with GitHub (%s)." % c["head"])
+        return 0
+    if c["why"]:
+        core.die("Claude OS stays at %s: %s." % (c["head"], c["why"]))
+    if not yes:
+        render_claude_os(check_claude_os())
+        print("\nWould fast-forward this checkout to %s. (add --yes to do it)" % c["latest"])
+        return 2
+    c = evolve.catch_up(apply=True, fetch=False, source="update")
+    if not c["updated"]:
+        core.die("Claude OS stays at %s: %s." % (c["head"], c["why"]))
+    print("✓ Claude OS is at %s now:" % c["head"])
+    for subject in c["subjects"][:12]:
+        print("  · %s" % subject)
+    if c["protected"]:
+        print("  ! the gate changed: %s" % ", ".join(c["protected"][:6]))
+    print("\nNew sessions use it. This one read the old CLAUDE.md and skills: read CLAUDE.md again for new commands.")
+    if any(p.startswith("etc/daemons.json") for p in c["paths"]):
+        print("The daemons changed: `cos daemon install --all` reloads them.")
+    if core.app_running("ClaudeOS") and any(p.startswith(("lib/", "ui/", "app/", "bin/")) for p in c["paths"]):
+        rebuild = any(p.startswith("app/") for p in c["paths"])
+        print("Claude OS.app still runs the old code: %squit and reopen it." % ("rebuild it (`cos app install`), then " if rebuild else ""))
+    core.run(["rm", "-f", str(core.home("cache", "updates.json"))])
+    return 0
+
+
 def apply(source, names, yes=False):
+    if source == "claude-os":
+        return apply_claude_os(yes)
     plans = {
         "brew": ["brew", "upgrade"] + names,
         "npm": (["npm", "install", "-g"] + ["%s@latest" % n for n in names]) if names else ["npm", "update", "-g"],
