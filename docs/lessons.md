@@ -169,3 +169,6 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **macOS `pgrep` skips its own ancestors** unless you pass `-a`. Everything the app's chat
   runs is a descendant of Claude OS.app, so `pgrep -x ClaudeOS` couldn't see the app from
   inside it, and `cos music radio` said "Claude OS isn't running" from inside Claude OS.
+- **`git diff --name-only` shows a moved file under its new name only.** A check on paths
+  needs `--no-renames`, or moving `.claude/settings.json` to `docs/` looks like adding a docs
+  file. A failed `git diff` is also not "no changes": treat it as a reason to ask.
