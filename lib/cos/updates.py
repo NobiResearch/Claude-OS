@@ -1,6 +1,8 @@
 """cos update — what's out of date on this Mac, and upgrading it when asked."""
 
+import datetime as dt
 import json
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 
@@ -204,6 +206,37 @@ def render(data):
     print("\nupgrade with: cos update apply brew|npm|mas|rustup [names...] --yes · macOS: cos update apply macos")
 
 
+PROGRESS = re.compile(r"^(==> (Upgrading|Installing|Pouring|Summary)\b|added \d+|changed \d+|updated \d+|info: )")
+NOTICE = re.compile(r"^(Warning|Error|npm (warn|error|ERR!)|error(\[|:))", re.I)
+BLOCK_END = re.compile(r"^(==> |🍺|added \d+|changed \d+|\S+: )")
+
+
+def notices(lines, cap=40):
+    """Every Warning:/Error: block with the lines that belong to it (brew lists the files a
+    `brew link` overwrote under its warning), so the details aren't cut off by a tail."""
+    blocks, block = [], None
+    for line in lines:
+        text = line.rstrip()
+        if NOTICE.match(text):
+            block = [text]
+            blocks.append(block)
+        elif block is not None and text and not BLOCK_END.match(text) and len(block) < cap:
+            block.append(text)
+        else:
+            block = None
+    return blocks
+
+
+def still_outdated(names):
+    """After `brew upgrade <names>`: the ones that are still outdated, so a package brew
+    fetched but didn't install doesn't go unreported."""
+    r = core.run(["brew", "outdated", "--json=v2"] + names, timeout=120, env=BREW_ENV)
+    try:
+        return [i["name"] for i in parse_brew_outdated(r.out)]
+    except (ValueError, KeyError, TypeError):
+        return []
+
+
 def apply(source, names, yes=False):
     plans = {
         "brew": ["brew", "upgrade"] + names,
@@ -223,12 +256,39 @@ def apply(source, names, yes=False):
     if not yes:
         print("Would run: %s\n(add --yes to do it)" % " ".join(cmd))
         return 2
-    print("$ %s" % " ".join(cmd))
-    r = core.run(cmd, timeout=3600, env=BREW_ENV if source == "brew" else None)
-    tail = "\n".join((r.out + "\n" + r.err).strip().splitlines()[-15:])
-    print(tail)
-    core.journal("action", "update %s %s (rc=%d)" % (source, " ".join(names) or "all", r.rc),
-                 source=source, names=names, rc=r.rc)
+    print("$ %s" % " ".join(cmd), flush=True)
+    lines = []
+
+    def on_line(line):
+        lines.append(line)
+        if PROGRESS.match(line):
+            print("  " + line.rstrip(), flush=True)
+
+    # stderr goes into stdout ("$0" "$@" keeps every argument as it is), so a warning arrives
+    # next to what it's about instead of both streams' tails glued together
+    r = core.stream(["/bin/sh", "-c", 'exec "$0" "$@" 2>&1'] + cmd, on_line, timeout=3600,
+                    env=BREW_ENV if source == "brew" else None)
+    log = core.home("runs", "updates", dt.datetime.now().strftime("%Y-%m-%d-%H%M-") + source + ".log")
+    try:
+        fd = os.open(str(log), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w") as f:
+            f.write("".join(lines) + (("\n" + r.err) if r.err else ""))
+    except OSError:
+        log = None
+    for block in notices(lines):
+        print("\n" + "\n".join("  " + l for l in block))
+    left = still_outdated(names) if source == "brew" and names and r.rc != 124 else []
+    if left:
+        print("\nStill outdated after the upgrade: %s" % ", ".join(left))
+    if r.rc == 124:
+        print("\nStopped after an hour; it may have finished part of the list.")
+    elif not r.ok:
+        print("\nFinished with errors (exit %d)." % r.rc)
+    if log:
+        print("\nFull output: %s" % log)
+    core.journal("action", "update %s %s (rc=%d)%s" % (source, " ".join(names) or "all", r.rc,
+                                                       "; still outdated: " + ", ".join(left) if left else ""),
+                 source=source, names=names, rc=r.rc, still_outdated=left)
     core.run(["rm", "-f", str(core.home("cache", "updates.json"))])
     return 0 if r.ok else 1
 
