@@ -106,6 +106,29 @@ def with_artwork(n):
     return n
 
 
+def confirm_natively(what, wait=120):
+    """Ask in Claude OS.app's own native dialog, which code in the page can't click (0006).
+    -> True (yes), False (no, or no answer in time) or None (the app couldn't be asked)."""
+    import uuid
+    if not core.app_running("ClaudeOS"):
+        return None
+    rid = uuid.uuid4().hex[:12]
+    answer = core.home("state", "confirm-%s.json" % what)
+    try:
+        answer.unlink()
+    except OSError:
+        pass
+    if not core.run(["open", "-g", core.app_url("confirm/" + what, rid=rid)], timeout=10).ok:
+        return None
+    deadline = time.time() + wait
+    while time.time() < deadline:
+        time.sleep(0.5)
+        reply = core.load_json(answer)
+        if isinstance(reply, dict) and reply.get("rid") == rid:
+            return reply.get("approved") is True
+    return False
+
+
 def read_doc(name):
     allowed = {"roadmap": "docs/roadmap.md", "lessons": "docs/lessons.md", "architecture": "docs/architecture.md",
                "changelog": "CHANGELOG.md", "readme": "README.md"}
@@ -433,8 +456,17 @@ def make_handler(app):
 
     def r_settings_night(h, q, b):
         on = bool(b.get("on"))
+        if on:
+            # The page can call this route, but only the human can click the app's own dialog.
+            answer = confirm_natively("night")
+            if answer is not True:
+                core.journal("action", "Night shift stayed off (%s)" % (
+                    "declined in the app window" if answer is False else "couldn't ask in Claude OS.app"), via="app")
+                return h._json({"night_shift": False, "confirmed": answer,
+                                "error": None if answer is False else "Night shift can only be turned on in Claude OS.app"})
         core.config_set("autonomy.night_shift", on)
-        core.journal("action", "Night shift turned %s" % ("on" if on else "off"), via="app")
+        core.journal("action", "Night shift turned %s%s" % ("on" if on else "off", " (confirmed in the app window)" if on else ""),
+                     via="app")
         h._json({"night_shift": on})
 
     def r_settings_notify(h, q, b):
