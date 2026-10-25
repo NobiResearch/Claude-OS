@@ -8,8 +8,9 @@ final class MusicCommandTests: XCTestCase {
         XCTAssertEqual(command("claude-os://music/pause"), .pause)
         XCTAssertEqual(command("claude-os://music/love"), .love)
         XCTAssertEqual(command("claude-os://music/play?id=1080574498"), .play(id: "1080574498"))
-        XCTAssertEqual(command("claude-os://music/play-library?title=Respect&artist=Aretha%20Franklin"),
-                       .playLibrary(title: "Respect", artist: "Aretha Franklin"))
+        XCTAssertEqual(command("claude-os://music/play-library?title=Paper%20Lanterns&artist=The%20Quiet%20Hours"),
+                       .playLibrary(title: "Paper Lanterns", artist: "The Quiet Hours"))
+        XCTAssertEqual(command("claude-os://music/radio?id=1080574498"), .radio(id: "1080574498"))
         XCTAssertEqual(command("claude-os://music/play-playlist?name=Deep%20Work&shuffle=1"),
                        .playPlaylist(name: "Deep Work", shuffle: true))
         XCTAssertEqual(command("claude-os://music/play-playlist?name=Focus"), .playPlaylist(name: "Focus", shuffle: nil))
@@ -25,6 +26,8 @@ final class MusicCommandTests: XCTestCase {
         XCTAssertNil(command("claude-os://music/play"))
         XCTAssertNil(command("claude-os://music/play-library?artist=x"))
         XCTAssertNil(command("claude-os://music/play-playlist"))
+        XCTAssertNil(command("claude-os://music/radio"), "radio needs a catalog song")
+        XCTAssertNil(command("claude-os://music/radio?id=i.abc123"), "library ids have no station")
         XCTAssertNil(command("claude-os://music/play-playlist?name=" + String(repeating: "x", count: 201)))
         XCTAssertNil(command("claude-os://music/shuffle?on=yes"))
         XCTAssertNil(command("claude-os://calendar/pause"))

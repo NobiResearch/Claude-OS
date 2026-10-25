@@ -15,21 +15,28 @@ You are the DJ. The syscall does mechanics; you bring taste.
 2. **Turn the request into a concrete pick.**
    - A specific song/artist/album: use it as the query.
    - A mood or activity ("chill", "focus", "rainy Sunday"): pick a *specific* song you know
-     fits, biased toward their taste. Example: chill → "Weightless Marconi Union", "Sunset
-     Lover Petit Biscuit", "Teardrop Massive Attack", "An Ending (Ascent) Brian Eno". Vary
-     your picks between requests; check history so you don't repeat the last one.
+     fits, biased toward their taste, and start a **radio** from it (step 3), so the music
+     keeps going. Don't reach for the same few famous picks: check `bin/cos music history`
+     and choose something they haven't heard in the last few days.
    - "Something from my library": `bin/cos music find <genre or word>`, or
      `bin/cos music playlists`, then `bin/cos music playlist "<name>" --shuffle`. It plays in
      Claude OS's own player when that's on, so next, shuffle and like work there too.
-3. **Play it.** `bin/cos music play "<song> <artist>"`. It tries the library first; then, if
-   "Apple Music in Claude OS" is on, it plays the catalog song in Claude OS's own player;
-   otherwise it opens the song page in Music (`bin/cos music setup` shows the state). `--source catalog`
-   skips the library; `--pick N` chooses another result from `bin/cos music catalog "<query>"`.
-4. **Report** in one line what's playing and why you picked it. If playback only *opened*
-   the song (catalog playback isn't fully scriptable), say it's open in Music and they need
-   to press play. Don't retry in a loop.
+3. **Play it.**
+   - A mood or activity: `bin/cos music radio "<song> <artist>"` plays that song, then
+     similar music from its Apple Music station, in Claude OS's own player. With no
+     argument it starts from the song playing now. If it says the song plays alone (no
+     station), say so; if it needs "Apple Music in Claude OS", use `play` instead.
+   - A named song, album or artist: `bin/cos music play "<song> <artist>"`, one song as
+     asked. It tries the library first; then, if "Apple Music in Claude OS" is on, it plays
+     the catalog song in Claude OS's own player; otherwise it opens the song page in Music
+     (`bin/cos music setup` shows the state). `--source catalog` skips the library;
+     `--pick N` chooses another result from `bin/cos music catalog "<query>"`.
+4. **Report** in one line what's playing and why you picked it ("Paper Lanterns, then
+   similar music"). If playback only *opened* the song (catalog playback isn't fully
+   scriptable), say it's open in Music and they need to press play. Don't retry in a loop.
 5. **Learn.** "I love this" → `bin/cos music like` plus `bin/cos remember "likes <artist/genre>"`.
-   "Not this" → `bin/cos music next` and remember the dislike if it's a pattern.
+   "Not this" → `bin/cos music next` (on a radio or playlist it skips to the next song) and
+   remember the dislike if it's a pattern.
 
 ## Rules
 

@@ -4,6 +4,13 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Radio** (decision 0005): `cos music radio "<song> <artist>"` plays the song in Claude
+  OS's own player, then keeps going with similar music from its Apple Music station (the
+  artist's if the song has none); with no argument it starts from the song playing now.
+  `next` skips within it, and `like` rates the song actually playing. If Apple Music has no
+  station, the song plays alone and `cos` says so. The `/music` skill uses radio for moods.
+  *Not yet tried on real playback (built overnight).*
+
 - **Playlists play in Claude OS's own player** (with "Apple Music in Claude OS" on), from
   `cos music playlist <name>` or the desktop's Music app. Next, previous and shuffle go to
   that player too, so "not this one" skips inside the playlist; `next` on a single song

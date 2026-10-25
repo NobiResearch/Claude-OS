@@ -42,7 +42,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `status` | vitals (disk, memory, battery, uptime, security posture, top processes) + signals |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
 | `update [--fetch]` | macOS, Homebrew, npm, mas, rustup; `update apply <source> [names] --yes` |
-| `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|like\|history\|setup` | Apple Music (songs and playlists play inside Claude OS when "Apple Music in Claude OS" is on) |
+| `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|radio [<q>]\|like\|history\|setup` | Apple Music (songs and playlists play inside Claude OS when "Apple Music in Claude OS" is on) |
 | `feeds [--since H] [--category C] [--all] [--mark-read]` | unread headlines; `feeds list\|add <url>\|mute <url>\|mark-read` |
 | `weather` · `weather set "<city>"` · `weather clear` | forecast + alerts for the place the human chose (off until they do) |
 | `cal [--refresh]` · `cal connect` | today's events and due reminders (read-only; off until connected) |

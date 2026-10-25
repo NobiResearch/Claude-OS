@@ -58,7 +58,8 @@ def _own_now(st):
     return {"running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
             "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
             "volume": None, "shuffle": bool(st.get("shuffle")), "repeat": "off", "player": "Claude OS",
-            "playlist": st.get("playlist"), "artwork": st.get("artwork") or None}
+            "playlist": st.get("playlist"), "radio": st.get("radio"), "station": st.get("station"),
+            "artwork": st.get("artwork") or None}
 
 
 def now():
@@ -286,7 +287,7 @@ def player_enabled():
     return bool(core.config()["music"].get("apple_music"))
 
 
-PLAYER_COMMANDS = ("authorize", "play", "play-library", "play-playlist", "pause", "resume", "stop",
+PLAYER_COMMANDS = ("authorize", "play", "play-library", "play-playlist", "radio", "pause", "resume", "stop",
                    "next", "previous", "shuffle", "love", "unlove")
 
 
@@ -302,7 +303,7 @@ def player_command(command, catalog_id=None, wait=12, extra=None):
         return {"ok": False, "error": "unknown player command"}
     if catalog_id is not None and not str(catalog_id).isdigit():
         return {"ok": False, "error": "bad catalog id"}
-    starts_playback = command in ("authorize", "play", "play-library", "play-playlist")
+    starts_playback = command in ("authorize", "play", "play-library", "play-playlist", "radio")
     if not (core.ensure_app() if starts_playback else core.app_running("ClaudeOS")):
         return {"ok": False, "error": "Claude OS isn't running"}
     rid = uuid.uuid4().hex[:12]
@@ -312,7 +313,8 @@ def player_command(command, catalog_id=None, wait=12, extra=None):
     if not r.ok:
         return {"ok": False, "error": "couldn't reach Claude OS: %s" % r.err[:200]}
     playing = lambda s: s.get("status") == "playing"
-    done = {"play": playing, "play-library": playing, "play-playlist": playing, "love": lambda s: s.get("loved"),
+    done = {"play": playing, "play-library": playing, "play-playlist": playing, "radio": playing,
+            "love": lambda s: s.get("loved"),
             "unlove": lambda s: s.get("loved") is False}.get(command)
     deadline = time.time() + wait
     state = None
@@ -346,6 +348,40 @@ def play_with_player(item):
         "player": "Claude OS"}}
 
 
+def radio(query=None):
+    """A song, then similar music (decision 0005): Apple Music's station for it, played in
+    Claude OS's player. Seeded from the catalog: the best pick for `query`, or the song
+    playing now."""
+    if not player_enabled():
+        return {"ok": False, "error": "radio plays in Claude OS's own player: turn on Apple Music in "
+                                      "Settings › Permissions (cos music setup)"}
+    if query:
+        cat = catalog_search(query, limit=8)
+        item = best_catalog_pick(cat["results"])
+        if not item:
+            return {"ok": False, "error": cat["error"] and "catalog search failed: %s" % cat["error"]
+                    or "nothing in the catalog for %r" % query}
+        seed = item.get("id") or _id_from_url(item.get("url"))
+    else:
+        own = own_player_active()
+        if not own:
+            return {"ok": False, "error": "nothing is playing in Claude OS to start a radio from: "
+                                          "say what to start with (cos music radio \"<song> <artist>\")"}
+        seed = own.get("id")
+        item = {"name": own.get("track"), "artist": own.get("artist")}
+    if not seed or not str(seed).isdigit():
+        return {"ok": False, "error": "%s is a library song without a catalog id, so it has no station: "
+                                      "name a song (cos music radio \"<song> <artist>\")" % (item.get("name") or "that")}
+    res = player_command("radio", catalog_id=str(seed), wait=15)
+    if not res.get("ok"):
+        return res
+    if core.app_running("Music"):
+        _tell("pause", timeout=5)  # one player at a time
+    st = res["state"]
+    return {"ok": True, "matched": True, "source": "radio", "chosen": item, "station": st.get("station"),
+            "note": st.get("note"), "now": _own_now(st)}
+
+
 def _id_from_url(url):
     m = re.search(r"[?&]i=(\d+)", url or "")
     return m.group(1) if m else None
@@ -360,7 +396,7 @@ Catalog playback through Shortcuts (one-time, no new permissions):
   1. Open the Shortcuts app and make a new shortcut named exactly:  %s
   2. Add "Get Text from Input" (the input arrives as a file).
   3. Add Music's "Play" action and set its music item to the Text from step 2.
-  4. Save. Then try:  cos music play "sunset lover petit biscuit" --source shortcut
+  4. Save. Then try:  cos music play "weightless marconi union" --source shortcut
 
 Siri's music search resolves the text, so it reaches the whole Apple Music catalog.
 """ % SHORTCUT
@@ -496,7 +532,7 @@ def transport(cmd):
         if cmd == "toggle":
             cmd = "pause" if own["status"] == "playing" else "resume"
         asked = cmd
-        if cmd == "next" and not own.get("playlist"):
+        if cmd == "next" and not (own.get("playlist") or own.get("station")):
             cmd = "stop"  # a single song has nothing after it
         res = player_command({"prev": "previous"}.get(cmd, cmd), wait=4)
         if not res.get("ok"):
@@ -543,7 +579,8 @@ def like():
         if not res.get("ok") or not res["state"].get("loved"):
             print("✗ couldn't love it: %s" % (res.get("error") or "Apple Music didn't confirm"))
             return 1
-        name = "%s — %s" % (own["track"], own.get("artist") or "?")
+        st = res["state"]  # what the player rated, not what was on a moment ago
+        name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
         core.journal("music", "liked %s" % name, liked=True, track=name, player="Claude OS")
         print("♥ %s" % name)
         return 0
@@ -569,7 +606,8 @@ def unlike():
     if not res.get("ok"):
         print("✗ couldn't unlike it: %s" % res.get("error"))
         return 1
-    name = "%s — %s" % (own["track"], own.get("artist") or "?")
+    st = res["state"]
+    name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
     core.journal("music", "unliked %s" % name, track=name, player="Claude OS")
     print("♡ %s" % name)
     return 0
@@ -611,6 +649,23 @@ def main(args):
         res = catalog_search(" ".join(args.query), limit=args.limit)
         core.emit(res, args.json, lambda d: [print("%2d. %s — %s  (%s, %s · %s)" % (i, t["name"], t["artist"], t["album"], t["year"], t["genre"]))
                                           for i, t in enumerate(d["results"])] or print(d["error"] or "no catalog matches"))
+        return 0
+    if c == "radio":
+        q = " ".join(args.query)
+        res = radio(q or None)
+        if args.json:
+            core.emit(res, True, None)
+            return 0 if res.get("ok") else 1
+        if not res.get("ok"):
+            print("✗ %s" % res.get("error"))
+            return 1
+        n = res["now"]
+        seed = "%s — %s" % (n.get("track") or res["chosen"].get("name"), n.get("artist") or res["chosen"].get("artist") or "?")
+        if res.get("station"):
+            print("▶ %s, then similar music (%s)" % (seed, res["station"]))
+        else:
+            print("▶ %s (%s)" % (seed, res.get("note") or "no station; the song plays alone"))
+        core.journal("music", "radio from %s" % seed, track=seed, station=res.get("station"), query=q or None)
         return 0
     if c == "playlists":
         core.emit(playlists(), args.json, lambda ps: [print("%-40s %d" % (p["name"], p["tracks"])) for p in ps])

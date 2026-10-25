@@ -15,11 +15,10 @@ what, where, and how we'll know it works.
    text. Done when: tests with fixture plists (empty dict, one destination, command failure,
    garbage output) pass; `cos status` shows the note on a Mac without Time Machine; the
    `/tidy` or `/update` skill doesn't need to change.
-2. **Radio in the one player** (0005): being built interactively.
-3. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-4. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+3. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-5. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+4. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening
@@ -51,4 +50,5 @@ what, where, and how we'll know it works.
   location, stable signing.
 - v0.5: calendar & reminders, weather alerts, loving the right song.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).
-- After v0.6: native notifications, the security review's fixes, playlists in the one player.
+- After v0.6: native notifications, the security review's fixes, playlists in the one player,
+  radio (0005).
