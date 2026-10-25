@@ -575,7 +575,8 @@
   COS.register({
     id: "feeds", title: "Feeds", icon: "feeds", color: "linear-gradient(140deg,#f2995a,#c25a1d)", size: [820, 620],
     keywords: "rss news read brief",
-    render(w) {
+    onReopen(w, arg) { if (arg === "brief" && w.showBrief) w.showBrief(); },
+    render(w, arg) {
       let category = "", showAll = false, items = [];
       const side = h("div", { class: "feeds-side" });
       const list = h("div", { class: "feeds-list" });
@@ -616,11 +617,13 @@
       }
       async function showBrief() {
         const b = await api("/api/brief");
+        side.querySelectorAll(".side-item").forEach((x) => x.classList.toggle("active", x.textContent === "Latest brief"));
         clear(list);
         if (!b.text) { list.appendChild(empty("No brief yet.", "Click “Brief me” and Claude will write one.")); return; }
         list.appendChild(h("div", { class: "md brief pad", html: MD.render(b.text) }));
       }
-      load(false);
+      w.showBrief = showBrief;
+      if (arg === "brief") load(false).then(showBrief); else load(false);
     },
   });
 
@@ -964,14 +967,24 @@
     };
     COS.refreshAgenda();
     setInterval(COS.refreshAgenda, 5 * 60 * 1000);
+    // The morning brief, once the daemon has written it: first thing on Today, until evening.
+    const briefChip = h("button", { class: "chip glass brief-chip", hidden: true, onclick: () => COS.open("feeds", "brief") }, "☕ Today's brief");
+    const refreshBrief = async () => {
+      try {
+        const b = await api("/api/brief");
+        briefChip.hidden = !(b.text && Date.now() / 1000 - b.ts < 18 * 3600);
+      } catch (e) { briefChip.hidden = true; }
+    };
+    refreshBrief();
+    setInterval(refreshBrief, 15 * 60 * 1000);
     clear(today).appendChild(h("div", null,
       h("div", { class: "today-greet" }, greet),
       h("div", { class: "today-date" }, new Date().toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" })),
       wx,
       agenda,
       line,
-      h("div", { class: "today-chips" }, ["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
-        .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s)))));
+      h("div", { class: "today-chips" }, [briefChip].concat(["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
+        .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s))))));
     COS.on("status", (s) => {
       clear(line);
       line.appendChild(h("span", null, fmt.bytes(s.disk.free) + " free"));
