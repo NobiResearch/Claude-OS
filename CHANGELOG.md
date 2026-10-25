@@ -4,6 +4,10 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- Pausing in Claude OS's player keeps the paused song on screen, and play resumes it, however
+  long the pause. Before, it fell back to whatever the Music app last had. Play and pause
+  also no longer swap the cover image back and forth.
+
 - Playing music from the chat inside Claude OS works. The check for "is Claude OS running?"
   couldn't see the app from inside the app, so radio and songs said it wasn't running.
 

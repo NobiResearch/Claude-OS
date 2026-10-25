@@ -97,6 +97,15 @@ def artwork_for(track, artist):
     return _artwork[key]
 
 
+def with_artwork(n):
+    """The page can only load https art. The player's own musicKit:// links, and the Music
+    app's songs (no link at all), get the same looked-up picture, so the cover doesn't flip
+    between two images on every play and pause."""
+    if n.get("track") and not str(n.get("artwork") or "").startswith("https://"):
+        n["artwork"] = artwork_for(n["track"], n.get("artist"))
+    return n
+
+
 def read_doc(name):
     allowed = {"roadmap": "docs/roadmap.md", "lessons": "docs/lessons.md", "architecture": "docs/architecture.md",
                "changelog": "CHANGELOG.md", "readme": "README.md"}
@@ -483,10 +492,7 @@ def make_handler(app):
 
     def r_music_now(h, q, b):
         from . import music
-        n = music.now()
-        if n.get("track"):
-            n["artwork"] = artwork_for(n["track"], n.get("artist"))
-        h._json(n)
+        h._json(with_artwork(music.now()))
 
     def r_music_search(h, q, b):
         from . import music
@@ -532,7 +538,7 @@ def make_handler(app):
             captured(music.like)
         else:
             return h._error(400, "unknown control")
-        h._json(music.now())
+        h._json(with_artwork(music.now()))
 
     def r_feeds(h, q, b):
         from . import feeds

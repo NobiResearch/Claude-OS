@@ -218,6 +218,27 @@ class TestClaudeOSPlayer(TempHome):
         core.save_json(core.home("state", "player.json"), {"ts": time.time() - 3600, "status": "playing", "track": "Old"})
         self.assertNotEqual(music.now().get("track"), "Old", "stale player state is ignored")
 
+    def test_a_paused_song_stays_on_screen(self):
+        # Paused, the app stops rewriting player.json; the song is still the one it holds.
+        import time
+        from unittest import mock
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time() - 600, "status": "paused",
+                                                            "track": "A Moment Apart", "artist": "ODESZA"})
+        music_app = {"running": True, "state": "paused", "track": "You Get What You Give", "artist": "New Radicals"}
+        with mock.patch.object(music.core, "app_running", lambda name: name == "ClaudeOS"), \
+                mock.patch.object(music, "_music_app_now", lambda: dict(music_app)):
+            n = music.now()
+            self.assertEqual((n["track"], n["state"], n["player"]), ("A Moment Apart", "paused", "Claude OS"))
+            self.assertEqual(music.own_player_active()["track"], "A Moment Apart", "play resumes it, not Music")
+        with mock.patch.object(music.core, "app_running", lambda name: name == "ClaudeOS"), \
+                mock.patch.object(music, "_music_app_now", lambda: dict(music_app, state="playing")):
+            self.assertEqual(music.now()["track"], "You Get What You Give", "unless Music is playing something else")
+        with mock.patch.object(music.core, "app_running", lambda name: False), \
+                mock.patch.object(music, "_music_app_now", lambda: {"running": False}):
+            self.assertEqual(music.now(), {"running": False}, "the app that held it is gone")
+            self.assertIsNone(music.own_player_active())
+
 
 if __name__ == "__main__":
     unittest.main()
