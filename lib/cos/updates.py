@@ -45,13 +45,42 @@ def parse_brew_outdated(text):
         items.append({"name": c["name"], "kind": "cask", "installed": (c.get("installed_versions") or ["?"])[-1],
                       "latest": c.get("current_version"), "pinned": False})
     for it in items:
-        it["major"] = _major(it["installed"]) != _major(it["latest"])
+        _classify(it)
     return items
 
 
 def _major(v):
     m = re.match(r"(\d+)", str(v or ""))
     return m.group(1) if m else v
+
+
+def _version(v):
+    """'3.6.5_1' -> ((3, 6, 5), 1): leading numbers (trailing zeros dropped, so 1.0 == 1.0.0)
+    plus brew's revision; a cask's ',build' is dropped."""
+    m = re.match(r"(\d+(?:\.\d+)*)(?:_(\d+))?", str(v or "").split(",")[0])
+    if not m:
+        return None
+    parts = [int(p) for p in m.group(1).split(".")]
+    while len(parts) > 1 and parts[-1] == 0:
+        parts.pop()
+    return tuple(parts), int(m.group(2) or 0)
+
+
+def _look(installed, latest):
+    """Why an upgrade deserves a look first: 'scheme', 'downgrade', 'major', or None."""
+    a, b = _version(installed), _version(latest)
+    if a and b:
+        if (a[0][0] >= 1000) != (b[0][0] >= 1000):
+            return "scheme"  # a build number or year became a version (or back): not comparable
+        if b < a:
+            return "downgrade"
+    return "major" if _major(installed) != _major(latest) else None
+
+
+def _classify(it):
+    it["look"] = _look(it["installed"], it["latest"])
+    it["major"] = it["look"] == "major"
+    return it
 
 
 def check_brew(fetch=False):
@@ -74,8 +103,7 @@ def check_npm():
         data = json.loads(r.out or "{}")
     except ValueError:
         return {"items": [], "error": r.err[:200]}
-    items = [{"name": name, "kind": "npm", "installed": v.get("current"), "latest": v.get("latest"),
-              "major": _major(v.get("current")) != _major(v.get("latest"))}
+    items = [_classify({"name": name, "kind": "npm", "installed": v.get("current"), "latest": v.get("latest")})
              for name, v in data.items()]
     return {"items": items, "error": None}
 
@@ -121,6 +149,14 @@ def check(fetch=False):
     return data
 
 
+MARKS = {"major": "▲", "downgrade": "▼", "scheme": "≠"}
+NOTES = {"downgrade": " (downgrade)", "scheme": " (new version scheme)"}
+
+
+def _look_of(it):
+    return it.get("look") or ("major" if it.get("major") else None)  # caches from before `look` existed
+
+
 def render(data):
     src = data["sources"]
     mac = src.get("macos", {}).get("items", [])
@@ -139,11 +175,12 @@ def render(data):
         if not items:
             print("%s: up to date" % label)
             continue
-        majors = [i for i in items if i.get("major")]
-        print("%s: %d outdated%s" % (label, len(items), (", %d major" % len(majors)) if majors else ""))
-        for it in sorted(items, key=lambda i: (not i.get("major"), i["name"]))[:12]:
-            print("  %s %-24s %s → %s%s" % ("▲" if it.get("major") else "·", it["name"], it["installed"],
-                                           it["latest"], " (pinned)" if it.get("pinned") else ""))
+        looks = [i for i in items if _look_of(i)]
+        print("%s: %d outdated%s" % (label, len(items), (", %d to look at first" % len(looks)) if looks else ""))
+        for it in sorted(items, key=lambda i: (not _look_of(i), i["name"]))[:12]:
+            look = _look_of(it)
+            print("  %s %-24s %s → %s%s%s" % (MARKS.get(look, "·"), it["name"], it["installed"], it["latest"],
+                                             NOTES.get(look, ""), " (pinned)" if it.get("pinned") else ""))
         if len(items) > 12:
             print("  … and %d more" % (len(items) - 12))
     if not data["fetched"] and src.get("brew"):

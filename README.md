@@ -23,7 +23,7 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
   Deny** card with the exact command. Your click is the answer, and it's journaled.
 - **Vitals**: disk, memory, battery health, load, security posture, top processes.
 - **Storage**: what's reclaimable, by safety level, with one-click reclaim (after a confirm).
-- **Updates**: macOS, Homebrew, npm and friends; major versions unticked by default.
+- **Updates**: macOS, Homebrew, npm and friends; major versions and downgrades unticked by default.
 - **Music**: now playing with artwork, search your library and Apple Music, playlists, a
   radio that keeps going from any song, or let Claude DJ.
 - **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary; the morning brief
