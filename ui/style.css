@@ -170,6 +170,7 @@ button.mb-item:hover { background: var(--hover); }
 .chip:hover { border-color: rgba(224, 122, 87, 0.5); background: var(--accent-soft); }
 .chip.active { background: var(--accent-soft); border-color: rgba(224, 122, 87, 0.6); color: var(--accent-2); }
 .chip.glass { background: rgba(37, 33, 29, 0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); }
+.chip.brief-chip { border-color: rgba(224, 122, 87, 0.55); color: var(--accent-2); }
 .pill { display: inline-flex; align-items: center; height: 19px; padding: 0 8px; border-radius: 999px; font-size: 11px; font-weight: 600; letter-spacing: 0.01em;
   background: var(--hover); color: var(--muted); text-transform: lowercase; white-space: nowrap; }
 .pill.safe, .pill.ok { background: rgba(140, 192, 132, 0.15); color: var(--ok); }

@@ -4,6 +4,9 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Today's brief on the desktop**: once the morning daemon has written it, a "☕ Today's
+  brief" chip leads Today (until evening) and opens the brief in Feeds.
+
 - Background jobs can't write the memory (`remember`, `memory --forget`), start another
   Claude (`ask`), a server or an app build. A feed item steering the morning brief could
   otherwise plant "facts" in every future boot banner, or start Claude sessions without the
