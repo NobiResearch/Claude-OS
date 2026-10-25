@@ -55,5 +55,5 @@ what, where, and how we'll know it works.
   location, stable signing.
 - v0.5: calendar & reminders, weather alerts, loving the right song.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).
-- After v0.6: native notifications, the security review's fixes, playlists in the one player,
-  radio (0005).
+- v0.7: radio and playlists in the one player, native notifications, Today's brief, the
+  security review's fixes, `cos startup` without a password dialog (0005).

@@ -4,61 +4,48 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
-- **`cos startup` no longer summons a password dialog.** On macOS 27, `sfltool dumpbtm`
-  shows an admin password dialog, so the startup audit (and the desktop's Vitals card, which
-  calls it) could put one on screen, and hang a background job. It now reads the launch
-  agents and daemons directly (no permission needed); `cos startup --full` is the old full
-  list, apps included, which asks for an Allow first and is refused in background jobs.
-  Shell-script agents say "runs a script" instead of "unsigned code".
+## 0.7.0 — 2026-10-25
 
+Music that keeps going, and a safer Claude OS. Built overnight
+([0005](docs/decisions/0005-radio-and-backup-signal.md)).
+
+**Music**
+- **Radio**: `cos music radio "<song> <artist>"` plays the song in Claude OS's own player,
+  then keeps going with similar music from its Apple Music station (the artist's if the
+  song has none); with no argument it starts from the song playing now. The `/music` skill
+  uses radio for moods, and the desktop's Music app has a Radio button next to ⏭. If Apple
+  Music has no station, the song plays alone and `cos` says so. (New: the first real
+  playback test is still to come.)
+- **Playlists play in Claude OS's own player**, from `cos music playlist <name>` or the
+  desktop. Next, previous and shuffle go there too; `like` rates the song actually playing,
+  even mid-playlist or mid-radio.
+
+**Your day**
+- **Notifications from Claude OS** (0004): with the setting on, alerts and the morning brief
+  arrive with Claude OS's own name and icon; clicking one opens the desktop. The text goes
+  through a private outbox in `~/.claude-os`, and the link that wakes the app carries
+  nothing. Without permission (or with the app closed) they fall back to AppleScript.
 - **Today's brief on the desktop**: once the morning daemon has written it, a "☕ Today's
-  brief" chip leads Today (until evening) and opens the brief in Feeds.
+  brief" chip leads Today and opens it. The brief talks to you as "you" and doesn't guess
+  things about you.
+- **`cos startup` no longer summons a password dialog.** On macOS 27, `sfltool dumpbtm`
+  shows an admin password dialog; the audit now reads launch agents and daemons directly.
+  `cos startup --full` (apps that open at login too) asks for an Allow first and is refused
+  in background jobs. Scripts say "runs a script", not "unsigned code".
 
-- Background jobs can't write the memory (`remember`, `memory --forget`), start another
-  Claude (`ask`), a server or an app build. A feed item steering the morning brief could
-  otherwise plant "facts" in every future boot banner, or start Claude sessions without the
-  daemon's budget and deny-list.
-
-- The morning brief talks to you as "you" and doesn't guess things about you (a rehearsal
-  of the first headless brief guessed a gender).
-
-- **Radio** (decision 0005): `cos music radio "<song> <artist>"` plays the song in Claude
-  OS's own player, then keeps going with similar music from its Apple Music station (the
-  artist's if the song has none); with no argument it starts from the song playing now.
-  `next` skips within it, and `like` rates the song actually playing. If Apple Music has no
-  station, the song plays alone and `cos` says so. The `/music` skill uses radio for moods,
-  and the desktop's Music app has a Radio button next to ⏭.
-  *Not yet tried on real playback (built overnight).*
-
-- **Playlists play in Claude OS's own player** (with "Apple Music in Claude OS" on), from
-  `cos music playlist <name>` or the desktop's Music app. Next, previous and shuffle go to
-  that player too, so "not this one" skips inside the playlist; `next` on a single song
-  stops it. The Music app is still the fallback.
-
-- **Security review fixes** (a fresh review of everything since v0.2):
-  - `claude-os://` links that change something (play, rate, permission prompts) need this
-    launch's nonce from `~/.claude-os/state/app.nonce`, so a web page or feed link can't make
-    Claude OS act; the player also honours the "Apple Music in Claude OS" switch.
-  - Only http(s)/mailto links leave the app, and feeds keep only http(s) links.
-  - Markdown links can no longer break out of their attribute; the desktop's CSP drops
-    `'unsafe-inline'` styles.
-  - Evolve: the Guardian checks every commit and message a merge would publish (not just
-    the final diff); tests run on a fresh checkout of exactly the merged commit, inside a
-    sandbox that can reach localhost but not the internet and can't read `~/.ssh`,
-    `~/.claude-os` and other private folders; no tests, no merge.
-  - Background jobs can't connect the calendar, set the weather place, add feeds, change
-    config or play/rate music; those also ask first in interactive sessions.
-  - Player answers carry a request id, so a stale state file can't pass for success.
-  - The morning brief no longer launches Claude OS just to refresh the calendar.
-  - Weather coordinates join the Guardian's private terms; a notification falls back to
-    AppleScript if the app can't be woken.
-
-- **Notifications from Claude OS** (decision 0004): with the new setting on, alerts and the
-  morning brief arrive with Claude OS's own name and icon, and clicking one opens the
-  desktop. The text goes through a private outbox in `~/.claude-os`; the link that wakes the
-  app carries nothing, so no web page can make Claude OS say anything. Permission is asked
-  only when you flip the switch; without it (or with the app closed) notifications fall back
-  to AppleScript.
+**Security** (a fresh review of everything since v0.2, plus what dogfooding found)
+- `claude-os://` links that change something need this launch's nonce, so a web page or
+  feed link can't make Claude OS play, rate or ask macOS for a permission; player answers
+  carry a request id.
+- Only http(s)/mailto links leave the app; feeds keep only http(s) links; Markdown links
+  can't break out of their attribute; the CSP drops `'unsafe-inline'` styles.
+- Evolve: the Guardian checks every commit and message a merge would publish; tests run on
+  a fresh checkout of exactly the merged commit, in a sandbox with no internet that can't
+  read `~/.ssh`, `~/.claude-os` and other private folders; no tests, no merge.
+- Background jobs can't connect the calendar, set the weather place, add feeds, change
+  config, play or rate music, write the memory, start another Claude, a server or a build.
+  A feed item steering the morning brief can't plant "facts" in every boot banner.
+- Weather coordinates join the Guardian's private terms.
 
 ## 0.6.0 — 2026-10-25
 
