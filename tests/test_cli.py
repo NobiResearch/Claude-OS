@@ -5,6 +5,7 @@ import subprocess
 import sys
 import unittest
 from contextlib import redirect_stdout
+from unittest import mock
 
 from helpers import TempHome
 
@@ -90,9 +91,18 @@ class TestCli(TempHome):
             self.assertIn(key, data)
 
     def test_boot_is_fast_and_offline(self):
-        rc, out = self.cos("boot")
+        # Its one network call, a fetch of main, waits 10 minutes after the last one (0011).
+        core.cache_put("catch-up-fetch", {"ok": True})
+        real, ran = core.run, []
+
+        def spy(cmd, **kw):
+            ran.append(cmd)
+            return real(cmd, **kw)
+        with mock.patch.object(core, "run", spy):
+            rc, out = self.cos("boot")
         self.assertEqual(rc, 0)
         self.assertTrue(out.startswith("◆ Claude OS"))
+        self.assertEqual([c for c in ran if "fetch" in c], [])
 
     def test_entry_point_runs_under_system_python(self):
         python = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else sys.executable

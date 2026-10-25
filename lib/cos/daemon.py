@@ -329,6 +329,11 @@ def pulse():
             weather.forecast()  # keeps the weather alert signal fresh
     except Exception as e:
         core.journal("daemon", "pulse: weather failed: %s" % e, daemon="pulse")
+    try:
+        from . import evolve
+        evolve.catch_up(fetch=True, source="pulse")  # fetch and report; it never moves the code (0011)
+    except Exception as e:
+        core.journal("daemon", "pulse: catching up failed: %s" % e, daemon="pulse")
     if not core.cache_get("updates", max_age=20 * 3600):
         updates.check(fetch=False)
     if not core.cache_get("clean", max_age=24 * 3600):

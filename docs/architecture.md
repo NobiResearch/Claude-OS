@@ -75,7 +75,9 @@ Guardian holding a veto) decides how Claude OS changes. The lab's scouts researc
 in parallel.
 
 **Daemons** (`etc/daemons.json` → launchd). `pulse` is plain Python and keeps caches warm
-so boot and the status line stay instant and offline. The LLM daemons (`morning`,
+so boot and the status line stay instant; it also fetches main and notes what's merged on
+GitHub but not on this Mac (decision 0011). Boot's one network call is that same fetch, at
+most every 10 minutes. The LLM daemons (`morning`,
 `evolve`, `board`) run headless Claude Code with an allowlist, a deny-list no definition
 can override (`ALWAYS_DENIED`) and a timeout. They're opt-in. A budget cap applies when
 Claude is billed per token (an API key); on a Pro or Max plan the timeout is the limit.

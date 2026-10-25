@@ -179,3 +179,6 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   Local Network permission, and the first try may show the human an alert. `cos net` reads
   the ARP table instead, which sends no packets. CoreWLAN's signal properties need no
   permission; only the network's name and the like need Location.
+- **A fast-forward runs the incoming tree's hooks.** With a relative `core.hooksPath`
+  (`githooks`), `git merge --ff-only` runs the `post-merge` that the merge itself just
+  brought in. Code that moves a checkout runs git with `-c core.hooksPath=/dev/null`.
