@@ -24,12 +24,15 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Vitals**: disk, memory, battery health, load, security posture, top processes.
 - **Storage**: what's reclaimable, by safety level, with one-click reclaim (after a confirm).
 - **Updates**: macOS, Homebrew, npm and friends; major versions unticked by default.
-- **Music**: now playing with artwork, search your library and Apple Music, or let Claude DJ.
-- **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary.
+- **Music**: now playing with artwork, search your library and Apple Music, playlists, a
+  radio that keeps going from any song, or let Claude DJ.
+- **Feeds**: a calm RSS reader, and "Brief me" for Claude's summary; the morning brief
+  shows up on Today.
 - **Evolution**: friction, evolve branches (review / merge / discard), the board, the roadmap.
 - **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Apple Music
-  in Claude OS" (MusicKit: any catalog song plays right in Claude OS) and weather for a city
-  or your location. Everything is off until you turn it on.
+  in Claude OS" (MusicKit: catalog songs, your library, playlists and radio play right in
+  Claude OS), weather for a city or your location, your calendar and reminders (read-only),
+  and notifications with Claude OS's own name. Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
 `cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and
@@ -77,7 +80,7 @@ cos app             # builds, installs and opens Claude OS.app
 | desktop | `app/`, `ui/`, `lib/cos/server.py` | Claude OS.app: native shell, web desktop, local API, Claude bridge |
 | kernel | `CLAUDE.md` | the laws Claude follows here, and the syscall table |
 | syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
-| apps | `.claude/skills/` | `/music` `/tidy` `/update` `/brief` `/board` `/lab` `/evolve` |
+| apps | `.claude/skills/` | `/music` `/tidy` `/update` `/startup` `/brief` `/board` `/lab` `/evolve` |
 | colleagues | `.claude/agents/` | the board (architect, guardian, steward, skeptic) and the lab's scouts |
 | daemons | `etc/daemons.json` | `pulse` (free), `morning`, `evolve`, `board` (opt-in, budget-capped) |
 | memory | `~/.claude-os/` | journal, friction, memory, caches; private, never in git |
@@ -89,7 +92,9 @@ cos status                       vitals, security posture, top processes, signal
 cos clean [--deep]               reclaimable space with safety levels · clean apply <id>… --yes
 cos update [--fetch]             macOS, Homebrew, npm, mas, rustup · update apply <source> --yes
 cos music play "weightless"      library first, then the Apple Music catalog (cos music setup)
+cos music radio "weightless"     that song, then similar music from its station
 cos music now|pause|next|vol|find|catalog|playlists|playlist|like|history
+cos weather · cal · startup      the forecast, today's events, what starts with the Mac
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes
 cos remember "…"                 teach Claude OS about you; shown to Claude at every boot
