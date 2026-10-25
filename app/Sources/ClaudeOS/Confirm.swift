@@ -1,6 +1,6 @@
 import AppKit
 
-/// Yes/no questions only the human can answer, asked in a native dialog (decision 0006).
+/// Yes/no questions only the human can answer, asked in a native dialog (decisions 0006, 0011).
 ///
 /// Turning Night shift on lets Claude push and merge on its own, so the desktop page can't
 /// do it alone: code in the page could call the API, but it can't click this dialog. `cos
@@ -23,6 +23,13 @@ enum Confirm {
                 + "first, and pull requests that change Claude OS's own safety checks wait for your merge. "
                 + "You can turn it off any time in Settings.",
             yes: "Turn On"),
+        "catch-up": Question(
+            title: "Keep Claude OS up to date?",
+            body: "When you merge a pull request on GitHub, Claude OS brings it to this Mac by itself: when the app "
+                + "starts, when a terminal session starts, and in the background while the app is closed. It only "
+                + "moves a clean main forward, only over GitHub's own pull request merges, and each update is in "
+                + "your journal with the way back. You can turn it off any time in Settings.",
+            yes: "Keep Up to Date"),
     ]
 
     static func handle(_ url: URL, trusted: Bool) {

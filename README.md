@@ -32,7 +32,8 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Apple Music
   in Claude OS" (MusicKit: catalog songs, your library, playlists and radio play right in
   Claude OS), weather for a city or your location, your calendar and reminders (read-only),
-  and notifications with Claude OS's own name. Everything is off until you turn it on.
+  notifications with Claude OS's own name, Night shift, and Keep Claude OS up to date
+  (what you merge on GitHub comes to this Mac by itself). Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
 `cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and

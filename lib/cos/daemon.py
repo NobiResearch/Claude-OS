@@ -306,6 +306,17 @@ def live(name):
     return data
 
 
+def pulse_catch_up():
+    """Fetch and report; with Keep Claude OS up to date on, also move forward, but never
+    under a running app, whose server would mix versions (0011)."""
+    from . import evolve
+    if not core.app_running("ClaudeOS"):
+        c = evolve.auto_catch_up("pulse")
+        if c:
+            return c
+    return evolve.catch_up(fetch=True, source="pulse")
+
+
 def pulse():
     """Keep the caches behind boot/statusline fresh; nag only when it matters."""
     from . import status as st, feeds, updates, clean
@@ -330,8 +341,7 @@ def pulse():
     except Exception as e:
         core.journal("daemon", "pulse: weather failed: %s" % e, daemon="pulse")
     try:
-        from . import evolve
-        evolve.catch_up(fetch=True, source="pulse")  # fetch and report; it never moves the code (0011)
+        pulse_catch_up()
     except Exception as e:
         core.journal("daemon", "pulse: catching up failed: %s" % e, daemon="pulse")
     if not core.cache_get("updates", max_age=20 * 3600):

@@ -88,6 +88,9 @@ final class ServerController {
         String(decoding: stderrTail, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// The exit status `cos serve` uses for a restart it asked for (EX_TEMPFAIL; server.RESTART).
+    static let plannedRestart: Int32 = 75
+
     func start(timeout: TimeInterval = 15, completion: @escaping (Result<ServerEndpoint, ServerFailure>) -> Void) {
         stop()
         generation += 1

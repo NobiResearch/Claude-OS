@@ -76,7 +76,8 @@ in parallel.
 
 **Daemons** (`etc/daemons.json` → launchd). `pulse` is plain Python and keeps caches warm
 so boot and the status line stay instant; it also fetches main and notes what's merged on
-GitHub but not on this Mac (decision 0011). Boot's one network call is that same fetch, at
+GitHub but not on this Mac (decision 0011); with Keep Claude OS up to date on, it also
+fast-forwards while the app is closed. Boot's one network call is that same fetch, at
 most every 10 minutes. The LLM daemons (`morning`,
 `evolve`, `board`) run headless Claude Code with an allowlist, a deny-list no definition
 can override (`ALWAYS_DENIED`) and a timeout. They're opt-in. A budget cap applies when

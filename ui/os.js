@@ -384,6 +384,12 @@
       const sig = document.getElementById("mb-signals");
       sig.className = "mb-item signals " + (s.signals.some((x) => x.level === "warn") ? "warn" : s.signals.length ? "note" : "ok");
       sig.title = s.signals.map((x) => x.msg).join("\n") || "All quiet";
+      const up = document.getElementById("mb-update"), co = s.claude_os;
+      up.hidden = !(co && co.restart);
+      if (co && co.restart) {
+        up.title = co.waiting ? co.waiting + " merged on GitHub:\n" + co.subjects.join("\n")
+          : "Claude OS's code changed since this window started";
+      }
       document.body.classList.remove("offline");
     } catch (e) {
       document.body.classList.add("offline");
@@ -391,6 +397,21 @@
       sig.className = "mb-item signals offline";
       sig.title = "Can't reach the Claude OS server: " + e.message;
     }
+  }
+
+  // Decision 0011: restart only the server, onto what's merged (it catches up as it starts).
+  async function updateNow() {
+    const co = (state.status || {}).claude_os || {};
+    const ok = await confirmDialog({
+      title: "Restart to update Claude OS?",
+      body: (co.waiting ? "Brings in what you merged on GitHub, then restarts Claude OS's server. "
+        : "Restarts Claude OS's server on the code that's on disk now. ")
+        + "Music keeps playing; a reply that's still being written stops.",
+      ok: "Restart",
+    });
+    if (!ok) return;
+    toast("Restarting…");
+    try { await api("/api/restart", { body: {} }); } catch (e) {}
   }
 
   async function pollMusic() {
@@ -487,6 +508,7 @@
     document.getElementById("mb-logo").addEventListener("click", () => summon());
     document.getElementById("mb-music").addEventListener("click", () => open("music"));
     document.getElementById("mb-signals").addEventListener("click", () => open("vitals"));
+    document.getElementById("mb-update").addEventListener("click", updateNow);
     boot().then(() => {
       if (!token) return;
       const statusLoop = async () => {

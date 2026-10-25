@@ -915,6 +915,23 @@
             h("div", { class: "muted small" }, s.night_shift ? "On: each push and merge is in your journal and tomorrow's brief." : "Off: every push and merge asks you first.")),
           nightToggle));
 
+        // Keep Claude OS up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
+        const upToggle = h("input", { type: "checkbox", class: "switch" });
+        upToggle.checked = !!s.catch_up;
+        upToggle.addEventListener("change", async () => {
+          // Like Night shift, turning it on is confirmed in Claude OS.app's own dialog.
+          if (upToggle.checked) toast("Confirm in the dialog that just opened…");
+          const r = await api("/api/settings/catch-up", { body: { on: upToggle.checked } });
+          if (upToggle.checked && !r.catch_up) toast(r.error || "It stays off.", r.error ? "bad" : "");
+          draw();
+        });
+        box.appendChild(h("div", { class: "daemon" },
+          h("div", { class: "grow" },
+            h("div", { class: "daemon-name" }, "Keep Claude OS up to date", s.catch_up ? pill("ok", "on") : pill("note", "off")),
+            h("div", { class: "small" }, "When you merge a pull request on GitHub, Claude OS brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),
+            h("div", { class: "muted small" }, s.catch_up ? "On: while the app is open, Update in the menu bar restarts it onto what you merged." : "Off: the boot banner says what's merged, and `cos update apply claude-os --yes` brings it in.")),
+          upToggle));
+
         // Calendar & Reminders (decision 0002): read-only, only after the human clicks Connect.
         const calOn = s.calendar === "connected";
         box.appendChild(h("div", { class: "daemon" },

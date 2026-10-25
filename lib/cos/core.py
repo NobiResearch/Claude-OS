@@ -330,7 +330,9 @@ DEFAULT_CONFIG = {
     "weather": {},
     "notify": {"enabled": True, "native": False},
     "pulse": {"low_disk_gb": 20, "backup_check": True},
-    "autonomy": {"night_shift": False},  # decision 0006: only the human turns this on
+    # Only the human turns these on, in Claude OS.app's own dialog: Night shift (0006), and
+    # Keep Claude OS up to date (0011), which pins the origin it was turned on for.
+    "autonomy": {"night_shift": False, "catch_up": False, "catch_up_url": None},
 }
 
 
