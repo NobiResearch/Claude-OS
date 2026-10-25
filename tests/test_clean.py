@@ -107,3 +107,31 @@ class TestRuntimes(unittest.TestCase):
         }
         self.assertEqual([rt["id"] for rt in clean.pick_old_runtimes(data)], ["b", "a"])
         self.assertEqual(clean.pick_old_runtimes({}), [])
+
+
+class TestApplyTotals(TempHome):
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+        self.mock = mock
+
+    def test_what_the_apply_deleted_counts_when_measuring_comes_back_empty(self):
+        # The first weekly cleanup: CoreSimulator answered nothing just before the delete.
+        t = clean.Target("t-runtimes", "x", "y", "review", measure=lambda t: (0, []), apply=lambda t: 22 * 2 ** 30)
+        with self.mock.patch.dict(clean.BY_ID, {"t-runtimes": t}), self.mock.patch("builtins.print"):
+            self.assertEqual(clean.apply(["t-runtimes"], yes=True), 0)
+        from cos import core
+        entry = core.read_journal(days=1, kind="action")[-1]
+        self.assertEqual(entry["freed"], 22 * 2 ** 30)
+
+    def test_a_cache_in_use_is_skipped_with_a_reason(self):
+        ran = []
+        t = clean.Target("t-uv", "x", "y", "safe", action="cmd", cmd=["true"], busy=("uv",),
+                         measure=lambda t: ran.append("measure") or (5, []))
+        out = []
+        with self.mock.patch.dict(clean.BY_ID, {"t-uv": t}), \
+                self.mock.patch.object(clean.core, "app_running", lambda name: name == "uv"), \
+                self.mock.patch("builtins.print", lambda *a: out.append(" ".join(map(str, a)))):
+            clean.apply(["t-uv"], yes=True)
+        self.assertEqual(ran, [], "nothing ran, nothing waited")
+        self.assertTrue(any("skipped: uv is running" in l for l in out))

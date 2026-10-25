@@ -7,6 +7,11 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 - `cos update` says "couldn't check" for npm, the App Store or Rust when it can't reach them
   (offline, say), instead of a reassuring "up to date".
 
+- `cos clean` reports what it actually freed: deleting old simulator runtimes counted 0 B when
+  Xcode's simulator service was busy, and now counts each runtime it deleted. A cache that a
+  running tool holds (uv, while an MCP server runs through `uvx`) is skipped, with a
+  sentence saying why, instead of waiting minutes and freeing nothing.
+
 - **Night shift opens pull requests for everything and merges the safe ones.** Work that
   touches Claude OS's core no longer stays on your Mac until morning. It's pushed, CI
   runs, and the pull request waits for your merge; everything else merges by itself. The
