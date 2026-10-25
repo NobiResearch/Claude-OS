@@ -2,7 +2,7 @@
 
 - **Asked:** 2026-10-25, overnight lab (three scouts: plugin format, marketplaces, Claude OS itself)
 - **Checked against:** Claude Code 2.1.310, the official plugin docs, and `claude plugin validate`
-- **Status:** answered; building it needs a board decision (permissions, privacy)
+- **Status:** decided ([0009](../decisions/0009-claude-os-everywhere.md)): links in `~/.claude/skills`, no plugin
 
 ## Answer
 
@@ -97,3 +97,11 @@ memory or music), skipped when `CLAUDE_PROJECT_DIR` is the checkout so it doesn'
 - In-place loading from a local-directory marketplace: try it on this Mac before building on it.
 - Does bare `/music` resolve to the plugin skill when no project skill claims it?
 - Does a `~/.claude/skills/<name>` symlink to the checkout load?
+
+## Verified on this Mac (2026-10-25, Claude Code 2.1.310)
+
+Option C works and is what Claude OS uses:
+- A symlink `~/.claude/skills/<name>` to a skill folder loads in a session outside the repo
+  (it appears in the session's skills and slash commands, and it's used).
+- Edits to the linked folder show in the next session, with no reinstall: nothing is cached.
+- A link to one of the repo's own skills appears once, not twice, in a session inside the repo.

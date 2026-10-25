@@ -40,7 +40,8 @@ GITHUB = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
              "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py",
              "lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py",
-             "lib/cos/__init__.py", "lib/cos/chat.py", "lib/cos/security.py")
+             "lib/cos/__init__.py", "lib/cos/chat.py", "lib/cos/security.py",
+             "lib/cos/system.py")  # system.py decides which skills load in every session
 NEVER_PUSHED = (".github/",)  # CI runs it on push: a workflow could merge pull requests itself
 GREEN = ("SUCCESS", "SKIPPED", "NEUTRAL")
 

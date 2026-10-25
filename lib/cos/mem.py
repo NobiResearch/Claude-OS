@@ -8,6 +8,7 @@ All three are private and live in ~/.claude-os.
 """
 
 import datetime as dt
+import os
 import re
 
 from . import core
@@ -39,13 +40,24 @@ def frictions():
     return core.load_json(core.home(FRICTION_FILE), []) or []
 
 
+def outside():
+    """Was this recorded from a session in another project? (The skills work from any folder,
+    decision 0009.) Only the fact is kept, never the folder: evolve turns friction into public
+    commits, so friction from elsewhere is fixed without quoting it."""
+    cwd = os.path.realpath(os.getcwd())
+    ours = [os.path.realpath(str(p)) for p in (core.ROOT, core.home())]
+    return not any(cwd == p or cwd.startswith(p + os.sep) for p in ours)
+
+
 def add_friction(text, area=None):
     items = frictions()
     fid = max([f["id"] for f in items] or [0]) + 1
     item = {"id": fid, "text": text, "area": area, "status": "open", "opened": core.now_iso()}
+    if outside():
+        item["outside"] = True
     items.append(item)
     core.save_json(core.home(FRICTION_FILE), items)
-    core.journal("friction", text, friction_id=fid, area=area)
+    core.journal("friction", text, friction_id=fid, area=area, outside=item.get("outside", False))
     return item
 
 
@@ -87,7 +99,8 @@ def friction_main(args):
         core.emit(items, True, None)
         return 0
     for f in items:
-        print("#%-3d %-6s %s%s" % (f["id"], f["status"], "[%s] " % f["area"] if f.get("area") else "", f["text"]))
+        print("#%-3d %-6s %s%s%s" % (f["id"], f["status"], "[%s] " % f["area"] if f.get("area") else "",
+                                     "(from another project; don't quote it) " if f.get("outside") else "", f["text"]))
     if not items:
         print("No open friction. Smooth sailing.")
     return 0

@@ -75,6 +75,11 @@ API are in `ui/` and `lib/cos/server.py`; the native shell is in `app/`.
 current · `/startup` what starts with the Mac · `/brief` the daily briefing · `/board` convene the board on a decision ·
 `/lab` research a question · `/evolve` improve Claude OS itself.
 
+`/music`, `/tidy`, `/update` and `/startup` also work in Claude Code from any folder on this
+Mac: `cos install` links them into `~/.claude/skills` (decision 0009). So they call `cos`, say
+in their descriptions what they're not for, and never record anything about the project or
+client the human is working in.
+
 ## Driving the Mac beyond syscalls
 
 - AppleScript/JXA via `osascript` for scriptable apps (Music, Finder, Calendar, Reminders,

@@ -9,8 +9,54 @@ BIN_DIR = os.path.expanduser("~/.local/bin")
 LINK = os.path.join(BIN_DIR, "cos")
 
 
+# The Mac skills that work from any folder (decision 0009): linked into ~/.claude/skills, so
+# they load live from this checkout, where the night shift can't change them unseen.
+# brief, board, evolve and lab stay in the repo.
+EVERYWHERE = ("music", "tidy", "update", "startup")
+
+
 def _ours(path):
     return os.path.islink(path) and os.path.realpath(path) == os.path.realpath(str(core.ROOT / "bin" / "cos"))
+
+
+def skills_dir():
+    return os.path.expanduser("~/.claude/skills")
+
+
+def _skill_target(name):
+    return str(core.ROOT / ".claude" / "skills" / name)
+
+
+def _our_skill(path, name):
+    return os.path.islink(path) and os.path.realpath(path) == os.path.realpath(_skill_target(name))
+
+
+def link_skills():
+    """-> step lines. Never touches a skill of the same name that isn't ours."""
+    steps, linked = [], []
+    os.makedirs(skills_dir(), exist_ok=True)
+    for name in EVERYWHERE:
+        path = os.path.join(skills_dir(), name)
+        if os.path.lexists(path) and not _our_skill(path, name):
+            steps.append("✗ ~/.claude/skills/%s exists and isn't Claude OS's; left it alone" % name)
+            continue
+        if os.path.lexists(path):
+            os.remove(path)
+        os.symlink(_skill_target(name), path)
+        linked.append("/" + name)
+    if linked:
+        steps.append("✓ %s work in Claude Code from any folder (links in ~/.claude/skills)" % ", ".join(linked))
+    return steps
+
+
+def unlink_skills():
+    removed = 0
+    for name in EVERYWHERE:
+        path = os.path.join(skills_dir(), name)
+        if _our_skill(path, name):
+            os.remove(path)
+            removed += 1
+    return removed
 
 
 def install(args):
@@ -28,6 +74,8 @@ def install(args):
         steps.append("✓ `cos` linked into ~/.local/bin")
     if BIN_DIR not in os.environ.get("PATH", "").split(":"):
         steps.append("! ~/.local/bin isn't on your PATH; add it to ~/.zshrc")
+    if not args.no_skills:
+        steps += link_skills()
     r = core.run(["git", "config", "core.hooksPath", "githooks"], cwd=str(core.ROOT))
     steps.append("✓ Guardian pre-commit hook enabled" if r.ok else "✗ couldn't set git hooks: %s" % r.err)
     if not args.no_daemons:
@@ -48,8 +96,10 @@ def uninstall(args):
         daemon.uninstall(name)
     if _ours(LINK):
         os.remove(LINK)
+    skills = unlink_skills()
     core.run(["git", "config", "--unset", "core.hooksPath"], cwd=str(core.ROOT))
-    print("Removed daemons, the `cos` link and the git hook. Your private data is still in %s." % core.home())
+    print("Removed daemons, the `cos` link%s and the git hook. Your private data is still in %s."
+          % (", %d skill link%s" % (skills, "" if skills == 1 else "s") if skills else "", core.home()))
     return 0
 
 
@@ -63,6 +113,9 @@ def doctor(args):
     check(sys.version_info >= (3, 9), "python %s" % sys.version.split()[0], "needs Python 3.9+")
     check(bool(core.which("claude")), "claude on PATH", "install Claude Code: https://claude.com/claude-code")
     check(_ours(LINK), "`cos` command installed", "run: bin/cos install")
+    linked = [n for n in EVERYWHERE if _our_skill(os.path.join(skills_dir(), n), n)]
+    check(len(linked) == len(EVERYWHERE), "skills that work from any folder: %s" % (", ".join("/" + n for n in linked) or "none"),
+          "run: bin/cos install (or skip it: bin/cos install --no-skills)")
     hooks = core.run(["git", "config", "core.hooksPath"], cwd=str(core.ROOT)).out
     check(hooks == "githooks", "Guardian pre-commit hook", "run: git config core.hooksPath githooks")
     mode = oct(os.stat(str(core.home())).st_mode & 0o777)
