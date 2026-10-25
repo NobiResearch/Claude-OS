@@ -484,7 +484,9 @@ def make_handler(app):
 
     def r_music_play(h, q, b):
         from . import music
-        if b.get("playlist"):
+        if b.get("radio"):
+            res = music.radio(b.get("q") or None)
+        elif b.get("playlist"):
             res = music.play_playlist(b["playlist"], shuffle=True if b.get("shuffle") else None)
         elif b.get("id"):
             res = music.play_library({"id": b["id"], "name": b.get("name")})
