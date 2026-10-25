@@ -4,6 +4,9 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- The morning brief talks to you as "you" and doesn't guess things about you (a rehearsal
+  of the first headless brief guessed a gender).
+
 - **Radio** (decision 0005): `cos music radio "<song> <artist>"` plays the song in Claude
   OS's own player, then keeps going with similar music from its Apple Music station (the
   artist's if the song has none); with no argument it starts from the song playing now.
