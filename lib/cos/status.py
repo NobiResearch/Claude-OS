@@ -91,16 +91,8 @@ def top_processes(n=5):
 
 
 def security():
-    fv = core.run(["fdesetup", "status"], timeout=5).out
-    sip = core.run(["csrutil", "status"], timeout=5).out
-    fw = core.run(["/usr/libexec/ApplicationFirewall/socketfilterfw", "--getglobalstate"], timeout=5).out
-    gk = core.run(["spctl", "--status"], timeout=5)
-    return {
-        "filevault": "On" in fv if fv else None,
-        "sip": "enabled" in sip if sip else None,
-        "firewall": ("enabled" in fw or "State = 1" in fw) if fw else None,
-        "gatekeeper": "enabled" in (gk.out + gk.err) if (gk.out or gk.err) else None,
-    }
+    from . import security as sec  # the reader lives with the one switch that acts on it
+    return sec.posture()
 
 
 def parse_backup(text):

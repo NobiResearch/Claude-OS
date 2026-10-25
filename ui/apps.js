@@ -300,7 +300,10 @@
             : card("Power", h("div", { class: "muted" }, "No battery — desktop Mac.")),
           card("Load", h("div", { class: "kv-big" }, (s.load[0] || 0).toFixed(2)), h("div", { class: "muted small" }, "1 / 5 / 15 min: " + s.load.map((x) => x.toFixed(2)).join(" · "))),
           card("Security", h("div", { class: "badges" },
-            ["filevault", "sip", "firewall", "gatekeeper"].map((k) => h("span", { class: "sec " + (sec[k] ? "on" : sec[k] === false ? "off" : "") }, { filevault: "FileVault", sip: "SIP", firewall: "Firewall", gatekeeper: "Gatekeeper" }[k])))),
+            ["filevault", "sip", "firewall", "gatekeeper"].map((k) => h("span", { class: "sec " + (sec[k] ? "on" : sec[k] === false ? "off" : "") }, { filevault: "FileVault", sip: "SIP", firewall: "Firewall", gatekeeper: "Gatekeeper" }[k]))),
+            // Through the chat, so the Allow card and macOS's password dialog both come first.
+            sec.firewall === false ? h("div", { class: "row pad-t" }, btn("Turn on the firewall…", () => COS.ask("Turn on my firewall."), "ghost small"),
+              h("span", { class: "muted small" }, "macOS asks for your password")) : null),
         ));
         root.appendChild(card("Signals", ...signals));
         const startupBody = h("div", { class: "muted" }, "Checking what starts with this Mac…");

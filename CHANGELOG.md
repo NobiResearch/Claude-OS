@@ -4,6 +4,12 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **`cos security`**: FileVault, SIP, the firewall and Gatekeeper, what each does and how to
+  turn it on. `cos security on firewall --yes` turns the firewall on through macOS's own
+  password dialog, which says Claude OS is asking. It only ever turns things on. The
+  desktop's Security card offers it while the firewall is off
+  ([0008](docs/decisions/0008-firewall-switch.md)).
+
 - `cos update apply` shows progress as it goes, prints every warning and error with its
   details (instead of the last few lines of two streams glued together), names anything
   you asked to upgrade that's still outdated afterwards, and keeps the full output in
