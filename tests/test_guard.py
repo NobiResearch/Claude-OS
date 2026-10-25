@@ -82,9 +82,9 @@ class TestPrePush(TempHome):
         self.git("commit", "--quiet", "-m", message, email=email)
         return self.git("rev-parse", "HEAD")
 
-    def pushed(self, sha, remote="0" * 40):
-        line = "refs/heads/night/x %s refs/heads/night/x %s\n" % (sha, remote)
-        return guard.push_problems(guard.push_ranges(line, "origin/main"), cwd=self.repo)
+    def pushed(self, sha, remote="0" * 40, ref="refs/heads/night/x", to="origin"):
+        line = "%s %s %s %s\n" % (ref, sha, ref, remote)
+        return guard.push_problems(guard.push_ranges(line), remote=to, cwd=self.repo)
 
     def test_a_clean_push_passes(self):
         self.assertEqual(self.pushed(self.commit("notes.md", "fine\n")), [])
@@ -106,9 +106,60 @@ class TestPrePush(TempHome):
         self.assertEqual([where.split()[1] for where, _ in problems], ["author", "committer"])
 
     def test_deletions_publish_nothing_and_an_unknown_remote_tip_is_checked_from_main(self):
-        self.assertEqual(guard.push_ranges("refs/heads/x %s refs/heads/x %s\n" % ("0" * 40, "a" * 40), "origin/main"), [])
+        self.assertEqual(guard.push_ranges("refs/heads/x %s refs/heads/x %s\n" % ("0" * 40, "a" * 40)), [])
         sha = self.commit("notes.md", "fine\n", email="someone@example.com")
         self.assertTrue(self.pushed(sha, remote="b" * 40), "a force push past an unknown tip is still checked")
+
+    def test_a_root_commit_is_scanned(self):
+        self.git("checkout", "--quiet", "--orphan", "fresh")
+        self.git("rm", "-rq", "--cached", ".")
+        sha = self.commit("leak.txt", "key = %s\n" % ("AKIA" + "R" * 16))
+        self.assertTrue(any("AWS access key" in why for _, why in self.pushed(sha)), "plain diff-tree skips root commits")
+
+    def test_what_a_merge_adds_is_scanned(self):
+        self.commit("notes.md", "fine\n")
+        self.git("checkout", "--quiet", "-b", "side", "main")
+        self.commit("side.md", "side\n")
+        self.git("checkout", "--quiet", "night/x")
+        self.git("merge", "--quiet", "--no-ff", "--no-commit", "side")
+        with open(os.path.join(self.repo, "resolved.txt"), "w") as f:
+            f.write("token ghp_%s\n" % ("b" * 36))
+        self.git("add", "resolved.txt")
+        self.git("commit", "--quiet", "-m", "Merge side")
+        self.assertTrue(any("GitHub token" in why for _, why in self.pushed(self.git("rev-parse", "HEAD"))))
+
+    def test_noreply_means_githubs_noreply(self):
+        self.assertTrue(guard.noreply("1+someone@users.noreply.github.com"))
+        self.assertTrue(guard.noreply("noreply@github.com"))
+        for personal in ("someone+noreply@example.com", "noreply@example.com", ""):
+            self.assertFalse(guard.noreply(personal), personal)
+
+    def test_an_annotated_tag_is_checked_and_a_tree_is_refused(self):
+        sha = self.commit("notes.md", "fine\n")
+        self.git("tag", "-a", "v1", "-m", "token ghp_" + "c" * 36, sha, email="someone@example.com")
+        tag = self.git("rev-parse", "v1")
+        problems = self.pushed(tag, ref="refs/tags/v1")
+        self.assertTrue(any(where == "refs/tags/v1 tagger" for where, _ in problems), problems)
+        self.assertTrue(any(where == "refs/tags/v1 message" for where, _ in problems), problems)
+        tree = self.git("rev-parse", "HEAD^{tree}")
+        self.assertTrue(any("not a commit" in why for _, why in self.pushed(tree, ref="refs/tags/tree")))
+
+    def test_it_doesnt_need_origin_main(self):
+        self.git("remote", "rename", "origin", "upstream")
+        self.assertEqual(self.pushed(self.commit("notes.md", "fine\n"), to="upstream"), [], "a clean push still goes")
+
+    def test_a_file_git_cant_read_blocks_the_push(self):
+        from unittest import mock
+        from cos import evolve
+        real = evolve.git
+
+        def flaky(*args, **kw):
+            if args and args[0] == "show":
+                return evolve.core.Result(1, "", "fatal: timed out")
+            return real(*args, **kw)
+        sha = self.commit("notes.md", "fine\n")
+        with mock.patch.object(evolve, "git", flaky):
+            self.assertTrue(any("couldn't read" in why for _, why in self.pushed(sha)))
 
     def test_it_fails_closed(self):
         import io
@@ -117,7 +168,7 @@ class TestPrePush(TempHome):
         from types import SimpleNamespace
         with mock.patch.object(guard, "push_problems", side_effect=RuntimeError("boom")), \
                 mock.patch("sys.stdin", io.StringIO("")), redirect_stderr(io.StringIO()) as err:
-            self.assertEqual(guard.main(SimpleNamespace(push=True, text=None, all=False, quiet=False)), 1)
+            self.assertEqual(guard.main(SimpleNamespace(push=True, remote="origin", text=None, all=False, quiet=False)), 1)
         self.assertIn("couldn't check it", err.getvalue())
 
     def test_the_hook_is_installed_beside_pre_commit(self):

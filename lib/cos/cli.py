@@ -202,6 +202,7 @@ def build_parser():
     g.add_argument("--quiet", action="store_true")
     g.add_argument("--push", action="store_true",
                    help="githooks/pre-push: check what a push publishes (git passes the refs on stdin)")
+    g.add_argument("--remote", help="with --push: the remote being pushed to (git passes it to the hook)")
     g.add_argument("--text", nargs="+", metavar="FILE",
                    help="check these files' words before they're published (a pull request body, say)")
 

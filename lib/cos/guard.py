@@ -113,50 +113,83 @@ def text_problems(texts):
     return [p for label, text in texts for p in check_text(label, text, patterns)]
 
 
-def push_ranges(lines, base):
+def push_ranges(lines):
     """git's pre-push input ("<local ref> <local sha> <remote ref> <remote sha>" per line) ->
-    [(sha, base)]: what each pushed ref publishes. Deletions publish nothing; a new branch, or
-    one whose remote tip isn't known here (after a force push), is checked from `base`."""
+    [(ref, sha, remote sha or None)]. Deletions publish nothing."""
     out = []
     for line in lines.splitlines():
         parts = line.split()
         if len(parts) != 4 or set(parts[1]) == {"0"}:
             continue
-        remote = parts[3]
-        out.append((parts[1], base if set(remote) == {"0"} else remote))
+        out.append((parts[0], parts[1], None if set(parts[3]) == {"0"} else parts[3]))
     return out
 
 
-def push_problems(ranges, cwd=None):
-    """Everything the push would publish, commit by commit (files and messages, like the
-    night shift's own pushes), plus each commit's author and committer address: on a public
-    repository only noreply addresses. Anything git can't answer blocks the push."""
+def noreply(email):
+    """Only GitHub's own noreply addresses: "noreply" anywhere else (someone+noreply@…) is
+    still a personal address."""
+    e = (email or "").strip().lower()
+    return e.endswith("@users.noreply.github.com") or e == "noreply@github.com"
+
+
+def _personal(where):
+    return (where, "a personal email address in the commit itself; use your GitHub noreply address "
+                   "(git config user.email)")
+
+
+def push_problems(ranges, remote="origin", cwd=None):
+    """Everything the push would publish: each commit not already on the remote (files and
+    messages, like the night shift's own pushes), each commit's author and committer address,
+    and an annotated tag's tagger and message. Anything git can't answer blocks the push."""
     from . import evolve
     root = str(cwd or core.ROOT)
+
+    def git(*args, timeout=30):
+        return core.run(["git", "-C", root] + list(args), timeout=timeout)
     problems = []
-    for sha, base in ranges:
-        if not core.run(["git", "-C", root, "cat-file", "-e", base + "^{commit}"], timeout=10).ok:
-            base = "origin/" + evolve.main_branch(root)
-        listed = core.run(["git", "-C", root, "log", "--format=%h%x1f%ae%x1f%ce", "%s..%s" % (base, sha)], timeout=30)
-        if not listed.ok:
-            problems.append((sha[:8], "can't tell what this push publishes (%s)" % (listed.err or "git failed")[:120]))
+    for ref, sha, remote_sha in ranges:
+        kind = git("cat-file", "-t", sha).out
+        if kind == "tag":
+            tag = git("cat-file", "tag", sha)
+            if not tag.ok:
+                problems.append((ref, "git couldn't read the tag"))
+                continue
+            head, _, message = tag.out.partition("\n\n")
+            tagger = next((l for l in head.splitlines() if l.startswith("tagger ")), "")
+            email = tagger[tagger.find("<") + 1:tagger.find(">")] if "<" in tagger else ""
+            if tagger and not noreply(email):
+                problems.append(_personal("%s tagger" % ref))
+            problems += [("%s message" % ref, why) for _, why in
+                         check_text("tag", message, SECRET_PATTERNS + personal_patterns())]
+            target = git("rev-parse", "--verify", "--quiet", sha + "^{commit}")
+            if not target.ok:
+                problems.append((ref, "a tag of something other than a commit; the Guardian can't check it"))
+                continue
+            sha = target.out
+        elif kind != "commit":
+            problems.append((ref, "pushes a %s, not a commit; the Guardian can't check it" % (kind or "thing git can't name")))
             continue
+        # New to the remote: not on any of its branches here, and not in what it had at this ref.
+        since = ["^" + remote_sha] if remote_sha and git("cat-file", "-e", remote_sha + "^{commit}").ok else []
+        listed = git("log", "--format=%H%x1f%ae%x1f%ce", sha, "--not", "--remotes=" + remote, *since)
+        if not listed.ok:
+            problems.append((ref, "can't tell what this push publishes (%s)" % (listed.err or "git failed")[:120]))
+            continue
+        commits = []
         for line in filter(None, listed.out.splitlines()):
-            short, author, committer = (line.split("\x1f") + ["", ""])[:3]
-            for who, email in (("author", author), ("committer", committer)):
-                if "noreply" not in email.lower():
-                    problems.append(("%s %s" % (short, who), "a personal email address in the commit itself; "
-                                     "use your GitHub noreply address (git config user.email)"))
-        problems += evolve.guard_branch(sha, base, cwd=root)
+            full, author, committer = (line.split("\x1f") + ["", ""])[:3]
+            commits.append(full)
+            problems += [_personal("%s %s" % (full[:8], who)) for who, email in
+                         (("author", author), ("committer", committer)) if not noreply(email)]
+        problems += evolve.guard_commits(list(reversed(commits)), cwd=root)
     return problems
 
 
 def main(args):
     if getattr(args, "push", False):
         import sys
-        from . import evolve
         try:
-            problems = push_problems(push_ranges(sys.stdin.read(), "origin/" + evolve.main_branch()))
+            problems = push_problems(push_ranges(sys.stdin.read()), remote=args.remote or "origin")
         except Exception as e:  # fail closed: a push the Guardian couldn't read isn't a clean one
             problems = [("push", "the Guardian couldn't check it (%s)" % e)]
         if not problems:
