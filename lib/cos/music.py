@@ -1,10 +1,10 @@
-"""cos music — Apple Music, driven by AppleScript plus the public iTunes Search API.
+"""cos music — Apple Music, through Claude OS's own player plus the Music app.
 
-What's reliable: everything in the user's library (search, play, playlists,
-transport, volume). What's best-effort: songs that are only in the Apple Music
-catalog. AppleScript cannot address catalog items directly, so we open the
-item's page in Music and press play; if Music doesn't start it, the page is
-left open on the right song and we say so honestly.
+With "Apple Music in Claude OS" on (decisions 0003/0004), songs, library songs and playlists
+play in the app's MusicKit player, and pause, next, shuffle and love go there while it has a
+song. Otherwise the Music app is driven by AppleScript: reliable for the library, while
+catalog-only songs open on their page in Music (and we say so honestly if it doesn't play).
+The public iTunes Search API finds catalog songs either way.
 
 Hard-won rules (see docs/lessons.md):
   * Never play at volume 0: Music shows a modal warning that blocks all
@@ -53,13 +53,18 @@ return out
 """ % {"us": AS_US}
 
 
+def _own_now(st):
+    """Claude OS's player state, shaped like now()."""
+    return {"running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
+            "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
+            "volume": None, "shuffle": bool(st.get("shuffle")), "repeat": "off", "player": "Claude OS",
+            "playlist": st.get("playlist"), "artwork": st.get("artwork") or None}
+
+
 def now():
     own = player_state(max_age=30)
     if own and own.get("status") == "playing" and own.get("track"):
-        return {"running": True, "state": "playing", "track": own["track"], "artist": own.get("artist"),
-                "album": own.get("album"), "duration": own.get("duration", 0), "position": own.get("position", 0),
-                "volume": None, "shuffle": False, "repeat": "off", "player": "Claude OS",
-                "artwork": own.get("artwork") or None}
+        return _own_now(own)
     if not core.app_running("Music"):
         return {"running": False}
     r = _tell(NOW_SCRIPT, timeout=6)
@@ -122,15 +127,12 @@ return out
 
 def play_library(track):
     if player_enabled():
-        res = player_command("play-library", library={"title": track["name"], "artist": track.get("artist")})
+        res = player_command("play-library", extra={"title": track["name"], "artist": track.get("artist")})
         if res.get("ok"):
             if core.app_running("Music"):
                 _tell("pause", timeout=5)  # one player at a time
             st = res["state"]
-            return {"ok": True, "matched": fold(st.get("track")) == fold(track["name"]), "now": {
-                "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
-                "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
-                "player": "Claude OS"}}
+            return {"ok": True, "matched": fold(st.get("track")) == fold(track["name"]), "now": _own_now(st)}
         # otherwise fall back to the Music app below
     body = 'play (first track of library playlist 1 whose persistent ID is %s)' % core.applescript_str(track["id"])
     r = _tell(body, timeout=10)
@@ -160,6 +162,17 @@ def play_playlist(name, shuffle=None):
     if not match:
         return {"ok": False, "error": "no playlist matching %r" % name,
                 "playlists": [p["name"] for p in lists]}
+    if player_enabled():
+        # One player (0004): the playlist plays in Claude OS, so pause, next and love work.
+        extra = {"name": match["name"]}
+        if shuffle is not None:
+            extra["shuffle"] = "1" if shuffle else "0"
+        res = player_command("play-playlist", extra=extra)
+        if res.get("ok"):
+            if core.app_running("Music"):
+                _tell("pause", timeout=5)
+            return {"ok": True, "matched": True, "playlist": match["name"], "now": _own_now(res["state"])}
+        # otherwise fall back to the Music app below
     body = ""
     if shuffle is not None:
         body += "set shuffle enabled to %s\n" % ("true" if shuffle else "false")
@@ -273,7 +286,11 @@ def player_enabled():
     return bool(core.config()["music"].get("apple_music"))
 
 
-def player_command(command, catalog_id=None, wait=12, library=None):
+PLAYER_COMMANDS = ("authorize", "play", "play-library", "play-playlist", "pause", "resume", "stop",
+                   "next", "previous", "shuffle", "love", "unlove")
+
+
+def player_command(command, catalog_id=None, wait=12, extra=None):
     """Send a command to Claude OS's player and wait until it answers *this* request.
 
     Each command carries a request id that the app echoes in player.json, so the app's
@@ -281,21 +298,21 @@ def player_command(command, catalog_id=None, wait=12, library=None):
     per-launch nonce (core.app_url), so only something that can read ~/.claude-os can
     drive the player."""
     import uuid
-    if command not in ("authorize", "play", "play-library", "pause", "resume", "stop", "love", "unlove"):
+    if command not in PLAYER_COMMANDS:
         return {"ok": False, "error": "unknown player command"}
     if catalog_id is not None and not str(catalog_id).isdigit():
         return {"ok": False, "error": "bad catalog id"}
-    starts_playback = command in ("authorize", "play", "play-library")
+    starts_playback = command in ("authorize", "play", "play-library", "play-playlist")
     if not (core.ensure_app() if starts_playback else core.app_running("ClaudeOS")):
         return {"ok": False, "error": "Claude OS isn't running"}
     rid = uuid.uuid4().hex[:12]
     params = {"rid": rid, "id": catalog_id}
-    params.update(library or {})
+    params.update(extra or {})
     r = core.run(["open", "-g", core.app_url("music/%s" % command, **params)], timeout=15)
     if not r.ok:
         return {"ok": False, "error": "couldn't reach Claude OS: %s" % r.err[:200]}
     playing = lambda s: s.get("status") == "playing"
-    done = {"play": playing, "play-library": playing, "love": lambda s: s.get("loved"),
+    done = {"play": playing, "play-library": playing, "play-playlist": playing, "love": lambda s: s.get("loved"),
             "unlove": lambda s: s.get("loved") is False}.get(command)
     deadline = time.time() + wait
     state = None
@@ -467,14 +484,32 @@ def report(res, query=None):
     return 1
 
 
-def transport(cmd):
+def own_player_active():
+    """Claude OS's player has a song, playing or paused: transport goes there, not to Music."""
     own = player_state(max_age=30)
-    if own and own.get("track") and own.get("status") in ("playing", "paused") and cmd in ("pause", "resume", "toggle", "stop"):
+    return own if own and own.get("track") and own.get("status") in ("playing", "paused") else None
+
+
+def transport(cmd):
+    own = own_player_active()
+    if own:
         if cmd == "toggle":
             cmd = "pause" if own["status"] == "playing" else "resume"
-        res = player_command(cmd, wait=4)
-        print(("%s (Claude OS player)" % cmd) if res.get("ok") else "✗ %s" % res.get("error"))
-        return 0 if res.get("ok") else 1
+        asked = cmd
+        if cmd == "next" and not own.get("playlist"):
+            cmd = "stop"  # a single song has nothing after it
+        res = player_command({"prev": "previous"}.get(cmd, cmd), wait=4)
+        if not res.get("ok"):
+            print("✗ %s" % res.get("error"))
+            return 1
+        st = res["state"]
+        if cmd in ("next", "prev") and st.get("track"):
+            print("▶ %s — %s (Claude OS player)" % (st["track"], st.get("artist") or ""))
+        elif asked == "next":
+            print("stopped (nothing was queued after it in Claude OS)")
+        else:
+            print("%s (Claude OS player)" % cmd)
+        return 0
     scripts = {"pause": "pause", "resume": "play", "toggle": "playpause", "next": "next track",
                "prev": "back track", "stop": "stop"}
     r = _tell(scripts[cmd], timeout=6)
@@ -588,6 +623,10 @@ def main(args):
             return 1
         return report(res, " ".join(args.name))
     if c == "shuffle":
+        if own_player_active():
+            res = player_command("shuffle", wait=4, extra={"on": "1" if args.state == "on" else "0"})
+            print(("shuffle %s (Claude OS player)" % args.state) if res.get("ok") else "✗ %s" % res.get("error"))
+            return 0 if res.get("ok") else 1
         _tell("set shuffle enabled to %s" % ("true" if args.state == "on" else "false"))
         print("shuffle %s" % args.state)
         return 0

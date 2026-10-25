@@ -5,22 +5,25 @@ import MusicKit
 /// ApplicationMusicPlayer plays any catalog song with the human's subscription, under the
 /// narrow "Media & Apple Music" permission. No UI scripting, no Accessibility.
 ///
-/// Commands arrive as URLs, so `cos` (and Claude sessions, through `cos`) can drive it
-/// without any token or private channel:
+/// Commands arrive as URLs from `cos` (and Claude sessions, through `cos`), carrying this
+/// launch's nonce (AppURL), so a link from anywhere else is refused:
 ///   claude-os://music/authorize          ask macOS for Media & Apple Music access
 ///   claude-os://music/play?id=<digits>   play a catalog song by its Apple Music id
 ///   claude-os://music/play-library?title=…&artist=…   play a song from the human's library
-///   claude-os://music/pause | resume | stop
+///   claude-os://music/play-playlist?name=…&shuffle=1|0  play one of the human's playlists
+///   claude-os://music/pause | resume | stop | next | previous
+///   claude-os://music/shuffle?on=1|0
 ///   claude-os://music/love               love the current song in the human's Apple Music
 ///   claude-os://music/unlove             remove that rating again
 /// Every command rewrites ~/.claude-os/state/player.json, which `cos music now` reads.
-/// The worst a stray link can do is play or pause a song, or favorite the one playing.
 /// The music commands a claude-os:// link can carry. Anything else is refused, and ids must
-/// be all digits, so a stray link can at most play, pause or rate a song.
+/// be all digits, so even a trusted link can at most play, pause or rate a song.
 enum MusicCommand: Equatable {
-    case authorize, pause, resume, stop, love, unlove
+    case authorize, pause, resume, stop, next, previous, love, unlove
     case play(id: String)
     case playLibrary(title: String, artist: String)
+    case playPlaylist(name: String, shuffle: Bool?)
+    case shuffle(on: Bool)
 
     init?(url: URL) {
         guard url.scheme == "claude-os", url.host == "music" else { return nil }
@@ -31,6 +34,8 @@ enum MusicCommand: Equatable {
         case "pause": self = .pause
         case "resume": self = .resume
         case "stop": self = .stop
+        case "next": self = .next
+        case "previous": self = .previous
         case "love": self = .love
         case "unlove": self = .unlove
         case "play":
@@ -41,6 +46,14 @@ enum MusicCommand: Equatable {
             let title = value("title")
             guard !title.isEmpty, title.count <= 200 else { return nil }
             self = .playLibrary(title: title, artist: String(value("artist").prefix(200)))
+        case "play-playlist":
+            let name = value("name")
+            guard !name.isEmpty, name.count <= 200 else { return nil }
+            let shuffle = value("shuffle")
+            self = .playPlaylist(name: name, shuffle: shuffle.isEmpty ? nil : shuffle == "1")
+        case "shuffle":
+            guard ["0", "1"].contains(value("on")) else { return nil }
+            self = .shuffle(on: value("on") == "1")
         default: return nil
         }
     }
@@ -52,6 +65,7 @@ final class Player {
 
     private let player = ApplicationMusicPlayer.shared
     private var current: Song?
+    private var playlist: String?  // the playlist playing, if any; then the queue says which song
     private var lovedID: String?
     private var requestID: String?
     private var lastError: String?
@@ -76,7 +90,7 @@ final class Player {
             return
         }
         switch command {
-        case .authorize, .play, .playLibrary:
+        case .authorize, .play, .playLibrary, .playPlaylist:
             guard Self.appleMusicEnabled else {
                 lastError = "Apple Music in Claude OS is off (Settings › Permissions)"
                 write()
@@ -90,9 +104,15 @@ final class Player {
             case .authorize: await authorize()
             case .play(let id): await play(id: id)
             case .playLibrary(let title, let artist): await playLibrary(title: title, artist: artist)
+            case .playPlaylist(let name, let shuffle): await playPlaylist(name: name, shuffle: shuffle)
             case .pause: player.pause(); ticker?.invalidate(); lastError = nil; await settledWrite()
             case .resume: try? await player.play(); startTicking(); lastError = nil; await settledWrite()
-            case .stop: player.stop(); ticker?.invalidate(); current = nil; lastError = nil; await settledWrite()
+            case .stop:
+                player.stop(); ticker?.invalidate(); current = nil; playlist = nil; lastError = nil
+                await settledWrite()
+            case .next: await skip { try await $0.skipToNextEntry() }
+            case .previous: await skip { try await $0.skipToPreviousEntry() }
+            case .shuffle(let on): player.state.shuffleMode = on ? .songs : .off; lastError = nil; write()
             case .love: await rate(love: true)
             case .unlove: await rate(love: false)
             }
@@ -121,6 +141,7 @@ final class Player {
             player.queue = [song]
             try await player.play()
             current = song
+            playlist = nil
             lastError = nil
             startTicking()
         } catch {
@@ -151,6 +172,7 @@ final class Player {
             player.queue = [song]
             try await player.play()
             current = song
+            playlist = nil
             lastError = nil
             startTicking()
         } catch {
@@ -159,10 +181,59 @@ final class Player {
         write()
     }
 
+    /// A playlist from the human's library, so "play my Deep Work playlist" plays here too
+    /// and pause, next and love keep working. `cos` matches the name against Music's list
+    /// first; here an exact (case-insensitive) match wins over a partial one.
+    private func playPlaylist(name: String, shuffle: Bool?) async {
+        if MusicAuthorization.currentStatus != .authorized {
+            guard await authorize() else { return }
+        }
+        do {
+            var request = MusicLibraryRequest<Playlist>()
+            request.filter(matching: \.name, contains: name)
+            request.limit = 25
+            let lists = try await request.response().items
+            guard let list = lists.first(where: { $0.name.lowercased() == name.lowercased() }) ?? lists.first else {
+                lastError = "no playlist called \(name) in the library"
+                write()
+                return
+            }
+            if let shuffle = shuffle { player.state.shuffleMode = shuffle ? .songs : .off }
+            player.queue = [list]
+            try await player.play()
+            current = nil
+            playlist = list.name
+            lastError = nil
+            startTicking()
+        } catch {
+            lastError = "MusicKit couldn't play the playlist: \(error.localizedDescription)"
+        }
+        write()
+    }
+
+    private func skip(_ move: (ApplicationMusicPlayer) async throws -> Void) async {
+        do {
+            try await move(player)
+            lastError = nil
+            startTicking()
+        } catch {
+            lastError = "couldn't skip: \(error.localizedDescription)"
+        }
+        await settledWrite()
+    }
+
+    /// The song the queue is on: a playlist moves along by itself.
+    private var nowPlaying: Song? {
+        if playlist != nil, let entry = player.queue.currentEntry, case .song(let song)? = entry.item {
+            return song
+        }
+        return current
+    }
+
     /// "Love" the current song in the human's Apple Music (the same as ♥ in Music), via the
     /// Apple Music API's ratings endpoint. MusicDataRequest adds both tokens itself.
     private func rate(love: Bool) async {
-        guard let song = current else {
+        guard let song = nowPlaying else {
             lastError = "nothing is playing in Claude OS"
             write()
             return
@@ -212,7 +283,9 @@ final class Player {
             "authorization": Self.describe(MusicAuthorization.currentStatus),
             "status": Self.describe(player.state.playbackStatus),
         ]
-        if let song = current {
+        state["shuffle"] = player.state.shuffleMode == .songs
+        if let name = playlist { state["playlist"] = name }
+        if let song = nowPlaying {
             state["id"] = song.id.rawValue
             state["track"] = song.title
             state["artist"] = song.artistName

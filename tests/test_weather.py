@@ -86,6 +86,63 @@ class TestClaudeOSPlayer(TempHome):
         self.assertEqual((rc, sent, told), (0, ["love"], []), "the Music app must not be touched")
         self.assertIn("Awake — Tycho", out.getvalue())
 
+    def _fake_player(self, state, music):
+        sent, told = [], []
+        orig = music.player_command, music._tell, music.player_enabled, music.playlists, core.app_running
+        music.player_command = lambda cmd, **k: sent.append((cmd, k.get("extra"))) or {"ok": True, "state": dict(state)}
+        music._tell = lambda body, timeout=10: told.append(body)
+        music.player_enabled = lambda: True
+        music.playlists = lambda: [{"name": "Deep Work", "tracks": 12}, {"name": "Rock", "tracks": 3}]
+        core.app_running = lambda name: False
+
+        def restore():
+            music.player_command, music._tell, music.player_enabled, music.playlists, core.app_running = orig
+        self.addCleanup(restore)
+        return sent, told
+
+    def test_playlists_play_in_our_player(self):
+        from cos import music
+        sent, told = self._fake_player({"status": "playing", "track": "Awake", "playlist": "Deep Work"}, music)
+        res = music.play_playlist("deep work", shuffle=True)
+        self.assertTrue(res["ok"])
+        self.assertEqual(sent, [("play-playlist", {"name": "Deep Work", "shuffle": "1"})])
+        self.assertEqual((res["now"]["player"], res["now"]["playlist"], told), ("Claude OS", "Deep Work", []))
+
+    def test_playlist_falls_back_to_music_when_our_player_fails(self):
+        from cos import music
+        sent, told = self._fake_player({}, music)
+        music.player_command = lambda cmd, **k: {"ok": False, "error": "no playlist called Rock in the library"}
+        music._tell = lambda body, timeout=10: told.append(body) or core.Result(0, "", "")
+        orig_confirm = music._confirm
+        music._confirm = lambda name: {"ok": True}
+        self.addCleanup(setattr, music, "_confirm", orig_confirm)
+        self.assertTrue(music.play_playlist("rock")["ok"])
+        self.assertIn('play user playlist "Rock"', told[-1])
+
+    def test_next_and_shuffle_go_to_our_player(self):
+        import io, time
+        from contextlib import redirect_stdout
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
+                                                            "track": "Awake", "playlist": "Deep Work"})
+        sent, told = self._fake_player({"status": "playing", "track": "Montana", "artist": "Tycho"}, music)
+        with redirect_stdout(io.StringIO()) as out:
+            music.transport("next")
+            music.transport("prev")
+        self.assertEqual([c for c, _ in sent], ["next", "previous"])
+        self.assertIn("Montana — Tycho", out.getvalue())
+        self.assertEqual(told, [], "the Music app must not be touched")
+
+    def test_next_on_a_single_song_stops_it(self):
+        import io, time
+        from contextlib import redirect_stdout
+        from cos import music
+        core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing", "track": "Awake"})
+        sent, _ = self._fake_player({"status": "stopped"}, music)
+        with redirect_stdout(io.StringIO()):
+            music.transport("next")
+        self.assertEqual([c for c, _ in sent], ["stop"])
+
     def test_catalog_id_from_song_links(self):
         from cos import music
         self.assertEqual(music._id_from_url("https://music.apple.com/us/album/x/123?i=456"), "456")

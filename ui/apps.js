@@ -503,7 +503,7 @@
         else if (!n.track) { title.textContent = "Nothing loaded"; artist.textContent = ""; times.textContent = ""; }
         else {
           title.textContent = n.track;
-          artist.textContent = [n.artist, n.album].filter(Boolean).join(" — ");
+          artist.textContent = [n.artist, n.album].filter(Boolean).join(" — ") + (n.playlist ? " · from " + n.playlist : "");
           if (document.activeElement !== vol) vol.value = Math.max(1, n.volume || 1);
         }
         if (n.artwork !== artUrl) {

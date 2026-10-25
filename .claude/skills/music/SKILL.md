@@ -19,7 +19,8 @@ You are the DJ. The syscall does mechanics; you bring taste.
      Lover Petit Biscuit", "Teardrop Massive Attack", "An Ending (Ascent) Brian Eno". Vary
      your picks between requests; check history so you don't repeat the last one.
    - "Something from my library": `bin/cos music find <genre or word>`, or
-     `bin/cos music playlists`, then play a playlist with `--shuffle`.
+     `bin/cos music playlists`, then `bin/cos music playlist "<name>" --shuffle`. It plays in
+     Claude OS's own player when that's on, so next, shuffle and like work there too.
 3. **Play it.** `bin/cos music play "<song> <artist>"`. It tries the library first; then, if
    "Apple Music in Claude OS" is on, it plays the catalog song in Claude OS's own player;
    otherwise it opens the song page in Music (`bin/cos music setup` shows the state). `--source catalog`
