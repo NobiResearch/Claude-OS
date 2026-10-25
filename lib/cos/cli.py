@@ -104,11 +104,12 @@ def build_parser():
     su = cmd("startup", "what starts with this Mac (read-only)")
     su.add_argument("--full", action="store_true",
                     help="macOS's full login items list, apps included (macOS asks for an admin password)")
-    hk = cmd("hook", "Claude Code hooks (night shift pushes, decision 0006)")
+    hk = cmd("hook", "Claude Code hooks (night shift pushes and merges, decision 0006)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
-    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch on its own?")
-    hk_check.add_argument("branch")
+    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch, or merge this pull request, "
+                                               "on its own? With nothing: the night's pull requests that wait")
+    hk_check.add_argument("target", nargs="?", help="a night/* branch or a pull request number")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
     ca_sub = ca_.add_subparsers(dest="cal_cmd")

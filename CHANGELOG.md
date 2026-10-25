@@ -4,6 +4,14 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **Night shift opens pull requests for everything and merges the safe ones.** Work that
+  touches Claude OS's core no longer stays on your Mac until morning. It's pushed, CI
+  runs, and the pull request waits for your merge; everything else merges by itself. The
+  morning brief lists what waits ("Waiting for your merge"), and `cos hook check` shows
+  it too. Merges, and the commands that could merge another way, now ask unless the night
+  shift's check passes ([0006](docs/decisions/0006-night-shift-pushes.md), second
+  amendment).
+
 - Night shift's push check closes four gaps the board found: a moved file now counts under
   its old name too, a file in `lib/` that could shadow Python's own modules counts as a
   safety file, a failed `git diff` asks you instead of passing, and the hook only approves

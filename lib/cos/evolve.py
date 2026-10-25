@@ -205,6 +205,11 @@ def main(args):
             print("%s  (%d commit%s)" % (r["branch"], len(r["commits"]), "" if len(r["commits"]) == 1 else "s"))
             for c_ in r["commits"][:5]:
                 print("    %s" % c_)
+        from . import hook
+        night = hook.waiting()
+        if night:  # quiet when there are none, or GitHub can't be asked
+            print("\nNight shift pull requests:")
+            hook.render_waiting(night)
         return 0
     if c == "review":
         base = main_branch()

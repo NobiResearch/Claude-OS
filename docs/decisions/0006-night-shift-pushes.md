@@ -82,3 +82,77 @@ pushed and merged one night, and then the next night's checks would run on the l
 code. Those four files are now protected too, so changes to them wait for the human. Most
 night work still goes ahead: subsystem modules, the desktop (`ui/`), the app (`app/`), docs
 and tests.
+
+## Second amendment, 2026-10-25: push anything, merge the safe ones
+
+The first amendment protected more files, and the human saw the cost straight away. Most
+features touch `core`, `cli` or `server`, so most night work couldn't even be pushed, and
+13 of the last 17 pull requests would have waited on the Mac until morning. They asked:
+"maybe allow pr, and i can allow merges in the morning?" The board agreed that pushing
+was the wrong place for the check. A push publishes, which the Guardian answers. A merge
+is where code starts to run, so that's where the safety files belong.
+
+| Seat | Vote | Top reason |
+|---|---|---|
+| Architect | amend | Right split: privacy at the push, integrity at the merge. Pin the commit, read the files from local git, and make the protected list honest. |
+| Guardian | amend | Pushing protected work is low-risk, but `.github/` must stay unpushed: a workflow can give itself a write token and merge pull requests. Today's check could be dodged by renaming a file. |
+| Steward | amend | It unblocks nearly every night. Keep mornings light: one list, plain words, a small pile, and flag only the PRs that touch the safety checks. |
+| Skeptic | amend | It's a tripwire, not a wall: one GitHub login, and several spellings slip past prefix rules. Write that down. No network calls the night can stall on. |
+
+**Approved, with conditions.** The gaps the board found in the push check were fixed first,
+in their own pull request (#30): renames, `lib/` shadowing, a failed diff read as "no
+changes", and the hook running from something other than a clean main.
+
+**Decision.**
+1. **Pushing** a `night/*` branch no longer depends on which files it changes, except
+   `.github/`. CI runs a branch's workflow on push, and a workflow can declare its own
+   write token, so CI changes stay local for the human. Every other condition holds: the
+   exact command, same repository, a plain GitHub remote, the Guardian on every commit and
+   message, a clean main, and not a daemon.
+2. **Merging is the gate.**
+   - `gh pr merge`, `gh-axi pr merge`, `gh api`, `gh-axi api`, `gh alias set`,
+     `gh extension install`, `gh stack` and `git -C|-c … push` now ask.
+   - The hook approves exactly `gh pr merge <N> --squash --delete-branch
+     --match-head-commit <sha>`, and only when all of these hold:
+     - the PR is an open, non-draft PR of this repository, from `night/*` into main;
+     - its head is that commit, and so is the local branch's;
+     - every check finished green, `test` included;
+     - local git (`--no-renames`) shows it touching no protected path;
+     - the Guardian passes its commits and its title.
+
+     It makes one `gh pr view` call, with a 15-second limit, and fails closed.
+   - Read-only `gh api <path>` calls are let through.
+   - `cos hook check <PR>` gives the same answer and prints the command to merge with, so
+     the night shift merges only what it checked and leaves the rest open.
+3. **What counts as protected** at merge:
+   - the gate files from before;
+   - `lib/cos/__init__.py` and `lib/cos/chat.py` (the app's Allow/Deny path);
+   - anything in `lib/` outside `lib/cos/`, which would shadow the standard library;
+   - `__pycache__/`, `*.pyc` and `*.pth`.
+4. **CI's token is read-only** (`permissions: contents: read` in `test.yml`), whatever the
+   repository default.
+5. **Mornings.**
+   - `cos evolve` and `cos hook check` list the night's open pull requests and what each
+     waits for.
+   - The brief shows one "Waiting for your merge" list in plain words and marks only the
+     PRs that touch the safety checks themselves.
+   - Each night branch starts from `origin/main`, and at most 3 wait at a time.
+   - The human merges on GitHub, or says "merge them" in a session and approves each merge.
+
+**A tripwire, not a wall.** Claude uses the human's own GitHub login, and GitHub's ruleset
+can't tell the two apart. These rules stop drift and honest mistakes, not a compromised
+session. Spellings they don't catch include:
+- `gh` run by its full path, or through `command`;
+- a script run with `python3 -` that calls the API;
+- any new wrapper.
+
+CLAUDE.md's law 1 forbids merging any other way.
+
+**Daytime.** The Night shift switch is a setting, not a clock. While it's on, ordinary pull
+requests merge without a prompt. A pull request that touches the gate prompts twice: once
+to push it, once to merge it. The human accepted that.
+
+**Not yet.** Merging the whole morning queue with one approval. A native confirmation for
+turning Night shift on: the desktop page itself can call that endpoint, so a merged change
+to `ui/` could flip it. A Guardian scan of pull request bodies before they're published
+(titles are scanned at merge).

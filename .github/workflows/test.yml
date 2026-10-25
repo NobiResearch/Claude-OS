@@ -2,6 +2,10 @@ name: test
 on:
   push:
   pull_request:
+# Read-only token, whatever the repository default is: nothing a branch's tests run can
+# merge or push (decision 0006).
+permissions:
+  contents: read
 jobs:
   test:
     runs-on: macos-latest

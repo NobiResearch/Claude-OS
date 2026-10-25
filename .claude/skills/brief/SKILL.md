@@ -14,8 +14,9 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos cal --json`: today's events and due reminders, if they've connected the calendar.
 - `bin/cos update --json` (cached data is fine; don't `--fetch` here).
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
-- `bin/cos friction` and `bin/cos evolve`: what the OS itself needs.
-- `bin/cos log --days 1 --kind action`: anything the night shift pushed ("night shift: pushed …").
+- `bin/cos friction` and `bin/cos evolve`: what the OS itself needs, including the night
+  shift's open pull requests and what each waits for.
+- `bin/cos log --days 1 --kind action`: what the night shift pushed and merged ("night shift: …").
 - The boot banner's memory: what they care about.
 
 ## Write
@@ -39,8 +40,12 @@ then the link. Prefer depth over news. Skip duplicates across feeds.
 A single delightful item: a surprising idea, a beautiful essay, an xkcd. Optional.
 
 ## Claude OS
-Only if there's something: an evolve branch waiting for review, open friction, or one line
-listing what the night shift pushed ("Night shift: pushed night/x, night/y"). Nothing on quiet nights.
+Only if there's something: an evolve branch waiting for review, open friction, one line on
+what the night shift merged, and **Waiting for your merge**: each of its open pull requests
+in one plain line (what it does for them, the link). Mark the ones that touch the safety
+checks themselves (hook, guard, evolve, settings, CLAUDE.md, the Night shift switch) as
+"read this one"; core and server plumbing is routine. "Merge them" in a session does it.
+Nothing on quiet nights.
 ```
 
 ## Rules
