@@ -76,18 +76,48 @@ def load():
     return [float(x) for x in nums[:3]]
 
 
-def top_processes(n=5):
-    r = core.run(["ps", "-Ao", "pid=,pcpu=,rss=,comm="], timeout=5)
-    procs = []
-    for line in r.out.splitlines():
+def app_name(comm):
+    """Who a process belongs to: the outermost .app in its path, so Firefox's
+    plugin-containers and Chrome's helpers count as Firefox and Google Chrome; otherwise
+    the executable's own name."""
+    m = re.search(r"/([^/]+)\.app/", comm)
+    return m.group(1) if m else os.path.basename(comm)
+
+
+def parse_ps(text):
+    """`ps -Ao pid=,pcpu=,rss=,comm=` -> one row per app: summed CPU and memory, how many
+    processes, and the pid of the biggest one."""
+    groups = {}
+    for line in text.splitlines():
         parts = line.split(None, 3)
-        if len(parts) == 4:
-            pid, cpu, rss, comm = parts
-            procs.append({"pid": int(pid), "cpu": float(cpu), "rss": int(rss) * 1024,
-                          "name": os.path.basename(comm)})
-    by_cpu = sorted(procs, key=lambda p: -p["cpu"])[:n]
-    by_mem = sorted(procs, key=lambda p: -p["rss"])[:n]
-    return {"cpu": by_cpu, "memory": by_mem}
+        if len(parts) != 4:
+            continue
+        pid, cpu, rss, comm = parts
+        try:
+            cpu, rss = float(cpu), int(rss) * 1024
+        except ValueError:
+            continue
+        name = app_name(comm)
+        g = groups.setdefault(name, {"name": name, "cpu": 0.0, "rss": 0, "count": 0, "pid": int(pid), "_big": -1})
+        g["cpu"] += cpu
+        g["rss"] += rss
+        g["count"] += 1
+        if rss > g["_big"]:
+            g["pid"], g["_big"] = int(pid), rss
+    rows = list(groups.values())
+    for g in rows:
+        del g["_big"]
+        g["cpu"] = round(g["cpu"], 1)
+    return rows
+
+
+def top_processes(n=5):
+    rows = parse_ps(core.run(["ps", "-Ao", "pid=,pcpu=,rss=,comm="], timeout=5).out)
+    return {"cpu": sorted(rows, key=lambda p: -p["cpu"])[:n], "memory": sorted(rows, key=lambda p: -p["rss"])[:n]}
+
+
+def _proc(p, value):
+    return "%s%s %s" % (p["name"], " ×%d" % p["count"] if p.get("count", 1) > 1 else "", value)
 
 
 def security():
@@ -269,8 +299,8 @@ def render(s):
             flag(sec.get("filevault")), flag(sec.get("sip")), flag(sec.get("firewall")), flag(sec.get("gatekeeper"))))
     top = s.get("top")
     if top:
-        print("  top cpu  " + ", ".join("%s %.0f%%" % (p["name"], p["cpu"]) for p in top["cpu"][:4]))
-        print("  top mem  " + ", ".join("%s %s" % (p["name"], core.human_bytes(p["rss"])) for p in top["memory"][:4]))
+        print("  top cpu  " + ", ".join(_proc(p, "%.0f%%" % p["cpu"]) for p in top["cpu"][:4]))
+        print("  top mem  " + ", ".join(_proc(p, core.human_bytes(p["rss"])) for p in top["memory"][:4]))
     week = disk_trend(trends())
     if week is not None:
         print("  trend    free disk %s%s per week" % ("+" if week >= 0 else "−", core.human_bytes(abs(week))))

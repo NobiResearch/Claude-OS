@@ -59,5 +59,28 @@ class TestBackupSignal(TempHome):
         self.assertEqual(core.cache_get("backup")["data"], {"configured": False})
 
 
+PS = """  101  12.5 2048000 /Applications/Firefox.app/Contents/MacOS/firefox
+  102   3.0 1024000 /Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container
+  103   0.5 3072000 /Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container
+  200  20.0  512000 /System/Library/PrivateFrameworks/SkyLight.framework/Resources/WindowServer
+  300   0.0       0 /usr/libexec/somed
+garbage line
+"""
+
+
+class TestTopProcesses(unittest.TestCase):
+    def test_helpers_count_as_their_app(self):
+        rows = {r["name"]: r for r in status.parse_ps(PS)}
+        self.assertEqual(set(rows), {"Firefox", "WindowServer", "somed"})
+        ff = rows["Firefox"]
+        self.assertEqual((ff["count"], ff["cpu"], ff["rss"], ff["pid"]), (3, 16.0, 6144000 * 1024, 103))
+        self.assertEqual(rows["somed"]["cpu"], 0.0)
+        self.assertEqual(status.app_name("/usr/bin/python3"), "python3")
+
+    def test_the_line_says_how_many(self):
+        self.assertEqual(status._proc({"name": "Firefox", "count": 3}, "6 GB"), "Firefox ×3 6 GB")
+        self.assertEqual(status._proc({"name": "WindowServer", "count": 1}, "20%"), "WindowServer 20%")
+
+
 if __name__ == "__main__":
     unittest.main()

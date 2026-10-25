@@ -214,7 +214,7 @@ def render(data):
     if data["missing_tools"]:
         print("tip: `brew install mas` lets Claude OS see App Store updates too")
     print("\nupgrade with: cos update apply brew|npm|mas|rustup [names...] --yes · macOS: cos update apply macos"
-          " · Claude OS: cos update apply claude-os --yes")
+          + (" · Claude OS: cos update apply claude-os --yes" if (src.get("claude-os") or {}).get("items") else ""))
 
 
 def render_claude_os(s):

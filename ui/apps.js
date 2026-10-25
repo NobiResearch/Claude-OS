@@ -317,7 +317,8 @@
           startupBody.appendChild(h("div", { class: "row" }, btn("Ask Claude to review", () => COS.ask("/startup"), "ghost small")));
         }).catch(() => { startupBody.textContent = "Couldn't read the login items."; });
         if (s.top) {
-          const table = (rows, val) => h("table", { class: "mini" }, h("tbody", null, rows.map((p) => h("tr", null, h("td", null, p.name), h("td", { class: "num" }, val(p))))));
+          const table = (rows, val) => h("table", { class: "mini" }, h("tbody", null, rows.map((p) => h("tr", null,
+            h("td", null, p.name, p.count > 1 ? h("span", { class: "muted" }, " ×" + p.count) : null), h("td", { class: "num" }, val(p))))));
           root.appendChild(h("div", { class: "grid2" },
             card("Top CPU", table(s.top.cpu, (p) => p.cpu.toFixed(0) + "%")),
             card("Top memory", table(s.top.memory, (p) => fmt.bytes(p.rss)))));
