@@ -182,3 +182,7 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **A fast-forward runs the incoming tree's hooks.** With a relative `core.hooksPath`
   (`githooks`), `git merge --ff-only` runs the `post-merge` that the merge itself just
   brought in. Code that moves a checkout runs git with `-c core.hooksPath=/dev/null`.
+- **`defaults` reads system preferences that a direct read can't.** Without Full Disk Access,
+  `plutil` on `/Library/Preferences/com.apple.TimeMachine.plist` is denied, but `defaults
+  export /Library/Preferences/com.apple.TimeMachine -` returns it through `cfprefsd`.
+- **In zsh, `log` is a builtin.** Use `/usr/bin/log show …` for the unified log.
