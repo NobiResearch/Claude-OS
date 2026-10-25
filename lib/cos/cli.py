@@ -200,6 +200,8 @@ def build_parser():
     g = cmd("guard", "block private data from the public repo", json_flag=False)
     g.add_argument("--all", action="store_true", help="scan every tracked file, not just staged ones")
     g.add_argument("--quiet", action="store_true")
+    g.add_argument("--push", action="store_true",
+                   help="githooks/pre-push: check what a push publishes (git passes the refs on stdin)")
     g.add_argument("--text", nargs="+", metavar="FILE",
                    help="check these files' words before they're published (a pull request body, say)")
 

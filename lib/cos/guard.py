@@ -113,7 +113,60 @@ def text_problems(texts):
     return [p for label, text in texts for p in check_text(label, text, patterns)]
 
 
+def push_ranges(lines, base):
+    """git's pre-push input ("<local ref> <local sha> <remote ref> <remote sha>" per line) ->
+    [(sha, base)]: what each pushed ref publishes. Deletions publish nothing; a new branch, or
+    one whose remote tip isn't known here (after a force push), is checked from `base`."""
+    out = []
+    for line in lines.splitlines():
+        parts = line.split()
+        if len(parts) != 4 or set(parts[1]) == {"0"}:
+            continue
+        remote = parts[3]
+        out.append((parts[1], base if set(remote) == {"0"} else remote))
+    return out
+
+
+def push_problems(ranges, cwd=None):
+    """Everything the push would publish, commit by commit (files and messages, like the
+    night shift's own pushes), plus each commit's author and committer address: on a public
+    repository only noreply addresses. Anything git can't answer blocks the push."""
+    from . import evolve
+    root = str(cwd or core.ROOT)
+    problems = []
+    for sha, base in ranges:
+        if not core.run(["git", "-C", root, "cat-file", "-e", base + "^{commit}"], timeout=10).ok:
+            base = "origin/" + evolve.main_branch(root)
+        listed = core.run(["git", "-C", root, "log", "--format=%h%x1f%ae%x1f%ce", "%s..%s" % (base, sha)], timeout=30)
+        if not listed.ok:
+            problems.append((sha[:8], "can't tell what this push publishes (%s)" % (listed.err or "git failed")[:120]))
+            continue
+        for line in filter(None, listed.out.splitlines()):
+            short, author, committer = (line.split("\x1f") + ["", ""])[:3]
+            for who, email in (("author", author), ("committer", committer)):
+                if "noreply" not in email.lower():
+                    problems.append(("%s %s" % (short, who), "a personal email address in the commit itself; "
+                                     "use your GitHub noreply address (git config user.email)"))
+        problems += evolve.guard_branch(sha, base, cwd=root)
+    return problems
+
+
 def main(args):
+    if getattr(args, "push", False):
+        import sys
+        from . import evolve
+        try:
+            problems = push_problems(push_ranges(sys.stdin.read(), "origin/" + evolve.main_branch()))
+        except Exception as e:  # fail closed: a push the Guardian couldn't read isn't a clean one
+            problems = [("push", "the Guardian couldn't check it (%s)" % e)]
+        if not problems:
+            return 0
+        print("guard: blocked — this push would publish:", file=sys.stderr)
+        for path, why in problems:
+            print("  %s: %s" % (path, why), file=sys.stderr)
+        print("Fix the commits (git commit --amend, git rebase -i), or if you're sure, push with --no-verify.",
+              file=sys.stderr)
+        return 1
     if args.text:
         texts = []
         for name in args.text:

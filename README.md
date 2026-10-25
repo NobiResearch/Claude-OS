@@ -138,8 +138,9 @@ going while the session is open.
 
 This repository is public; your life isn't. Everything about you lives in `~/.claude-os`
 (mode 700). A pre-commit hook (`cos guard`) blocks private files, credentials, API keys,
-your home path and git email from ever being committed, and a test runs the same scan over
-the whole tree. Details in [docs/architecture.md](docs/architecture.md#privacy-model).
+your home path and git email from ever being committed; a pre-push hook checks every commit
+a push would publish, messages and email addresses included; and a test runs the same scan
+over the whole tree. Details in [docs/architecture.md](docs/architecture.md#privacy-model).
 
 ## Safety
 

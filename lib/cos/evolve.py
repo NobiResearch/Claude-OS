@@ -84,19 +84,22 @@ def run_tests(path):
     return core.run_sandboxed(["python3", "-m", "unittest", "discover", "-s", "tests", "-q"], cwd=path)
 
 
-def guard_branch(branch, base=None):
+def guard_branch(branch, base=None, cwd=None):
     """Run the Guardian over every commit the branch would publish, one by one, and its
     message: a file added in one commit and deleted in the next is still pushed."""
     from . import guard
+
+    def git_(*args):
+        return git(*args, cwd=cwd)
     problems = []
-    commits = git("rev-list", "--reverse", "%s..%s" % (base or main_branch(), branch)).out.split()
+    commits = git_("rev-list", "--reverse", "%s..%s" % (base or main_branch(cwd), branch)).out.split()
     patterns = guard.SECRET_PATTERNS + guard.personal_patterns()
     for c in commits:
-        names = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=d", c).out
+        names = git_("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=d", c).out
         paths = [p for p in names.split("\0") if p]
         problems += [("%s %s" % (c[:8], p), why) for p, why in
-                     guard.scan(paths, lambda p, c=c: git("show", "%s:%s" % (c, p)).out)]
-        message = git("log", "-1", "--format=%B", c).out
+                     guard.scan(paths, lambda p, c=c: git_("show", "%s:%s" % (c, p)).out)]
+        message = git_("log", "-1", "--format=%B", c).out
         problems += [("%s message" % c[:8], why) for _, why in guard.check_text("message", message, patterns)]
     return problems
 

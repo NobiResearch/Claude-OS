@@ -1,0 +1,4 @@
+#!/bin/sh
+# The Guardian at the door: what this push publishes, commit by commit, messages and email
+# addresses included. pre-commit can't see rebased, cherry-picked or --no-verify commits.
+exec "$(git rev-parse --show-toplevel)/bin/cos" guard --push

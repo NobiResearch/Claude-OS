@@ -24,8 +24,8 @@ your human. Use it.
    any other way, record it: `bin/cos log add "what you did"`.
 3. **Private stays home.** This repository is **public**. Anything about the human (names,
    paths containing their username, music history, feeds, journal, memory) lives only in
-   `~/.claude-os/`. Never write it into the repo. The Guardian pre-commit hook
-   (`bin/cos guard`) blocks it; don't bypass it.
+   `~/.claude-os/`. Never write it into the repo. The Guardian's pre-commit and pre-push
+   hooks (`bin/cos guard`) block it; don't bypass them.
 4. **Friction is fuel.** When a syscall fails, a capability is missing, you repeat the same
    ad-hoc shell twice, or the human is annoyed: `bin/cos friction add "…" --area <area>`.
    Describe it generically (no personal data). The nightly evolve loop turns friction into
