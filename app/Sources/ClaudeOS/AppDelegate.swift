@@ -72,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
                 case "music": Player.shared.handle(url, trusted: trusted)
                 case "calendar": Agenda.shared.handle(url, trusted: trusted)
                 case "notify": Notifier.shared.handle(url, trusted: trusted)
+                case "confirm": Confirm.handle(url, trusted: trusted)
                 default: log("ignored an unknown claude-os:// link")
                 }
             }

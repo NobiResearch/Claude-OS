@@ -154,5 +154,6 @@ to push it, once to merge it. The human accepted that.
 
 **Not yet.** Merging the whole morning queue with one approval. A native confirmation for
 turning Night shift on: the desktop page itself can call that endpoint, so a merged change
-to `ui/` could flip it. A Guardian scan of pull request bodies before they're published
+to `ui/` could flip it (*done the same day:* turning it on now takes a click in Claude OS.app's
+own native dialog, answered through a file the page can't write; off stays one click). A Guardian scan of pull request bodies before they're published
 (titles are scanned at merge).

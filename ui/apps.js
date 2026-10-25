@@ -902,8 +902,10 @@
         const nightToggle = h("input", { type: "checkbox", class: "switch" });
         nightToggle.checked = !!s.night_shift;
         nightToggle.addEventListener("change", async () => {
-          if (nightToggle.checked && !(await COS.confirm({ title: "Turn on night shift?", body: "Claude may push its own night/… branches of Claude OS, open pull requests and merge the ones that pass, without asking you, so overnight work doesn't stall. Never a force push. Every commit is checked for private data first, and pull requests that change Claude OS's own safety checks wait for your merge.", ok: "Turn on" }))) { nightToggle.checked = false; return; }
-          await api("/api/settings/night", { body: { on: nightToggle.checked } });
+          // Turning it on is confirmed in Claude OS.app's own dialog, which page code can't click.
+          if (nightToggle.checked) toast("Confirm in the dialog that just opened…");
+          const r = await api("/api/settings/night", { body: { on: nightToggle.checked } });
+          if (nightToggle.checked && !r.night_shift) toast(r.error || "Night shift stays off.", r.error ? "bad" : "");
           draw();
         });
         box.appendChild(h("div", { class: "daemon" },

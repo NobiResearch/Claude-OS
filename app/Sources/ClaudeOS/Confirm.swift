@@ -1,0 +1,57 @@
+import AppKit
+
+/// Yes/no questions only the human can answer, asked in a native dialog (decision 0006).
+///
+/// Turning Night shift on lets Claude push and merge on its own, so the desktop page can't
+/// do it alone: code in the page could call the API, but it can't click this dialog. `cos
+/// serve` opens claude-os://confirm/night?rid=…&nonce=… (the nonce is this launch's, which the
+/// page never sees), and the answer goes to ~/.claude-os/state/confirm-night.json with the
+/// request's id, a file the page can't write.
+@MainActor
+enum Confirm {
+    private struct Question {
+        let title: String
+        let body: String
+        let yes: String
+    }
+
+    private static let questions: [String: Question] = [
+        "night": Question(
+            title: "Turn on Night shift?",
+            body: "While you're away, Claude may push its own night/… branches of Claude OS, open pull requests "
+                + "and merge the ones that pass, without asking you. Every commit is checked for private data "
+                + "first, and pull requests that change Claude OS's own safety checks wait for your merge. "
+                + "You can turn it off any time in Settings.",
+            yes: "Turn On"),
+    ]
+
+    static func handle(_ url: URL, trusted: Bool) {
+        let what = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard trusted, let question = questions[what], let rid = AppURL.requestID(url) else {
+            log("ignored a confirm link")
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.messageText = question.title
+        alert.informativeText = question.body
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: question.yes)
+        alert.addButton(withTitle: "Cancel")
+        let approved = alert.runModal() == .alertFirstButtonReturn
+        write(what: what, rid: rid, approved: approved)
+    }
+
+    private static func write(what: String, rid: String, approved: Bool) {
+        let file = AppURL.base.appendingPathComponent("state/confirm-\(what).json")
+        let answer: [String: Any] = ["rid": rid, "approved": approved, "ts": Date().timeIntervalSince1970]
+        do {
+            try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: answer, options: [.sortedKeys])
+            try data.write(to: file, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: file.path)
+        } catch {
+            log("couldn't write the answer: \(error.localizedDescription)")
+        }
+    }
+}
