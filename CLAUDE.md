@@ -38,12 +38,13 @@ your human. Use it.
 
 Run as `bin/cos …` from the repo root (or `cos …` once installed). Add `--json` anywhere for
 structured output. Mutating commands (`clean apply`, `update apply`, `daemon install|uninstall|run`,
-`evolve merge|discard`, `install`, `uninstall`) must be written in that order with options after,
+`evolve merge|discard`, `security on`, `install`, `uninstall`) must be written in that order with options after,
 so the human's permission prompt sees them, and they refuse to run inside headless daemons.
 
 | command | what it does |
 |---|---|
 | `status` | vitals (disk, memory, battery, uptime, security posture, top processes) + signals |
+| `security` · `security on firewall --yes` | FileVault, SIP, firewall, Gatekeeper and how to turn each on; the firewall is the one switch a command flips, only on, through macOS's password dialog |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
 | `update [--fetch]` | macOS, Homebrew, npm, mas, rustup; `update apply <source> [names] --yes` |
 | `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|radio [<q>]\|like\|history\|setup` | Apple Music (songs and playlists play inside Claude OS when "Apple Music in Claude OS" is on) |

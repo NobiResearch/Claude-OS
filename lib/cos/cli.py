@@ -10,7 +10,7 @@ from . import __version__, core
 COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
-    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook",
+    "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook", "security",
 }
 
 INTRO = """\
@@ -22,6 +22,7 @@ INTRO = """\
 
 syscalls (what Claude uses; you can too):
   status                    vitals and signals
+  security                  FileVault, SIP, firewall, Gatekeeper · security on firewall --yes
   clean [--deep]            reclaimable space · clean apply <id>... --yes
   update [--fetch]          what's outdated · update apply <source> --yes
   music ...                 now | play <q> | pause | next | find | catalog | playlists | playlist <name> | like
@@ -100,6 +101,13 @@ def build_parser():
     wxs = wxsub.add_parser("set", help="set the place by city name")
     wxs.add_argument("place", nargs="+")
     wxsub.add_parser("clear", help="turn weather off and forget the place")
+
+    sc = cmd("security", "the Mac's protections; turn the firewall on")
+    scsub = sc.add_subparsers(dest="security_cmd")
+    sco = scsub.add_parser("on", help="turn a protection on (macOS asks for your password); there's no `off`")
+    from . import security as _security
+    sco.add_argument("name", choices=sorted(_security.SWITCHES))
+    sco.add_argument("--yes", action="store_true")
 
     su = cmd("startup", "what starts with this Mac (read-only)")
     su.add_argument("--full", action="store_true",
@@ -273,7 +281,7 @@ def config_cmd(args):
 MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("daemon", "uninstall"),
             ("daemon", "run"), ("evolve", "merge"), ("evolve", "discard"), ("install",), ("uninstall",),
             ("app", "install"), ("app", "open"), ("cal", "connect"), ("weather", "set"), ("weather", "clear"),
-            ("feeds", "add"), ("feeds", "mute"), ("config",)}
+            ("feeds", "add"), ("feeds", "mute"), ("config",), ("security", "on")}
 
 # Fine at the human's request, never from a background job (a feed item or calendar invite
 # could be steering it): anything that plays, changes or rates music; writing the memory
@@ -300,7 +308,8 @@ def daemon_refused(args):
 
 def mutation(args):
     sub = {"clean": "clean_cmd", "update": "update_cmd", "daemon": "daemon_cmd", "evolve": "evolve_cmd",
-           "app": "app_cmd", "cal": "cal_cmd", "weather": "weather_cmd", "feeds": "feeds_cmd"}
+           "app": "app_cmd", "cal": "cal_cmd", "weather": "weather_cmd", "feeds": "feeds_cmd",
+           "security": "security_cmd"}
     if args.cmd == "config":
         return ("config",) if getattr(args, "value", None) is not None else None
     key = (args.cmd, getattr(args, sub[args.cmd], None)) if args.cmd in sub else (args.cmd,)
@@ -368,6 +377,9 @@ def main(argv=None):
     if c == "cal":
         from . import cal
         return cal.main(args)
+    if c == "security":
+        from . import security
+        return security.main(args)
     if c == "startup":
         from . import startup
         return startup.main(args)
