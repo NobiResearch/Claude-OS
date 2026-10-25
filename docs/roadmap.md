@@ -6,14 +6,10 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **Claude OS everywhere** (research: [claude-code-plugin](research/claude-code-plugin.md);
-   board first, it touches permissions and privacy): the repo as a local Claude Code plugin
-   named `cos`, so `/music`, `/tidy`, `/update`, `/startup`, `/brief` work in any directory.
-   First verify in-place loading from a local-directory marketplace on this Mac.
-2. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-3. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+1. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
+2. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-4. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+3. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
 
 ## Hardening
@@ -25,11 +21,6 @@ what, where, and how we'll know it works.
 - **Merge the morning queue with one approval** (0006, second amendment; Steward): one
   `cos` command that merges the night's waiting pull requests in order, rebasing each onto
   the new main and settling CHANGELOG-only conflicts, and stops at the first real conflict.
-- **A native confirmation for turning Night shift on** (0006; Guardian): today the desktop
-  page itself can call `/api/settings/night`, so a merged change to `ui/` could flip it.
-  Ask in the app's own window, where page code can't click for the human.
-- **A Guardian scan of pull request bodies** before `gh pr create|edit|comment` publishes
-  them (0006; Guardian). Titles are already checked at merge.
 
 ## Research (for `/lab`)
 
@@ -59,3 +50,7 @@ what, where, and how we'll know it works.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).
 - v0.7: radio and playlists in the one player, native notifications, Today's brief, the
   security review's fixes, `cos startup` without a password dialog (0005).
+- Since v0.7 (Unreleased): the night shift's pull requests and merges (0006), the board and
+  daemons live on the desktop (0007), `cos security` and the firewall switch (0008), `/music`
+  `/tidy` `/update` `/startup` in any folder through skill links rather than a plugin (0009),
+  the Guardian on pull request text, and Night shift turned on only in the app's own dialog.

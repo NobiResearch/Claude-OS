@@ -36,6 +36,17 @@ class TestEverywhere(TempHome):
         self.assertTrue(os.path.isdir(mine), "the human's own skill is still there")
         self.assertEqual(sorted(os.listdir(system.skills_dir())), ["update"])
 
+    def test_install_without_daemons_says_which_are_still_running(self):
+        rows = [{"name": "pulse", "loaded": True, "llm": False}, {"name": "morning", "loaded": True, "llm": True},
+                {"name": "evolve", "loaded": False, "llm": True}]
+        note = system.daemon_note(rows, skipped=True)
+        self.assertEqual(note[0], "Background jobs left as they are: pulse, morning running.")
+        self.assertEqual(note[1], "LLM daemons are opt-in (they use your Claude plan): cos daemon install evolve")
+        none = [dict(r, loaded=False) for r in rows]
+        self.assertIn("No background jobs are running", system.daemon_note(none, skipped=True)[0])
+        everything = [dict(r, loaded=True) for r in rows]
+        self.assertEqual(system.daemon_note(everything, skipped=False), [], "nothing to suggest")
+
     def test_only_the_mac_skills_go_everywhere(self):
         self.assertEqual(system.EVERYWHERE, ("music", "tidy", "update", "startup"))
         for repo_only in ("brief", "board", "evolve", "lab"):

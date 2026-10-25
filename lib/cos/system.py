@@ -84,10 +84,22 @@ def install(args):
     core.journal("action", "installed Claude OS %s" % __version__)
     print("\n".join(steps))
     print("\nNext: run `cos` to boot into Claude OS.")
-    if args.no_daemons:
-        print("Background jobs are off. The free one: cos daemon install pulse")
-    print("LLM daemons are opt-in (they use your Claude plan): cos daemon install morning evolve board")
+    print("\n".join(daemon_note(daemon.status(), skipped=args.no_daemons)))
     return 0
+
+
+def daemon_note(rows, skipped):
+    """What install says about background jobs. --no-daemons leaves them as they are, so say
+    which ones are running rather than that they're off."""
+    lines = []
+    if skipped:
+        running = [r["name"] for r in rows if r["loaded"]]
+        lines.append("Background jobs left as they are: %s running." % ", ".join(running) if running
+                     else "No background jobs are running. The free one: cos daemon install pulse")
+    optin = [r["name"] for r in rows if r["llm"] and not r["loaded"]]
+    if optin:
+        lines.append("LLM daemons are opt-in (they use your Claude plan): cos daemon install %s" % " ".join(optin))
+    return lines
 
 
 def uninstall(args):
