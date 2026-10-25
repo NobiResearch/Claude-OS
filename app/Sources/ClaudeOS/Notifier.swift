@@ -30,10 +30,10 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         Task { await writeStatus() }
     }
 
-    func handle(_ url: URL) {
+    func handle(_ url: URL, trusted: Bool) {
         Task { @MainActor in
             switch url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/")) {
-            case "authorize":
+            case "authorize" where trusted:  // a permission prompt: only for `cos`
                 _ = try? await center.requestAuthorization(options: [.alert, .sound])
                 await writeStatus()
             case "flush":

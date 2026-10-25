@@ -278,7 +278,7 @@ def make_handler(app):
             ctype = mimetypes.guess_type(str(full))[0] or "application/octet-stream"
             if ctype.startswith("text/") or ctype in ("application/javascript",):
                 ctype += "; charset=utf-8"
-            csp = ("default-src 'self'; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; "
+            csp = ("default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                    "script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
             self._send(200, full.read_bytes(), ctype, {"Content-Security-Policy": csp})
 
@@ -403,7 +403,7 @@ def make_handler(app):
         if not on:
             return h._json({"native": False})
         before = (core.load_json(core.home("state", "notify.json"), {}) or {}).get("ts", 0)
-        core.run(["open", "-g", "claude-os://notify/authorize"], timeout=10)  # macOS asks; the human decides
+        core.run(["open", "-g", core.app_url("notify/authorize")], timeout=10)  # macOS asks; the human decides
         status = {}
         for _ in range(120):
             time.sleep(0.5)

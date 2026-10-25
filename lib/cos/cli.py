@@ -262,11 +262,20 @@ def config_cmd(args):
 #  * they never run inside a headless daemon session.
 MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("daemon", "uninstall"),
             ("daemon", "run"), ("evolve", "merge"), ("evolve", "discard"), ("install",), ("uninstall",),
-            ("app", "install"), ("app", "open")}
+            ("app", "install"), ("app", "open"), ("cal", "connect"), ("weather", "set"), ("weather", "clear"),
+            ("feeds", "add"), ("feeds", "mute"), ("config",)}
+
+# Fine at the human's request, never from a background job (a feed or calendar invite could
+# be steering it): anything that plays, changes or rates music.
+DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
+                                         "playlist", "shuffle", "like", "unlike")}
 
 
 def mutation(args):
-    sub = {"clean": "clean_cmd", "update": "update_cmd", "daemon": "daemon_cmd", "evolve": "evolve_cmd", "app": "app_cmd"}
+    sub = {"clean": "clean_cmd", "update": "update_cmd", "daemon": "daemon_cmd", "evolve": "evolve_cmd",
+           "app": "app_cmd", "cal": "cal_cmd", "weather": "weather_cmd", "feeds": "feeds_cmd"}
+    if args.cmd == "config":
+        return ("config",) if getattr(args, "value", None) is not None else None
     key = (args.cmd, getattr(args, sub[args.cmd], None)) if args.cmd in sub else (args.cmd,)
     return key if key in MUTATING else None
 
@@ -302,6 +311,8 @@ def main(argv=None):
     key = mutation(args)
     if key:
         check_mutation(key, argv)
+    if os.environ.get("CLAUDE_OS_DAEMON") and args.cmd == "music" and ("music", args.music_cmd) in DAEMON_REFUSED:
+        core.die("`cos music %s` is not allowed in a headless daemon run" % args.music_cmd, 3)
     c = args.cmd
     if c == "ask":
         return ask(" ".join(args.question))

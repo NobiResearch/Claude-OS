@@ -29,11 +29,11 @@ final class Agenda {
         begin()
     }
 
-    func handle(_ url: URL) {
+    func handle(_ url: URL, trusted: Bool) {
         let command = url.path.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         Task { @MainActor in
             switch command {
-            case "connect":
+            case "connect" where trusted:  // a permission prompt: only for `cos`, never a stray link
                 _ = try? await store.requestFullAccessToEvents()
                 _ = try? await store.requestFullAccessToReminders()
                 begin()

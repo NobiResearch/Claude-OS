@@ -49,6 +49,11 @@ class TestParsing(unittest.TestCase):
         self.assertEqual(items[0]["link"], "https://example.net/x")
         self.assertIsNotNone(items[0]["ts"])
 
+    def test_only_web_links_survive(self):
+        self.assertEqual(feeds.safe_link("https://example.com/a"), "https://example.com/a")
+        for bad in ("claude-os://music/love", "javascript:alert(1)", "file:///etc/passwd", "ssh://h"):
+            self.assertEqual(feeds.safe_link(bad), "", bad)
+
     def test_compact_timezone_offsets(self):
         self.assertEqual(feeds.parse_date("2026-10-22T09:00:00+0200"), feeds.parse_date("2026-10-22T07:00:00Z"))
 

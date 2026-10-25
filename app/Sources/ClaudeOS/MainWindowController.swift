@@ -119,11 +119,13 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
         return (url.port ?? (scheme == "https" ? 443 : 80)) == ep.port
     }
 
-    /// Things we never hand to NSWorkspace: local files could launch apps or scripts.
-    private func canOpenExternally(_ url: URL) -> Bool {
-        let scheme = url.scheme?.lowercased() ?? ""
-        return !["file", "javascript", "data", "blob", "about", ""].contains(scheme)
+    /// Only web and mail links leave the app. Anything else (file:, claude-os:, ssh:,
+    /// shortcuts:, smb:…) could launch apps, scripts or Claude OS's own commands.
+    static func opensExternally(_ url: URL) -> Bool {
+        ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "")
     }
+
+    private func canOpenExternally(_ url: URL) -> Bool { Self.opensExternally(url) }
 
     private func openExternally(_ url: URL) {
         guard canOpenExternally(url) else {

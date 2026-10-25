@@ -17,6 +17,11 @@ what, where, and how we'll know it works.
 6. **`cos shortcuts`** (vetoed as first proposed, 0004): `list` free; `run` only as a
    mutation (ask rule, refused in daemons).
 
+## Hardening
+
+- **Deny-by-default sandbox for model-written tests**: today it's allow-default minus
+  writes, the network and private folders; move to an explicit allowlist (board, Guardian).
+
 ## Research (for `/lab`)
 
 - Reliable Apple Music *catalog* playback without UI scripting: MusicKit helper app? A

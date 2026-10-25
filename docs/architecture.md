@@ -45,7 +45,9 @@ everything here is what that kernel boots into.
                                        └─────────────────────────────────────────────┘
 ```
 
-The app launches `cos serve --exit-on-stdin-eof`; the server generates a token and prints it
+`claude-os://` links that change something (play, rate, permission prompts) carry the
+launch's nonce from `~/.claude-os/state/app.nonce` (0600); the app refuses them otherwise,
+so a web page or feed link can't make Claude OS act. The app launches `cos serve --exit-on-stdin-eof`; the server generates a token and prints it
 only on its READY line, to the pipe the app owns, so other processes can't read it from
 `ps` or the environment. The web desktop sends it as a header on every API call. A human
 click on Reclaim/Upgrade/Merge is the approval: the server runs the same `cos … --yes`

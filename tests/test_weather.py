@@ -25,6 +25,10 @@ class TestWeather(TempHome):
         with self.assertRaises(ValueError):
             weather.set_coords(123, 0)
 
+    def test_coordinates_become_guard_terms(self):
+        weather.set_coords(48.856613, 2.352222)
+        self.assertEqual(core.load_json(core.home("guard.json"))["extra"], ["48.86", "2.35"])
+
     def test_city_names_become_guard_terms(self):
         weather._guard_term("Springfield, Somewhere")
         weather._guard_term("Springfield, Somewhere")

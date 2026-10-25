@@ -62,6 +62,12 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   trashes the link's *target*. *Rule:* never hand Finder a symlink.
 - **APFS is case-insensitive by default:** `~/code` and `~/Code` are the same folder, so
   dedupe paths by inode, not by name.
+- **`(deny network-outbound (remote ip))` also blocks 127.0.0.1**; add
+  `(allow network-outbound (remote ip "localhost:*"))` after it for local test servers. In
+  sandbox profiles the later rule wins, which also lets you re-allow reading the working
+  directory after denying a parent folder.
+- **A guard that only checks the final diff misses history**: a file added and then deleted
+  is still pushed. Check every commit (and its message) before publishing.
 - **`sandbox-exec` works for untrusted code** (deny network, allow writes only to chosen
   paths), but sandboxes don't nest.
 - **zsh doesn't word-split unquoted variables.** `cmd $args` passes one argument. Use arrays

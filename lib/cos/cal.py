@@ -24,7 +24,8 @@ def connected(s=None):
 
 def _ask_app(command, wait):
     before = (state() or {}).get("ts", 0)
-    r = core.run(["open", "-g", "claude-os://calendar/%s" % command], timeout=15)
+    url = core.app_url("calendar/%s" % command) if command == "connect" else "claude-os://calendar/%s" % command
+    r = core.run(["open", "-g", url], timeout=15)
     if not r.ok:
         return None
     deadline = time.time() + wait
@@ -38,12 +39,15 @@ def _ask_app(command, wait):
 
 def connect(wait=90):
     """Ask Claude OS.app to request access (macOS shows its prompts) and read the agenda."""
+    if not core.ensure_app():
+        return state()
     return _ask_app("connect", wait) or state()
 
 
 def agenda(refresh=False):
     s = state()
-    if connected(s) and (refresh or time.time() - s.get("ts", 0) > STALE_SECONDS):
+    # Only ask a running app; launching Claude OS from a background job would pop its window up.
+    if connected(s) and core.app_running("ClaudeOS") and (refresh or time.time() - s.get("ts", 0) > STALE_SECONDS):
         s = _ask_app("refresh", 6) or s
     return s or {"calendar": "not connected", "reminders": "not connected"}
 

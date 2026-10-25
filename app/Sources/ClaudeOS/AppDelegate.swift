@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     static let summonNotification = Notification.Name("local.claude-os.desktop.summon")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        _ = AppURL.nonce  // write this launch's link nonce before any claude-os:// link is handled
         Task { @MainActor in Agenda.shared.start() }  // only reads if the human connected it before
         Task { @MainActor [weak self] in
             Notifier.shared.onOpen = { self?.summon() }
@@ -65,11 +66,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     /// claude-os:// commands: music/… for the built-in player, calendar/… for the agenda.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls where url.scheme == "claude-os" {
+            let trusted = AppURL.authorized(url)
             Task { @MainActor in
                 switch url.host {
-                case "music": Player.shared.handle(url)
-                case "calendar": Agenda.shared.handle(url)
-                case "notify": Notifier.shared.handle(url)
+                case "music": Player.shared.handle(url, trusted: trusted)
+                case "calendar": Agenda.shared.handle(url, trusted: trusted)
+                case "notify": Notifier.shared.handle(url, trusted: trusted)
                 default: log("ignored an unknown claude-os:// link")
                 }
             }

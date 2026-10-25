@@ -62,6 +62,12 @@ def feed_list():
 
 # ---------------------------------------------------------------- parsing
 
+def safe_link(url):
+    """Only web links survive: a feed can't hand the desktop a claude-os:// or ssh:// link."""
+    url = (url or "").strip()
+    return url if re.match(r"^https?://", url, re.I) else ""
+
+
 def _local(tag):
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
@@ -122,7 +128,7 @@ def parse_feed(xml_bytes):
                 if _local(l.tag) == "link" and l.get("rel", "alternate") == "alternate":
                     link = l.get("href", "")
                     break
-            items.append({"title": strip_html(_text(e, "title"), 200), "link": link,
+            items.append({"title": strip_html(_text(e, "title"), 200), "link": safe_link(link),
                           "id": _text(e, "id") or link,
                           "ts": parse_date(_text(e, "published", "updated")),
                           "summary": strip_html(_text(e, "summary", "content"))})
@@ -135,7 +141,7 @@ def parse_feed(xml_bytes):
             if _local(e.tag) != "item":
                 continue
             link = _text(e, "link")
-            items.append({"title": strip_html(_text(e, "title"), 200), "link": link,
+            items.append({"title": strip_html(_text(e, "title"), 200), "link": safe_link(link),
                           "id": _text(e, "guid") or link or _text(e, "title"),
                           "ts": parse_date(_text(e, "pubDate", "date", "published")),
                           "summary": strip_html(_text(e, "description", "encoded"))})

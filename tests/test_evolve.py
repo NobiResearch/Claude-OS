@@ -81,6 +81,30 @@ def _can_sandbox():
     return core.run(["sandbox-exec", "-p", "(version 1)(allow default)", "/usr/bin/true"], timeout=10).ok
 
 
+class TestGuardEveryCommit(TempHome):
+    def test_a_file_added_then_deleted_is_still_caught(self):
+        repo = os.path.join(self.tmp, "repo")
+        os.makedirs(repo)
+        g = lambda *a: subprocess.run(["git", "-C", repo, "-c", "user.email=t@example.com", "-c", "user.name=t"] + list(a),
+                                      capture_output=True, check=True)
+        g("init", "-q", "-b", "main")
+        g("commit", "-q", "--allow-empty", "-m", "base")
+        g("checkout", "-q", "-b", "evolve/x")
+        open(os.path.join(repo, "memory.json"), "w").write("{}")
+        g("add", "-A")
+        g("commit", "-q", "-m", "oops")
+        os.remove(os.path.join(repo, "memory.json"))
+        g("add", "-A")
+        g("commit", "-q", "-m", "cover it up")
+        original = evolve.git
+        evolve.git = lambda *a, **k: original(*a, cwd=repo, **{x: y for x, y in k.items() if x != "cwd"})
+        try:
+            problems = evolve.guard_branch("evolve/x", "main")
+        finally:
+            evolve.git = original
+        self.assertTrue(any("memory.json" in where for where, _ in problems), problems)
+
+
 class TestSandbox(TempHome):
     @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
     def test_untrusted_code_cannot_write_home_or_use_network(self):
@@ -91,6 +115,10 @@ class TestSandbox(TempHome):
         self.assertTrue(os.path.exists(os.path.join(work, "inside")))
         self.assertFalse(os.path.exists(target))
         self.assertNotEqual(r.rc, 0)
+        secret = os.path.join(os.path.expanduser("~"), ".ssh")
+        if os.path.isdir(secret):
+            r = core.run_sandboxed(["ls", secret], cwd=work)
+            self.assertNotEqual(r.rc, 0, "private folders aren't readable from the sandbox")
 
 
 if __name__ == "__main__":

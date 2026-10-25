@@ -274,37 +274,42 @@ def player_enabled():
 
 
 def player_command(command, catalog_id=None, wait=12, library=None):
-    """Send a command to Claude OS's player and wait for it to report back."""
+    """Send a command to Claude OS's player and wait until it answers *this* request.
+
+    Each command carries a request id that the app echoes in player.json, so the app's
+    2-second state ticks (or an earlier song) can't be mistaken for the answer; and the
+    per-launch nonce (core.app_url), so only something that can read ~/.claude-os can
+    drive the player."""
+    import uuid
     if command not in ("authorize", "play", "play-library", "pause", "resume", "stop", "love", "unlove"):
         return {"ok": False, "error": "unknown player command"}
     if catalog_id is not None and not str(catalog_id).isdigit():
         return {"ok": False, "error": "bad catalog id"}
-    before = (player_state() or {}).get("ts", 0)
-    query = ""
-    if catalog_id:
-        query = "?id=%s" % catalog_id
-    elif library:
-        query = "?" + urllib.parse.urlencode({k: v for k, v in library.items() if v})
-    url = "claude-os://music/%s%s" % (command, query)
-    r = core.run(["open", "-g", url], timeout=15)
+    starts_playback = command in ("authorize", "play", "play-library")
+    if not (core.ensure_app() if starts_playback else core.app_running("ClaudeOS")):
+        return {"ok": False, "error": "Claude OS isn't running"}
+    rid = uuid.uuid4().hex[:12]
+    params = {"rid": rid, "id": catalog_id}
+    params.update(library or {})
+    r = core.run(["open", "-g", core.app_url("music/%s" % command, **params)], timeout=15)
     if not r.ok:
-        return {"ok": False, "error": "couldn't reach Claude OS (is the app installed?): %s" % r.err[:200]}
+        return {"ok": False, "error": "couldn't reach Claude OS: %s" % r.err[:200]}
+    playing = lambda s: s.get("status") == "playing"
+    done = {"play": playing, "play-library": playing, "love": lambda s: s.get("loved"),
+            "unlove": lambda s: s.get("loved") is False}.get(command)
     deadline = time.time() + wait
     state = None
     while time.time() < deadline:
         time.sleep(0.5)
         state = player_state()
-        # The app's 2 s ticker also rewrites the file, so "fresh" isn't "answered": wait for
-        # the thing this command changes (or an error).
-        playing = lambda s: s.get("status") == "playing"
-        done = {"play": playing, "play-library": playing, "love": lambda s: s.get("loved"),
-                "unlove": lambda s: s.get("loved") is False}.get(command)
-        if state and state.get("ts", 0) > before and (done is None or done(state) or state.get("error")):
+        if state and state.get("rid") == rid and (done is None or done(state) or state.get("error")):
             break
-    if not state or state.get("ts", 0) <= before:
-        return {"ok": False, "error": "Claude OS didn't answer; is it running?"}
+    if not state or state.get("rid") != rid:
+        return {"ok": False, "error": "Claude OS didn't answer in time"}
     if state.get("error"):
         return {"ok": False, "error": state["error"], "state": state}
+    if done and not done(state):
+        return {"ok": False, "error": "Claude OS answered but didn't confirm", "state": state}
     return {"ok": True, "state": state}
 
 
