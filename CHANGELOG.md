@@ -4,6 +4,13 @@ User-visible changes to Claude OS. Evolve runs add entries under **Unreleased**.
 
 ## Unreleased
 
+- **`cos startup` no longer summons a password dialog.** On macOS 27, `sfltool dumpbtm`
+  shows an admin password dialog, so the startup audit (and the desktop's Vitals card, which
+  calls it) could put one on screen, and hang a background job. It now reads the launch
+  agents and daemons directly (no permission needed); `cos startup --full` is the old full
+  list, apps included, which asks for an Allow first and is refused in background jobs.
+  Shell-script agents say "runs a script" instead of "unsigned code".
+
 - **Today's brief on the desktop**: once the morning daemon has written it, a "☕ Today's
   brief" chip leads Today (until evening) and opens the brief in Feeds.
 
