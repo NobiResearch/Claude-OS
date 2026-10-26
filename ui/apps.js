@@ -691,7 +691,7 @@
   COS.register({
     id: "evolution", title: "Evolution", icon: "evolution", color: "linear-gradient(140deg,#8fcf7c,#3f8a3a)", size: [720, 640],
     keywords: "evolve board friction roadmap improve lab", dockGap: true,
-    onReopen(w, arg) { if (w.showTab && EVOLUTION_TABS.includes(arg)) w.showTab(arg); },
+    onReopen(w, arg) { if (w.showTab && EVOLUTION_TABS.includes(arg) && !(arg === "Branches" && (COS.state.status || {}).downloaded)) w.showTab(arg); },
     render(w, arg) {
       // A downloaded copy follows its app's releases and never merges evolve branches (0015).
       const shown = (COS.state.status || {}).downloaded ? EVOLUTION_TABS.filter((t) => t !== "Branches") : EVOLUTION_TABS;
@@ -838,7 +838,7 @@
           pane.appendChild(root);
           loading(root, async () => { const d = await api("/api/doc?name=roadmap"); root.innerHTML = MD.render(d.text); });
         },
-      }, EVOLUTION_TABS.includes(arg) ? arg : undefined).show;
+      }, shown.includes(arg) ? arg : undefined).show;
       function paintDiff(el, text) {
         clear(el);
         text.split("\n").slice(0, 3000).forEach((line) => el.appendChild(h("div", { class: line.startsWith("+") && !line.startsWith("+++") ? "add" : line.startsWith("-") && !line.startsWith("---") ? "del" : line.startsWith("@@") ? "hunk" : "" }, line || " ")));

@@ -327,10 +327,10 @@ def journal(kind, msg, **data):
 def new_here(days=7):
     """Is Claude OS in its first week on this Mac? (The journal's first entry is that young, or
     there's no journal yet.) Today shows a welcome card then."""
-    files = sorted(home("journal").glob("*.jsonl"))
-    if not files:
-        return True
     try:
+        files = sorted(home("journal").glob("*.jsonl"))
+        if not files:
+            return True
         with open(files[0]) as f:
             first = _dt.datetime.fromisoformat(json.loads(f.readline())["ts"])
         return first > _dt.datetime.now().astimezone() - _dt.timedelta(days=days)
