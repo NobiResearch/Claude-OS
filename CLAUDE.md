@@ -47,6 +47,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 |---|---|
 | `status` | vitals (disk, memory, battery, uptime, security posture, top processes) + signals |
 | `security` · `security on firewall --yes` | FileVault, SIP, firewall, Gatekeeper and how to turn each on; the firewall is the one switch a command flips, only on, through macOS's password dialog |
+| `backup` · `backup setup` | is Time Machine set up, and which connected disk could hold it (format, size, whether it'd be erased); `setup` opens its settings |
 | `net` · `net --speed` | is it the Wi-Fi, the router or the internet? One verdict, a few seconds, nothing identifying; `--speed` runs macOS's networkQuality (~20 s, uses data) |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
 | `update [--fetch]` | macOS, Homebrew, npm, mas, rustup, and Claude OS itself (what's merged on GitHub and not here); `update apply <source> [names] --yes` |

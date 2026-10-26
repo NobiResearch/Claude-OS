@@ -35,7 +35,7 @@ class TestBackupSignal(TempHome):
     def test_a_quiet_note_only_when_not_set_up(self):
         self.assertEqual(self.backup_notes(), [], "no cache, no signal")
         core.cache_put("backup", {"configured": False})
-        self.assertIn(("note", "Time Machine isn't set up"), status.signals(VITALS), "a note, never a warning")
+        self.assertIn(("note", "Time Machine isn't set up: cos backup"), status.signals(VITALS), "a note, never a warning")
         core.cache_put("backup", {"configured": True})
         self.assertEqual(self.backup_notes(), [])
         core.cache_put("backup", None)

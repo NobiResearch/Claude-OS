@@ -35,8 +35,13 @@ what, where, and how we'll know it works.
 
 - A Network card in Vitals for `cos net` (0010), once friction shows it's asked for.
 - Focus modes via Shortcuts (`cos focus work|off`).
-- Time Machine: last backup age, once it can be read without mounting the destination
-  (0005; today `cos status` only says whether Time Machine is set up).
+- Time Machine's last backup age, once it can be read without Full Disk Access or mounting
+  (0005, 0012; `cos backup` covers setting it up).
+- **Morning station** (0012, Steward): a Today card that starts a radio seeded from a song
+  the human played or liked this week, one click, no LLM. A full daily mix needs a queue in
+  the player, and must never be picked in a run that reads feeds (Guardian).
+- `cos power`: what keeps the Mac or display awake (`pmset -g assertions`), once friction
+  asks; deliberate keepers (caffeinate, keep-awake apps) mustn't become nightly signals.
 - Photo library duplicate report (read-only).
 - Mail triage. Privacy-heavy: board review first.
 

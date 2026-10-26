@@ -98,6 +98,7 @@ cos music radio "weightless"     that song, then similar music from its station
 cos music now|pause|next|vol|find|catalog|playlists|playlist|like|history
 cos weather · cal · startup      the forecast, today's events, what starts with the Mac
 cos net [--speed]                is it the Wi-Fi, the router or the internet? · --speed: throughput
+cos backup [setup]               Time Machine, and which connected disk could hold your backups
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes
 cos remember "…"                 teach Claude OS about you; shown to Claude at every boot
