@@ -679,7 +679,7 @@ def make_handler(app):
     def r_music_play(h, q, b):
         from . import music
         if b.get("radio"):
-            res = music.radio(b.get("q") or None)
+            res = music.radio(b.get("q") or None, mine=b.get("mine") is True)
         elif b.get("playlist"):
             res = music.play_playlist(b["playlist"], shuffle=True if b.get("shuffle") else None)
         elif b.get("id"):
@@ -693,9 +693,21 @@ def make_handler(app):
             res = music.play(b.get("q") or "", source=b.get("source") or "auto")
         if res.get("ok"):
             n = res.get("now") or {}
-            core.journal("music", "played %s — %s" % (n.get("track") or b.get("name"), n.get("artist") or b.get("artist")),
-                         via="app", source=res.get("source"))
+            song = "%s — %s" % (n.get("track") or b.get("name"), n.get("artist") or b.get("artist"))
+            event = "radio" if b.get("radio") else "play"
+            # The catalog id and the label come from what the player did, never from the request.
+            music.journal_event(event, ("radio from %s" if event == "radio" else "played %s") % song,
+                                catalog_id=res.get("catalog_id"),
+                                label="%s — %s" % (n["track"], n.get("artist") or "?") if n.get("track") else None,
+                                via="app", source=res.get("source"), station=res.get("station"))
         h._json(res)
+
+    def r_music_station(h, q, b):
+        """What Today's Radio chip says it starts: {"label"}, or {} when there's nothing to
+        start from or the player is off (then the chip stays hidden)."""
+        from . import music
+        s = music.station_seed() if music.player_enabled() else None
+        h._json({"label": s["label"]} if s else {})
 
     def r_music_control(h, q, b):
         from . import music
@@ -856,6 +868,7 @@ def make_handler(app):
         ("POST", "/api/weather/coords"): r_weather_coords,
         ("POST", "/api/weather/clear"): r_weather_clear,
         ("GET", "/api/music/now"): r_music_now,
+        ("GET", "/api/music/station"): r_music_station,
         ("GET", "/api/music/search"): r_music_search,
         ("GET", "/api/music/playlists"): r_music_playlists,
         ("POST", "/api/music/play"): r_music_play,

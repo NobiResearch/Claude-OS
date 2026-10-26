@@ -1087,13 +1087,36 @@
     };
     refreshBrief();
     setInterval(refreshBrief, 15 * 60 * 1000);
+    // One click to a radio from a song you've been playing (the board, 26 Oct): no chat and
+    // no Allow card. Shown only when Apple Music in Claude OS is on and there's a song to start from.
+    const radioChip = h("button", { class: "chip glass", hidden: true });
+    const refreshRadio = async () => {
+      try {
+        const s = await api("/api/music/station");
+        radioChip.textContent = s.label ? "▶ Radio from " + s.label : "";
+        radioChip.hidden = !s.label;
+      } catch (e) { radioChip.hidden = true; }
+    };
+    radioChip.addEventListener("click", async () => {
+      radioChip.disabled = true;
+      toast("Starting your radio…");
+      try {
+        const r = await api("/api/music/play", { body: { radio: true, mine: true } });
+        if (r.ok) toast("▶ " + ((r.now && r.now.track) || "Radio"), "ok"); else toast(r.error || "Couldn't start the radio", "bad");
+        COS.refreshMusic();
+      } catch (e) { toast(e.message, "bad"); }
+      radioChip.disabled = false;
+      refreshRadio();
+    });
+    refreshRadio();
+    setInterval(refreshRadio, 15 * 60 * 1000);
     clear(today).appendChild(h("div", null,
       h("div", { class: "today-greet" }, greet),
       h("div", { class: "today-date" }, new Date().toLocaleDateString(navigator.language, { weekday: "long", day: "numeric", month: "long" })),
       wx,
       agenda,
       line,
-      h("div", { class: "today-chips" }, [briefChip].concat(["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
+      h("div", { class: "today-chips" }, [radioChip, briefChip].concat(["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
         .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s))))));
     COS.on("status", (s) => {
       clear(line);

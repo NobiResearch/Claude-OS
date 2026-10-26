@@ -128,6 +128,25 @@ class TestServerSecurity(TempHome):
         self.assertEqual(status, 200)
         self.assertIn("Apple Music", json.loads(data)["error"])
 
+    def test_the_radio_chip_starts_what_music_code_picked(self):
+        """Today's Radio chip: its label from station_seed, its click through radio(mine=True),
+        and the journal's catalog id from what the player did, never from the request."""
+        from unittest import mock
+        from cos import core, music
+        with mock.patch.object(music, "player_enabled", return_value=False):
+            self.assertEqual(json.loads(self.request("GET", "/api/music/station")[2]), {})
+        music.journal_event("radio", "radio from Song — Artist", catalog_id="456", label="Song — Artist")
+        with mock.patch.object(music, "player_enabled", return_value=True):
+            self.assertEqual(json.loads(self.request("GET", "/api/music/station")[2]), {"label": "Song — Artist"})
+        played = {"ok": True, "source": "radio", "catalog_id": "456", "station": "Station",
+                  "now": {"track": "Song", "artist": "Artist"}}
+        with mock.patch.object(music, "radio", return_value=played) as radio:
+            self.request("POST", "/api/music/play", {"radio": True, "mine": True, "catalog_id": "999", "name": "Planted"})
+            self.request("POST", "/api/music/play", {"radio": True, "mine": "yes"})
+        self.assertEqual([c.kwargs["mine"] for c in radio.call_args_list], [True, False])
+        last = [e for e in core.read_journal(days=1, kind="music") if e.get("via") == "app"][-1]
+        self.assertEqual((last["event"], last["catalog_id"], last["label"]), ("radio", "456", "Song — Artist"))
+
     def answer_dialog(self, approved, what="night"):
         """Stand in for Claude OS.app: when the confirm link opens, write the dialog's answer."""
         from urllib.parse import parse_qs, urlparse

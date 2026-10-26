@@ -96,6 +96,8 @@ def build_parser():
     mc.add_argument("--limit", type=int, default=10)
     mr = msub.add_parser("radio", help="a song, then similar music (its Apple Music station)")
     mr.add_argument("query", nargs="*")
+    mr.add_argument("--mine", action="store_true",
+                    help="from a song you've been playing (what Today's Radio chip starts)")
     msub.add_parser("playlists")
     ml = msub.add_parser("playlist")
     ml.add_argument("name", nargs="+")
