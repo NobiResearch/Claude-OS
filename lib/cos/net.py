@@ -16,6 +16,7 @@ employer). The router's address is used to find its ARP entry and dropped.
 """
 
 import http.client
+import ipaddress
 import json
 import re
 import socket
@@ -120,7 +121,8 @@ def probe_wifi():
 def probe_router(gateway):
     if not re.match(r"^\d{1,3}(\.\d{1,3}){3}$", gateway or ""):
         return None
-    return {"seen": parse_arp(core.run(["arp", "-n", gateway], timeout=2).out)}
+    out = core.run(["arp", "-n", gateway], timeout=2).out
+    return {"seen": parse_arp(out) if out.strip() else None}  # no answer from arp is unknown
 
 
 def probe_dns():
@@ -134,26 +136,62 @@ def probe_dns():
     return round((time.monotonic() - t) * 1000)
 
 
-def probe_internet(host=PORTAL[0], path=PORTAL[1], timeout=3, port=80):
+def addresses(host, port):
+    """What a name resolves to, one IPv4 and one IPv6 first: a broken IPv6 path (a VPN that
+    drops it, say) shouldn't spend the whole budget before IPv4 gets a turn."""
+    infos = socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    v4 = [i[4][0] for i in infos if i[0] == socket.AF_INET]
+    v6 = [i[4][0] for i in infos if i[0] == socket.AF_INET6]
+    out = []
+    for a in v4[:1] + v6[:1] + v4[1:] + v6[1:]:
+        if a not in out:
+            out.append(a)
+    return out
+
+
+def _local(address):
+    ip = ipaddress.ip_address(address.split("%")[0])
+    return not (ip.is_global or ip.is_loopback)
+
+
+def probe_internet(host=PORTAL[0], path=PORTAL[1], timeout=2, port=80):
     """Apple's captive-portal page: reachable at all, how fast it connects, and whether
-    something answered in its place (a sign-in page). Redirects are never followed."""
+    something answered in its place (a sign-in page). Redirects are never followed, and a
+    name that resolves to a local address is a sign-in page hijacking DNS: it's reported
+    without connecting, since that connection would be a local network operation."""
     try:
-        socket.getaddrinfo(host, port)
+        addrs = addresses(host, port)
     except OSError:
         return {"resolved": False, "ok": False}
-    conn = http.client.HTTPConnection(host, port, timeout=timeout)
-    try:
-        t = time.monotonic()
-        conn.connect()
-        ms = round((time.monotonic() - t) * 1000)
-        conn.request("GET", path)
-        resp = conn.getresponse()
-        body = resp.read(4096).decode("utf-8", "replace")
-    except (OSError, http.client.HTTPException):
-        return {"resolved": True, "ok": False}
-    finally:
-        conn.close()
-    return {"resolved": True, "ok": True, "ms": ms, "portal": resp.status != 200 or "Success" not in body}
+    if addrs and all(_local(a) for a in addrs):
+        return {"resolved": True, "ok": False, "portal": True}
+    for a in [a for a in addrs if not _local(a)][:2]:
+        conn = http.client.HTTPConnection("[%s]" % a if ":" in a else a, port, timeout=timeout)
+        try:
+            t = time.monotonic()
+            conn.connect()
+            ms = round((time.monotonic() - t) * 1000)
+            conn.request("GET", path, headers={"Host": host})
+            resp = conn.getresponse()
+            body = resp.read(4096).decode("utf-8", "replace")
+        except (OSError, http.client.HTTPException):
+            continue
+        finally:
+            conn.close()
+        return {"resolved": True, "ok": True, "ms": ms, "portal": resp.status != 200 or "Success" not in body}
+    return {"resolved": True, "ok": False}
+
+
+def ethernet_active(ifconfig_out, ports):
+    """Is any wired port up? `ifconfig`'s blocks, read for "status: active" only."""
+    wired = {d for d, port in ports.items() if link_kind(d, {d: port}) == "ethernet"}
+    active, current = set(), None
+    for line in (ifconfig_out or "").splitlines():
+        if line and not line[0].isspace():
+            current = line.split(":", 1)[0]
+        elif current in wired and "status: active" in line:
+            active.add(current)
+    return bool(active)
 
 
 def _parallel(jobs, budget):
@@ -177,17 +215,28 @@ def _parallel(jobs, budget):
 
 
 def check():
-    gateway, iface = parse_route(core.run(["route", "-n", "get", "default"], timeout=3).out)
-    via = link_kind(iface, parse_ports(core.run(["networksetup", "-listallhardwareports"], timeout=3).out))
-    vpn = via == "vpn" or vpn_connected(core.run(["scutil", "--nc", "list"], timeout=3).out)
+    gateway, iface = parse_route(core.run(["route", "-n", "get", "default"], timeout=2).out)
+    if not iface:  # an IPv6-only network has no IPv4 default route
+        iface = parse_route(core.run(["route", "-n", "get", "-inet6", "default"], timeout=2).out)[1]
+        gateway = None
+    tunnel = link_kind(iface, {}) == "vpn"
     got = _parallel({
         "wifi": probe_wifi,
         # Through a VPN, the "gateway" is the VPN's own end, not the router.
-        "router": lambda: probe_router(gateway) if via != "vpn" else None,
+        "router": lambda: None if tunnel else probe_router(gateway),
         "dns_ms": probe_dns,
         "internet": probe_internet,
+        "ports": lambda: parse_ports(core.run(["networksetup", "-listallhardwareports"], timeout=3).out),
+        "nc": lambda: core.run(["scutil", "--nc", "list"], timeout=3).out,
+        "ifconfig": lambda: core.run(["ifconfig"], timeout=3).out,
     }, BUDGET)
-    r = dict(got, connected=bool(iface), via=via, vpn=vpn)
+    ports = got.pop("ports") or {}
+    via = link_kind(iface, ports)
+    r = dict(got, via=via, vpn=via == "vpn" or vpn_connected(got.pop("nc")),
+             ethernet=ethernet_active(got.pop("ifconfig"), ports),
+             connected=bool(iface) or bool((got.get("internet") or {}).get("ok")))
+    r.pop("nc", None)
+    r.pop("ifconfig", None)
     r["level"], r["verdict"] = verdict(r)
     return r
 
@@ -195,15 +244,21 @@ def check():
 def verdict(r):
     """(level, one line): the single likeliest cause, or that it looks fine, or can't tell."""
     w, router, net, dns = r.get("wifi") or {}, r.get("router"), r.get("internet") or {}, r.get("dns_ms")
-    on_wifi = bool(w.get("joined")) and r.get("via") in ("wifi", "vpn")
+    # Under a VPN, the tunnel runs over Wi-Fi only when no cable is plugged in and active.
+    on_wifi = bool(w.get("joined")) and (r.get("via") == "wifi" or (r.get("via") == "vpn" and not r.get("ethernet")))
     seen = router["seen"] if router else None
     vpn = " A VPN is on, and it may be the bottleneck." if r.get("vpn") else ""
     if not r.get("connected"):
         if w and not w.get("power"):
             return "bad", "Not connected: Wi-Fi is off and there's no cable."
+        if w.get("joined"):
+            return "bad", ("Wi-Fi is joined, but the router hasn't given this Mac an address: turn Wi-Fi off "
+                           "and on, or restart the router.")
         return "bad", "Not connected to any network."
     if net.get("portal"):
         return "bad", "A sign-in page is waiting (a captive portal): open any website to log in."
+    if not net and dns is None:
+        return "bad", "DNS isn't answering: looking up a name took more than %d seconds." % BUDGET
     if net and not net.get("resolved"):
         return "bad", "Connected, but names don't resolve: DNS isn't answering."
     if net and not net.get("ok"):
@@ -245,13 +300,14 @@ def render(r):
         bits = [BANDS.get(w["band"]), "channel %d" % w["channel"] if w.get("channel") else None,
                 "%d MHz" % WIDTHS[w["width"]] if w.get("width") in WIDTHS else None, PHYS.get(w["phy"])]
         print("  Wi-Fi      %s" % ", ".join(b for b in bits if b))
-        print("  signal     %d dBm (%s), noise %s dBm · %s Mbps link"
-              % (w["rssi"], _signal(w["rssi"]), w.get("noise"), w.get("tx")))
+        extra = ([", noise %d dBm" % w["noise"]] if w.get("noise") else []) + \
+                ([" · %d Mbps link" % w["tx"]] if w.get("tx") else [])
+        print("  signal     %d dBm (%s)%s" % (w["rssi"], _signal(w["rssi"]), "".join(extra)))
     elif w and not w.get("power"):
         print("  Wi-Fi      off")
     router = r.get("router")
     if router:
-        print("  router     %s" % ("answering" if router["seen"] else "not seen lately"))
+        print("  router     %s" % {True: "answering", False: "not seen lately"}.get(router["seen"], "couldn't check"))
     net = r.get("internet")
     if net and net.get("ok"):
         print("  internet   %d ms to Apple%s" % (net["ms"], " · a sign-in page answered instead" if net["portal"] else ""))
