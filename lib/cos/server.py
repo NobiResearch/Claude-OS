@@ -705,9 +705,17 @@ def make_handler(app):
             br = b.get("branch") or ""
             if not re.match(r"^evolve/[\w.-]+$", br):
                 return h._error(400, "not an evolve branch")
-            # The Merge dialog names a branch's safety files; the human's OK is their review (0013).
-            reviewed = ["--reviewed"] if action == "merge" and b.get("reviewed") is True else []
-            h._json(app.job(["evolve", action, br, "--yes"] + reviewed, "%s %s" % (action.capitalize(), br)))
+            # The Merge dialog names a branch's safety files; the human's OK is their review (0013),
+            # of the commit the dialog showed: a branch that moved since isn't merged on it.
+            extra = []
+            if action == "merge":
+                shown = b.get("tip")
+                if shown is not None and not (isinstance(shown, str) and re.fullmatch(r"[0-9a-f]{40}", shown)):
+                    return h._error(400, "tip must be a full commit id")
+                if b.get("reviewed") is True and not shown:
+                    return h._error(400, "a review is of a commit: send the tip that was shown")
+                extra = (["--reviewed"] if b.get("reviewed") is True else []) + (["--tip", shown] if shown else [])
+            h._json(app.job(["evolve", action, br, "--yes"] + extra, "%s %s" % (action.capitalize(), br)))
         return route
 
     def r_daemons(h, q, b):

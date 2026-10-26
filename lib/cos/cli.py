@@ -39,6 +39,14 @@ syscalls (what Claude uses; you can too):
 """ % __version__
 
 
+def _full_sha(text):
+    """A whole commit id: a prefix could name a different commit than the one reviewed."""
+    import re
+    if not re.fullmatch(r"[0-9a-f]{40}", text or ""):
+        raise argparse.ArgumentTypeError("a full 40-character commit id")
+    return text
+
+
 def build_parser():
     p = argparse.ArgumentParser(prog="cos", description="Claude OS syscalls", add_help=True)
     p.add_argument("--version", action="version", version="Claude OS " + __version__)
@@ -203,6 +211,8 @@ def build_parser():
         if verb == "merge":
             ev.add_argument("--reviewed", action="store_true",
                             help="a guardian review passed: needed when the branch changes safety files (0013)")
+            ev.add_argument("--tip", metavar="SHA", type=_full_sha,
+                            help="merge only if the branch is still at this commit (the one reviewed)")
 
     g = cmd("guard", "block private data from the public repo", json_flag=False)
     g.add_argument("--all", action="store_true", help="scan every tracked file, not just staged ones")

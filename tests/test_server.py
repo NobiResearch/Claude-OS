@@ -109,10 +109,16 @@ class TestServerSecurity(TempHome):
         their review (0013). Nothing else turns --reviewed on."""
         jobs = []
         self.app.job = lambda argv, label: jobs.append(argv) or {"id": "x"}
-        for path, body, flag in (("merge", {"reviewed": True}, True), ("merge", {}, False),
-                                 ("merge", {"reviewed": "yes"}, False), ("discard", {"reviewed": True}, False)):
+        sha = "a" * 40
+        for path, body, flag in (("merge", {"reviewed": True, "tip": sha}, True), ("merge", {}, False),
+                                 ("merge", {"reviewed": "yes", "tip": sha}, False),
+                                 ("discard", {"reviewed": True, "tip": sha}, False)):
             self.assertEqual(self.request("POST", "/api/evolve/" + path, dict(body, branch="evolve/x"))[0], 200)
             self.assertEqual("--reviewed" in jobs[-1], flag, (path, body))
+        self.assertEqual(jobs[0][-2:], ["--tip", sha], "the review is of the commit the dialog showed")
+        self.assertNotIn("--tip", jobs[-1], "Discard isn't pinned")
+        for body in ({"reviewed": True}, {"tip": "abc123"}, {"tip": sha.upper()}, {"tip": ["x"]}):
+            self.assertEqual(self.request("POST", "/api/evolve/merge", dict(body, branch="evolve/x"))[0], 400, body)
 
     def test_radio_button_reaches_the_player_route(self):
         from cos import music
