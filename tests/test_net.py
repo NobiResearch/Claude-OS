@@ -94,7 +94,7 @@ class TestNet(TempHome):
         self.assertEqual(r["router"], {"seen": True})
         self.assertEqual([c for c in mac.calls if c[0] == "arp"], [["arp", "-n", GATEWAY]])
         used = {c[0] for c in mac.calls}
-        self.assertEqual(used, {"route", "networksetup", "scutil", "arp", "osascript"})
+        self.assertEqual(used, {"route", "networksetup", "scutil", "arp", "osascript", "ifconfig"})
         self.assertEqual(checked(FakeMac(arp=ARP_GONE))["router"], {"seen": False})
 
     def test_through_a_vpn_the_router_isnt_pinged(self):
@@ -129,7 +129,11 @@ class TestNet(TempHome):
 
         cases = [
             (case(connected=False, wifi={"power": False, "joined": False}), "bad", "Wi-Fi is off"),
-            (case(connected=False), "bad", "Not connected to any network"),
+            (case(connected=False, wifi={"joined": False}), "bad", "Not connected to any network"),
+            (case(connected=False), "bad", "hasn't given this Mac an address"),
+            (case(internet=None, dns_ms=None), "bad", "DNS isn't answering"),
+            (case(via="vpn", vpn=True, ethernet=True, wifi={"rssi": -80}), "ok", "Network looks fine, through a VPN."),
+            (case(via="vpn", vpn=True, ethernet=False, wifi={"rssi": -80}), "warn", "weak"),
             (case(internet={"portal": True}), "bad", "sign-in page"),
             (case(internet={"resolved": False, "ok": False}), "bad", "DNS isn't answering"),
             (case(internet={"ok": False}), "bad", "past your network"),
@@ -146,7 +150,7 @@ class TestNet(TempHome):
         for (level, text), want_level, want in cases:
             self.assertEqual(level, want_level, text)
             self.assertIn(want, text)
-        self.assertIn("A VPN is on", cases[9][0][1])
+        self.assertIn("A VPN is on", [t for (_, t), _, w in cases if w == "the internet is slow (420 ms)"][0])
 
     def test_a_probe_that_hangs_doesnt_hold_the_check(self):
         t = time.monotonic()
@@ -195,6 +199,56 @@ class TestNet(TempHome):
         with mock.patch.object(net.core, "run", return_value=core.Result(1, "", "offline")), \
                 redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
             net.speed(as_json=True)
+
+
+class TestNetReview(TempHome):
+    """An independent review of 0010's code (night of 26 October): each finding, kept fixed."""
+
+    def test_an_ipv6_only_network_is_connected(self):
+        mac = FakeMac()
+        mac.out["route"] = ""
+
+        def run(cmd, **kw):
+            if cmd[:4] == ["route", "-n", "get", "-inet6"]:
+                return core.Result(0, "   route to: default\n  interface: en0\n", "")
+            return mac(cmd, **kw)
+        r = checked(run)
+        self.assertTrue(r["connected"])
+        self.assertEqual(r["via"], "wifi")
+
+    def test_a_portal_that_hijacks_dns_is_reported_without_connecting(self):
+        with mock.patch.object(net, "addresses", return_value=["10.1.2.3"]), \
+                mock.patch.object(net.http.client, "HTTPConnection", side_effect=AssertionError("connected")):
+            self.assertEqual(net.probe_internet(), {"resolved": True, "ok": False, "portal": True})
+
+    def test_ipv4_goes_first(self):
+        infos = [(net.socket.AF_INET6, 1, 6, "", ("2001:db8::1", 80, 0, 0)), (net.socket.AF_INET6, 1, 6, "", ("2001:db8::2", 80, 0, 0)),
+                 (net.socket.AF_INET, 1, 6, "", ("192.0.2.10", 80)), (net.socket.AF_INET, 1, 6, "", ("192.0.2.11", 80))]
+        with mock.patch.object(net.socket, "getaddrinfo", return_value=infos):
+            self.assertEqual(net.addresses("captive.apple.com", 80)[:2], ["192.0.2.10", "2001:db8::1"])
+
+    def test_no_answer_from_arp_is_unknown(self):
+        with mock.patch.object(net.core, "run", return_value=core.Result(124, "", "")):
+            self.assertEqual(net.probe_router(GATEWAY), {"seen": None})
+        r = {"connected": True, "via": "wifi", "vpn": False, "dns_ms": 30, "router": {"seen": None},
+             "wifi": {"power": True, "joined": True, "rssi": -50, "noise": -95},
+             "internet": {"resolved": True, "ok": False}}
+        self.assertNotIn("restarting the router", net.verdict(r)[1])
+
+    def test_ethernet_is_read_from_ifconfig_status_only(self):
+        out = "en2: flags=8863<UP>\n\tether 00:00:5e:00:53:02\n\tstatus: active\nen0: flags=8863<UP>\n\tstatus: active\n"
+        self.assertTrue(net.ethernet_active(out, {"en2": "Ethernet Adapter (en2)", "en0": "Wi-Fi"}))
+        self.assertFalse(net.ethernet_active(out.replace("status: active\nen0", "status: inactive\nen0"),
+                                             {"en2": "Ethernet Adapter (en2)", "en0": "Wi-Fi"}))
+
+    def test_missing_wifi_numbers_arent_printed_as_none(self):
+        r = {"level": "ok", "verdict": "Network looks fine.", "via": "wifi", "vpn": False, "dns_ms": 20,
+             "router": {"seen": True}, "internet": {"resolved": True, "ok": True, "ms": 10, "portal": False},
+             "wifi": {"power": True, "joined": True, "rssi": -50, "noise": None, "tx": None, "band": 3,
+                      "channel": 0, "width": 0, "phy": 0}}
+        with redirect_stdout(io.StringIO()) as out:
+            net.render(r)
+        self.assertNotIn("None", out.getvalue())
 
 
 class TestSpeedIsAsked(TempHome):
