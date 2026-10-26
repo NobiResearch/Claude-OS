@@ -102,7 +102,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos hook pretool || true",
+            "command": "[ -n \"$CLAUDE_OS_DAEMON\" ] || \"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos hook pretool || true",
             "timeout": 10
           }
         ]
@@ -114,7 +114,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos hook permission || true",
+            "command": "[ -n \"$CLAUDE_OS_DAEMON\" ] || \"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos hook permission || true",
             "timeout": 30
           }
         ]

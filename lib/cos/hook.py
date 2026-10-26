@@ -376,29 +376,44 @@ def _is_cos(token):
     return token in ("cos", "bin/cos", "./bin/cos") or token.endswith("/bin/cos")
 
 
+PLAIN = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _tokens(text, posix):
+    lex = shlex.shlex(text, posix=posix, punctuation_chars=";&|()")
+    lex.whitespace_split = True
+    lex.commenters = ""  # `#` in a word isn't a comment to a shell, and mustn't hide what follows
+    return list(lex)
+
+
 def cos_calls(command):
-    """Every cos call in a shell command, canonically spelled ("cos clean apply x --yes"). None
-    when the command can't be read for sure and mentions cos: then nothing is ruled out."""
+    """Every cos call in a shell command -> [(canonical, words)]: "cos clean apply x --yes", and
+    the leading subcommand words as written, up to the first that isn't a plain word (a quote,
+    a redirection, `$…`, braces). None when the command runs cos and can't be read for sure."""
     text = str(command or "")
     if not re.search(r"(^|[^\w-])cos\b", text):
         return []
-    if "`" in text or "$(" in text or "<(" in text:
-        return None
+    text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
     try:
-        lex = shlex.shlex(text.replace("\n", " ; "), posix=True, punctuation_chars=";&|()")
-        lex.whitespace_split = True
-        tokens = list(lex)
+        cooked, raw = _tokens(text, True), _tokens(text, False)
     except ValueError:
+        return None if re.search(r"(^|[\s;&|(])(\S*/)?cos\b", text) else []
+    if len(cooked) != len(raw):
         return None
     calls = []
-    for i, token in enumerate(tokens):
-        if _is_cos(token):
-            argv = []
-            for t in tokens[i + 1:]:
-                if t in OPERATORS:
-                    break
-                argv.append(t)
-            calls.append(" ".join(["cos"] + argv))
+    for i, token in enumerate(cooked):
+        if not _is_cos(token):
+            continue
+        argv, plain = [], []
+        for c, r in zip(cooked[i + 1:], raw[i + 1:]):
+            if c in OPERATORS:
+                break
+            argv.append(c)
+            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
+                plain.append(r)
+        calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
+    if calls and ("`" in text or "$(" in text or "<(" in text):
+        return None
     return calls
 
 
@@ -420,9 +435,15 @@ def pretool_decision(command, patterns):
         return "Claude OS can't read this command for sure, and it runs cos"
     if calls and patterns is None:
         return "Claude OS couldn't read its own ask rules"
-    for call in calls:
-        if any(fnmatch.fnmatchcase(call, p) for p in patterns or []):
+    for call, plain, odd in calls:
+        if any(fnmatch.fnmatchcase(call, p) for p in patterns):
             return "`%s` changes something" % call[:120]
+        if odd:
+            # A word that isn't plain where a subcommand could still be chosen: it might become one.
+            prefix = " ".join(["cos"] + plain)
+            literal = [p.split("*", 1)[0].rstrip() for p in patterns]
+            if any(l == prefix or l.startswith(prefix + " ") for l in literal):
+                return "`%s …` is written in a way Claude OS can't read for sure" % prefix[:120]
     return None
 
 
