@@ -106,6 +106,25 @@ notifications and Music automation).
 - `~/.claude-os` is created with mode 0700 when the app is first to make it.
 - Still to come in step 5: Remove Claude OS.
 
+## Step 6: updates (27 October)
+
+- **A downloaded copy's code follows its app.** When the app's server starts, before it
+  loads anything, `evolve.follow_app` moves the checkout forward to the commit the app was
+  built from: only forward, only a commit on GitHub's main, only over GitHub's squash merges,
+  through catch-up's lock and guards, journaled with the way back. Downloading a newer
+  release is the person's yes; nothing else moves a download's code. Keep Claude OS up to
+  date, the boot banner's "merged on GitHub" line and the Updates window's Claude OS card are
+  for checkouts that follow main, so a download doesn't show them.
+- **A newer app is one quiet line.** For a downloaded app, Updates asks GitHub for the latest
+  release at most once a day (whatever the answer, offline included) and, if it's newer,
+  shows a card with a link to its release page. An app someone built never asks.
+- **Code newer than its app says so.** `core.APP_NEEDED` is the oldest app the code works
+  with; a downloaded app older than that gets a warning signal with the download link.
+- **A download's main takes no local commits**, or the next app couldn't bring its code: `cos
+  evolve merge` refuses there, and so does `cos daemon install evolve`.
+- The Keep up to date dialog now says plainly that some changes are merged by Claude without
+  a person's review.
+
 ## Not now
 
 An installer that sets up Claude Code itself, an organization developer account, and the App Store,

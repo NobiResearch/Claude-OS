@@ -50,8 +50,8 @@ def _catch_up_line():
     """What's merged on GitHub and not on this Mac, so a session never works from stale
     Claude OS without knowing (friction #16). A terminal session catches up first when Keep
     Claude OS up to date is on and the app isn't running (its server would mix versions)."""
-    if os.environ.get("CLAUDE_OS_DAEMON"):
-        return None
+    if os.environ.get("CLAUDE_OS_DAEMON") or core.downloaded():
+        return None  # a downloaded copy follows its app, not main (0015)
     from . import evolve
     try:
         terminal = not os.environ.get("CLAUDE_OS_APP") and not evolve.code_in_use()

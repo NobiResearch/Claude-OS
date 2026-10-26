@@ -476,7 +476,7 @@ def main(argv=None):
             # start again on the new code. Never under another running server, and never
             # anything that keeps the app from getting its server.
             try:
-                c_ = None if evolve.serving() else evolve.auto_catch_up("app start")
+                c_ = None if evolve.serving() else (evolve.follow_app("app start") or evolve.auto_catch_up("app start"))
             except Exception:
                 c_ = None
             if c_ and c_["updated"]:

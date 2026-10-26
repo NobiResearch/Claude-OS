@@ -152,17 +152,57 @@ def check_rustup():
 
 
 def check_claude_os():
-    """Claude OS itself: what's merged on GitHub and not on this Mac yet (decision 0011)."""
+    """Claude OS itself: what's merged on GitHub and not on this Mac yet (decision 0011). A
+    downloaded copy follows its app instead (0015), so main is none of its business."""
     from . import evolve
+    if core.downloaded():
+        return None
     c = evolve.catch_up(fetch=True, source="update")
     items = [{"name": "Claude OS", "installed": c["head"], "latest": c["latest"], "changes": c["subjects"],
               "protected": c["protected"]}] if c["behind"] else []
     return {"items": items, "error": c["why"] if items else None}
 
 
+LATEST_RELEASE = "https://api.github.com/repos/%s/releases/latest" % core.REPOSITORY.split("/", 1)[1]
+RELEASE_PAGE = re.compile(r"https://github\.com/%s/releases/tag/[\w.-]+" % re.escape(core.REPOSITORY.split("/", 1)[1]), re.I)
+
+
+def latest_release():
+    """The newest Claude OS.app on GitHub, {"version", "url"}, or None. One look a day at
+    most, whatever the answer (decision 0015, step 6)."""
+    cached = core.cache_get("app-release", max_age=86400)
+    if cached:
+        return cached["data"].get("latest")
+    latest = None
+    try:
+        with core.http_get(LATEST_RELEASE, headers={"Accept": "application/vnd.github+json"}, timeout=8) as r:
+            d = json.loads(r.read(500000))
+        tag, url = d.get("tag_name"), d.get("html_url")
+        version = tag[1:] if isinstance(tag, str) and tag.startswith("v") else tag
+        if core.version_tuple(version) and isinstance(url, str) and RELEASE_PAGE.fullmatch(url) and not d.get("draft"):
+            latest = {"version": version, "url": url}
+    except Exception:  # offline, rate-limited, no release yet (404): ask again tomorrow
+        pass
+    core.cache_put("app-release", {"latest": latest})
+    return latest
+
+
+def check_app():
+    """A newer Claude OS.app, for a downloaded one: it never replaces itself (0015), so it
+    says so here, quietly. None for an app someone built themselves."""
+    app = core.app_record()
+    if not app.get("release"):
+        return None
+    latest, have = latest_release(), core.version_tuple(app.get("version"))
+    if not latest or not have or core.version_tuple(latest["version"]) <= have:
+        return {"items": [], "error": None}
+    return {"items": [{"name": "Claude OS.app", "installed": app["version"], "latest": latest["version"],
+                       "url": latest["url"]}], "error": None}
+
+
 def check(fetch=False):
     jobs = {"macos": check_macos, "brew": lambda: check_brew(fetch), "npm": check_npm,
-            "mas": check_mas, "rustup": check_rustup, "claude-os": check_claude_os}
+            "mas": check_mas, "rustup": check_rustup, "claude-os": check_claude_os, "app": check_app}
     with ThreadPoolExecutor(len(jobs)) as pool:
         futures = {k: pool.submit(fn) for k, fn in jobs.items()}
         sources = {k: f.result() for k, f in futures.items()}
@@ -209,6 +249,8 @@ def render(data):
         if len(items) > 12:
             print("  … and %d more" % (len(items) - 12))
     render_claude_os(src.get("claude-os"))
+    for it in (src.get("app") or {}).get("items", []):
+        print("Claude OS.app %s is out (you have %s): %s" % (it["latest"], it["installed"], it["url"]))
     if not data["fetched"] and src.get("brew"):
         print("\n(brew metadata not refreshed; `cos update --fetch` asks Homebrew for the latest)")
     if data["missing_tools"]:

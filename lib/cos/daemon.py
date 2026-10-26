@@ -110,11 +110,21 @@ def elsewhere(name):
     return root if os.path.exists(os.path.join(root, "bin", "cos")) else None
 
 
-def install(name):
-    spec = definitions()[name]
+def refusal(name):
+    """Why this checkout may not install this daemon, or None."""
     other = elsewhere(name)
     if other:
-        return core.Result(1, "", "it runs from another Claude OS (%s); turn it off there first" % _tilde(other))
+        return "it runs from another Claude OS (%s); turn it off there first" % _tilde(other)
+    if name == "evolve" and core.downloaded():
+        return "a downloaded Claude OS follows its app's releases; evolve is for a checkout you develop"
+    return None
+
+
+def install(name):
+    spec = definitions()[name]
+    why = refusal(name)
+    if why:
+        return core.Result(1, "", why)
     os.makedirs(AGENTS_DIR, exist_ok=True)
     path = plist_path(name)
     if is_loaded(name):
@@ -500,9 +510,10 @@ def main(args):
             if n not in names:
                 core.die("no daemon %r" % n)
             if c == "install":
-                r = install(n)
-                if elsewhere(n):
-                    print("%s not installed: %s" % (n, r.err))
+                why = refusal(n)
+                r = core.Result(1, "", why) if why else install(n)
+                if why:
+                    print("%s not installed: %s" % (n, why))
                     failed = True
                 else:
                     print("%s %s" % (n, "installed and loaded" if is_loaded(n) else "installed (load failed: %s)" % r.err))
