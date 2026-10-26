@@ -321,7 +321,7 @@
             h("td", null, p.name, p.count > 1 ? h("span", { class: "muted" }, " ×" + p.count) : null), h("td", { class: "num" }, val(p))))));
           root.appendChild(h("div", { class: "grid2" },
             card("Top CPU", table(s.top.cpu, (p) => p.cpu.toFixed(0) + "%")),
-            card("Top memory", table(s.top.memory, (p) => fmt.bytes(p.rss)))));
+            card("Top memory", table(s.top.memory, (p) => (p.count > 1 ? "≈" : "") + fmt.bytes(p.rss)))));
         }
         root.appendChild(h("div", { class: "chips" },
           h("button", { class: "chip", onclick: () => COS.ask("Look at my Mac's vitals and tell me if anything needs attention.") }, "◆ Ask Claude to look")));

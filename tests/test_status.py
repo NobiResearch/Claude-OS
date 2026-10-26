@@ -82,5 +82,23 @@ class TestTopProcesses(unittest.TestCase):
         self.assertEqual(status._proc({"name": "WindowServer", "count": 1}, "20%"), "WindowServer 20%")
 
 
+class TestLocale(unittest.TestCase):
+    def test_ps_and_sysctl_run_in_the_c_locale(self):
+        seen = []
+
+        def run(cmd, **kw):
+            seen.append((cmd[0], (kw.get("env") or {}).get("LC_ALL")))
+            return core.Result(0, "", "")
+        with mock.patch.object(status.core, "run", run):
+            status.top_processes()
+            status._sysctl("vm.loadavg")
+        self.assertEqual(seen, [("ps", "C"), ("sysctl", "C")], "Norwegian ps prints 12,5")
+
+    def test_tools_inside_a_bundle_keep_their_name(self):
+        self.assertEqual(status.app_name("/Applications/Xcode.app/Contents/Developer/usr/bin/git"), "git")
+        self.assertEqual(status.app_name("/Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container"), "Firefox")
+        self.assertEqual(status.app_name("/Applications/Google Chrome.app/Contents/Frameworks/G.framework/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper"), "Google Chrome")
+
+
 if __name__ == "__main__":
     unittest.main()
