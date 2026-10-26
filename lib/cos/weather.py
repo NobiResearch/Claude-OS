@@ -5,6 +5,7 @@ Off until the human sets a city or turns on "Use my location" in the app (decisi
 place name is added to the Guardian's private terms so it can never be committed.
 """
 
+import calendar
 import json
 import time
 import urllib.parse
@@ -123,6 +124,28 @@ def outlook(hours, current_code):
     return None
 
 
+def as_of(f, now=None):
+    """The forecast as of now. A cached one can be hours old, so hours that are over are
+    dropped and the alert is worked out again from the rest: it never warns about rain at
+    an hour that's already gone. An hour counts until the next one starts, as Open-Meteo's
+    own forecast_hours do."""
+    hours = f.get("hours") or []
+    now = time.time() if now is None else now
+    left = [h for h in hours if h.get("ts") is None or h["ts"] + 3600 > now]
+    if len(left) == len(hours):
+        return f
+    return dict(f, hours=left, alert=outlook(left, left[0]["code"] if left else None))
+
+
+def _epoch(stamp, offset):
+    """'2026-10-26T14:00' in the place's time -> seconds since the epoch, or None. On the
+    night the clocks change, hours after the change are an hour off; that's all."""
+    try:
+        return calendar.timegm(time.strptime(stamp, "%Y-%m-%dT%H:%M")) - int(offset)
+    except (TypeError, ValueError):
+        return None
+
+
 def parse_forecast(data, place):
     cur = data.get("current") or {}
     daily = data.get("daily") or {}
@@ -137,10 +160,11 @@ def parse_forecast(data, place):
             return None
 
     hourly = data.get("hourly") or {}
+    offset = data.get("utc_offset_seconds")
     hours = []
     for t, pp, code in zip(hourly.get("time") or [], hourly.get("precipitation_probability") or [],
                            hourly.get("weather_code") or []):
-        hours.append({"time": t[-5:], "pp": pp, "code": code})
+        hours.append({"time": t[-5:], "ts": _epoch(t, offset), "pp": pp, "code": code})
     desc, symbol = describe(cur.get("weather_code"))
     return {"place": place.get("name"), "source": place.get("source"),
             "alert": outlook(hours, cur.get("weather_code")), "hours": hours[:12],
@@ -155,7 +179,7 @@ def forecast(force=False):
         return {"configured": False}
     cached = core.cache_get("weather", max_age=CACHE_SECONDS)
     if cached and not force and cached["data"].get("place") == place.get("name"):
-        return cached["data"]
+        return as_of(cached["data"])
     params = urllib.parse.urlencode({
         "latitude": place["lat"], "longitude": place["lon"], "timezone": "auto", "forecast_days": 2,
         "current": "temperature_2m,apparent_temperature,weather_code,wind_speed_10m",

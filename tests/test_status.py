@@ -1,4 +1,5 @@
 import plistlib
+import time
 import unittest
 from unittest import mock
 
@@ -57,6 +58,19 @@ class TestBackupSignal(TempHome):
             status.refresh_backup(max_age=0)
             self.assertEqual(backup.call_count, 2)
         self.assertEqual(core.cache_get("backup")["data"], {"configured": False})
+
+
+class TestWeatherSignal(TempHome):
+    def weather_notes(self, first_hour_started):
+        now = time.time()
+        core.cache_put("weather", {"alert": {"level": "note", "msg": "rain likely around 02:00 (93%)"}, "hours": [
+            {"time": "02:00", "ts": now - first_hour_started, "pp": 93, "code": 61},
+            {"time": "03:00", "ts": now - first_hour_started + 3600, "pp": 10, "code": 3}]})
+        return [m for _, m in status.signals(VITALS) if m.startswith("Rain")]
+
+    def test_rain_at_an_hour_that_is_over_is_no_signal(self):
+        self.assertEqual(self.weather_notes(first_hour_started=40 * 60), ["Rain likely around 02:00 (93%)"])
+        self.assertEqual(self.weather_notes(first_hour_started=90 * 60), [], "the boot banner at 03:30")
 
 
 PS = """  101  12.5 2048000 /Applications/Firefox.app/Contents/MacOS/firefox
