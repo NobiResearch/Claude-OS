@@ -200,3 +200,48 @@ class TestTrends(TempHome):
 if __name__ == "__main__":
     import unittest
     unittest.main()
+
+
+class TestWhichApp(TempHome):
+    """`cos` talks to the Claude OS.app that last launched, wherever it is (decision 0015):
+    with two copies on one Mac, macOS would hand claude-os:// links to the one it prefers."""
+
+    def app(self, folder, executable="ClaudeOS", schemes=("claude-os",)):
+        import plistlib
+        path = os.path.join(self.tmp, folder, "Claude OS.app")
+        os.makedirs(os.path.join(path, "Contents"))
+        with open(os.path.join(path, "Contents", "Info.plist"), "wb") as f:
+            plistlib.dump({"CFBundleExecutable": executable,
+                           "CFBundleURLTypes": [{"CFBundleURLSchemes": list(schemes)}]}, f)
+        return path
+
+    def record(self, **kw):
+        core.save_json(core.home("state", "app.json"), kw)
+
+    def test_the_recorded_app_first_then_the_usual_place(self):
+        self.assertIsNone(core.app_bundle())
+        usual = self.app(os.path.join("home", "Applications"))
+        self.assertEqual(core.app_bundle(), usual)
+        downloaded = self.app("Downloads")
+        self.record(bundle=downloaded, release=True)
+        self.assertEqual(core.app_bundle(), downloaded)
+
+    def test_a_record_that_isnt_claude_os_is_ignored(self):
+        usual = self.app(os.path.join("home", "Applications"))
+        for other in (self.app("other", executable="Evil"), self.app("other2", schemes=("evil",)), "/nope.app", 42):
+            self.record(bundle=other)
+            self.assertEqual(core.app_bundle(), usual, other)
+
+    def test_links_go_to_that_app(self):
+        from unittest import mock
+        downloaded = self.app("Downloads")
+        self.record(bundle=downloaded)
+        with mock.patch.object(core, "run", return_value=core.Result(0, "", "")) as run:
+            core.open_app_url("claude-os://notify/flush")
+        self.assertEqual(run.call_args[0][0], ["open", "-g", "-a", downloaded, "claude-os://notify/flush"])
+
+    def test_your_own_build_never_installs_beside_a_downloaded_one(self):
+        from cos import cli
+        self.record(bundle=self.app("Downloads"), release=True)
+        with self.assertRaises(SystemExit):
+            cli.app_cmd("install")

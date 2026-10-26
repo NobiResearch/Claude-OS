@@ -174,7 +174,7 @@ def confirm_natively(what, wait=120):
         answer.unlink()
     except OSError:
         pass
-    if not core.run(["open", "-g", core.app_url("confirm/" + what, rid=rid)], timeout=10).ok:
+    if not core.open_app_url(core.app_url("confirm/" + what, rid=rid), timeout=10).ok:
         return None
     deadline = time.time() + wait
     while time.time() < deadline:
@@ -600,7 +600,7 @@ def make_handler(app):
         if not on:
             return h._json({"native": False})
         before = (core.load_json(core.home("state", "notify.json"), {}) or {}).get("ts", 0)
-        core.run(["open", "-g", core.app_url("notify/authorize")], timeout=10)  # macOS asks; the human decides
+        core.open_app_url(core.app_url("notify/authorize"), timeout=10)  # macOS asks; the human decides
         status = {}
         for _ in range(120):
             time.sleep(0.5)

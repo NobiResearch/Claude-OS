@@ -318,7 +318,7 @@ def player_command(command, catalog_id=None, wait=12, extra=None):
     rid = uuid.uuid4().hex[:12]
     params = {"rid": rid, "id": catalog_id}
     params.update(extra or {})
-    r = core.run(["open", "-g", core.app_url("music/%s" % command, **params)], timeout=15)
+    r = core.open_app_url(core.app_url("music/%s" % command, **params), timeout=15)
     if not r.ok:
         return {"ok": False, "error": "couldn't reach Claude OS: %s" % r.err[:200]}
     playing = lambda s: s.get("status") == "playing"

@@ -465,12 +465,48 @@ def app_url(path, **params):
     return "claude-os://%s?%s" % (path, query)
 
 
+def app_record():
+    """What Claude OS.app wrote about itself when it last launched (state/app.json), or {}."""
+    d = load_json(home("state", "app.json"), {})
+    return d if isinstance(d, dict) else {}
+
+
+def _is_claude_os_app(path):
+    """A Claude OS.app bundle: our executable, and it handles claude-os:// links."""
+    import plistlib
+    try:
+        with open(os.path.join(str(path), "Contents", "Info.plist"), "rb") as f:
+            info = plistlib.load(f)
+    except Exception:
+        return False
+    schemes = [s for t in info.get("CFBundleURLTypes") or [] if isinstance(t, dict)
+               for s in t.get("CFBundleURLSchemes") or []]
+    return str(path).endswith(".app") and info.get("CFBundleExecutable") == "ClaudeOS" and "claude-os" in schemes
+
+
+def app_bundle():
+    """The Claude OS.app to talk to: the one that last launched (a downloaded release or a
+    developer's own build, wherever it is), if it's still there and is Claude OS; else
+    ~/Applications/Claude OS.app; else None (decision 0015)."""
+    for path in (app_record().get("bundle"), os.path.expanduser("~/Applications/Claude OS.app")):
+        if path and _is_claude_os_app(path):
+            return str(path)
+    return None
+
+
+def open_app_url(url, timeout=15):
+    """Hand a claude-os:// link to the Claude OS.app in use (`open -a`), never to whichever copy
+    macOS prefers: with two copies on a Mac, each would get the other's links (0015)."""
+    bundle = app_bundle()
+    return run(["open", "-g"] + (["-a", bundle] if bundle else []) + [url], timeout=timeout)
+
+
 def ensure_app(wait=12):
     """Start Claude OS.app (in the background) if it isn't running; True once it's up."""
     if app_running("ClaudeOS"):
         return True
-    bundle = os.path.expanduser("~/Applications/Claude OS.app")
-    if not os.path.isdir(bundle):
+    bundle = app_bundle()
+    if not bundle:
         return False
     nonce = home("state", "app.nonce")
     before = nonce.stat().st_mtime if nonce.exists() else 0
@@ -511,7 +547,7 @@ def notify(message, title="Claude OS", subtitle=None, sound=None, target=None):
             with open(path, "w") as f:
                 json.dump(note, f, ensure_ascii=False)
             os.chmod(str(path), 0o600)
-            r = run(["open", "-g", "claude-os://notify/flush"], timeout=10)
+            r = open_app_url("claude-os://notify/flush", timeout=10)
             if r.ok:
                 return r
             os.unlink(str(path))  # couldn't wake the app: say it the old way instead

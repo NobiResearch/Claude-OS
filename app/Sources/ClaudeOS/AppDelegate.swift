@@ -27,6 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
             Notifier.shared.start()
         }
         config = AppConfig.load()
+        config.record()  // so `cos` reaches this copy of the app (state/app.json)
         NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self)
 
         windowController = MainWindowController(config: config)

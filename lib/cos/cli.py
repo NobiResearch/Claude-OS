@@ -275,9 +275,15 @@ def brief():
 
 
 def app_cmd(action):
-    bundle = os.path.expanduser("~/Applications/Claude OS.app")
-    if action == "open" and os.path.isdir(bundle):
+    bundle = core.app_bundle()  # the copy in use: a downloaded release or your own build
+    if action == "open" and bundle:
         return core.run(["open", bundle], timeout=20).rc
+    record = core.app_record()
+    if action in ("install", "open") and record.get("release") is True and record.get("bundle") \
+            and core._is_claude_os_app(record["bundle"]):
+        core.die("you're using the downloaded Claude OS.app; installing your own build would put a "
+                 "second one beside it, and the two would get each other's links (decision 0015). "
+                 "Quit it and move it to the Trash first, or just build: cos app build")
     script = str(core.ROOT / "app" / "build.sh")
     flags = {"build": [], "install": ["--install"], "open": ["--install", "--open"]}[action]
     return subprocess.call([script] + flags, cwd=str(core.ROOT))
