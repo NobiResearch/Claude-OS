@@ -310,3 +310,32 @@ class TestEvolveLeavesItsSettingsAlone(unittest.TestCase):
         for tool in ("Edit", "Write"):
             for name in ("settings.json", "settings.local.json"):
                 self.assertIn("%s(.claude/%s)" % (tool, name), dis)
+
+
+class TestEvolveStaysInItsSandbox(unittest.TestCase):
+    """Two ways out of evolve's sandbox, closed (the guardian's follow-ups to #93, checked with
+    headless runs on 27 October): hooks run outside the sandbox, and a bare Edit or Write allow
+    reaches any path on the Mac."""
+
+    def test_no_hooks_in_a_sandboxed_run(self):
+        self.assertIs(daemon.SANDBOX_SETTINGS["disableAllHooks"], True)
+        spec = daemon.definitions()["evolve"]
+        self.assertTrue(spec.get("sandbox"))
+
+    def test_file_edits_only_through_accept_edits(self):
+        spec = daemon.definitions()["evolve"]
+        self.assertEqual(spec["permission_mode"], "acceptEdits")
+        for tool in spec["allowed_tools"]:
+            self.assertNotIn(tool, ("Edit", "Write", "NotebookEdit", "MultiEdit"), "a bare allow reaches any path")
+            self.assertFalse(tool.startswith(("Edit(/", "Write(/", "Edit(~", "Write(~")), tool)
+
+
+class TestEvolveCommandLine(unittest.TestCase):
+    def test_the_command_carries_the_sandbox_and_no_hooks(self):
+        cmd = daemon.claude_command(daemon.definitions()["evolve"])
+        settings = json.loads(cmd[cmd.index("--settings") + 1])
+        self.assertIs(settings["disableAllHooks"], True)
+        self.assertTrue(settings["sandbox"]["enabled"])
+        allowed = cmd[cmd.index("--allowedTools") + 1:cmd.index("--settings")]
+        self.assertNotIn("Edit", allowed)
+        self.assertNotIn("Write", allowed)

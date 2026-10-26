@@ -41,8 +41,12 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 ]
 
 # Evolve edits code and runs tests, so its shell runs in Claude Code's sandbox: writes
-# confined to its workspace clone, no network, no unsandboxed escape hatch.
-SANDBOX_SETTINGS = {"sandbox": {"enabled": True, "failIfUnavailable": True,
+# confined to its workspace clone, no network, no unsandboxed escape hatch. No hooks at all:
+# Claude Code runs a hook outside the sandbox, and the workspace's hooks run its bin/cos,
+# which the run itself may edit. Its file edits stay in the workspace through acceptEdits
+# alone: a bare Edit or Write allow would reach any path on the Mac.
+SANDBOX_SETTINGS = {"disableAllHooks": True,
+                    "sandbox": {"enabled": True, "failIfUnavailable": True,
                                 "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False,
                                 # the test suite starts servers on 127.0.0.1; still no outside network
                                 "network": {"allowLocalBinding": True}}}
