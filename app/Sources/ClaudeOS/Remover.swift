@@ -11,9 +11,17 @@ enum Remover {
         guard config.release, let data = try? Data(contentsOf: base.appendingPathComponent("state/install.json")),
               let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               record["kind"] as? String == "download", let root = record["root"] as? String,
-              URL(fileURLWithPath: root).resolvingSymlinksInPath().path == config.root.resolvingSymlinksInPath().path
+              sameFolder(URL(fileURLWithPath: root), config.root)
         else { return nil }
         return config.root
+    }
+
+    /// The same folder on disk, however its path is spelled (macOS ignores a path's case).
+    static func sameFolder(_ a: URL, _ b: URL) -> Bool {
+        let key: Set<URLResourceKey> = [.fileResourceIdentifierKey]
+        guard let x = try? a.resourceValues(forKeys: key).fileResourceIdentifier,
+              let y = try? b.resourceValues(forKeys: key).fileResourceIdentifier else { return false }
+        return x.isEqual(y)
     }
 
     /// Asks, then removes. `stopServer` runs before anything is touched.
