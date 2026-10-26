@@ -277,3 +277,44 @@ class TestSpeedIsAsked(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNetworkCard(TempHome):
+    """Vitals' Network card (0010, amended): the verdict and a few numbers, nothing that names
+    the network or the Mac, and nothing kept."""
+
+    FULL = {"level": "warn", "verdict": "Weak Wi-Fi.", "via": "wifi", "vpn": False, "connected": True,
+            "ethernet": False, "dns_ms": 22, "router": {"seen": True},
+            "wifi": {"joined": True, "power": True, "rssi": -78, "noise": -92, "tx": 144, "band": 2,
+                     "channel": 36, "width": 3, "phy": 6, "ssid": "Home Network", "bssid": "aa:bb:cc:dd:ee:ff"},
+            "internet": {"resolved": True, "ok": True, "ms": 41, "portal": False}}
+
+    def test_only_the_verdict_and_a_few_numbers(self):
+        s = net.summary(self.FULL)
+        self.assertEqual(s, {"level": "warn", "verdict": "Weak Wi-Fi.", "via": "wifi", "vpn": False, "signal_dbm": -78,
+                             "signal": "weak", "link_mbps": 144, "dns_ms": 22, "internet_ms": 41, "portal": False})
+        self.assertNotIn("Home Network", json.dumps(s))
+        off = net.summary({"level": "bad", "verdict": "Wi-Fi is off.", "wifi": {"power": False}, "internet": {"resolved": False}})
+        self.assertEqual((off["signal_dbm"], off["internet_ms"]), (None, None))
+
+    def test_the_route_runs_the_check_and_writes_nothing(self):
+        from cos import server
+        from helpers import UnixHTTPConnection, UnixHTTPServer
+        app = server.App("t")
+        sock = os.path.join(self.tmp, "net.sock")
+        httpd = UnixHTTPServer(sock, server.make_handler(app))
+        app.port = 7357
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.server_close)
+        self.addCleanup(httpd.shutdown)
+        before = sorted(p for p in core.home().rglob("*"))
+        with mock.patch.object(net, "check", return_value=self.FULL) as check:
+            conn = UnixHTTPConnection(sock)
+            conn.request("GET", "/api/net", headers={"Host": "127.0.0.1:7357", "X-COS-Token": "t"})
+            res = conn.getresponse()
+            body = json.loads(res.read())
+        self.assertEqual(res.status, 200)
+        check.assert_called_once()
+        self.assertEqual(body["verdict"], "Weak Wi-Fi.")
+        self.assertNotIn("ssid", json.dumps(body))
+        self.assertEqual(sorted(p for p in core.home().rglob("*")), before, "no cache, journal or state")
