@@ -9,6 +9,13 @@ BIN_DIR = os.path.expanduser("~/.local/bin")
 LINK = os.path.join(BIN_DIR, "cos")
 
 
+def _tilde(path):
+    """A path as ~/…: what install and doctor print ends up pasted into bug reports, and a
+    home folder's name is the human's username."""
+    s, home = str(path), os.path.expanduser("~")
+    return "~" + s[len(home):] if s == home or s.startswith(home + os.sep) else s
+
+
 # The Mac skills that work from any folder (decision 0009): linked into ~/.claude/skills, so
 # they load live from this checkout, where the night shift can't change them unseen.
 # brief, board, evolve and lab stay in the repo.
@@ -66,7 +73,7 @@ def install(args):
     steps = []
     os.makedirs(BIN_DIR, exist_ok=True)
     if os.path.lexists(LINK) and not _ours(LINK):
-        steps.append("✗ %s exists and isn't Claude OS; left it alone" % LINK)
+        steps.append("✗ %s exists and isn't Claude OS; left it alone" % _tilde(LINK))
     else:
         if os.path.lexists(LINK):
             os.remove(LINK)
@@ -111,7 +118,7 @@ def uninstall(args):
     skills = unlink_skills()
     core.run(["git", "config", "--unset", "core.hooksPath"], cwd=str(core.ROOT))
     print("Removed daemons, the `cos` link%s and the git hook. Your private data is still in %s."
-          % (", %d skill link%s" % (skills, "" if skills == 1 else "s") if skills else "", core.home()))
+          % (", %d skill link%s" % (skills, "" if skills == 1 else "s") if skills else "", _tilde(core.home())))
     return 0
 
 
@@ -131,7 +138,7 @@ def doctor(args):
     hooks = core.run(["git", "config", "core.hooksPath"], cwd=str(core.ROOT)).out
     check(hooks == "githooks", "Guardian pre-commit hook", "run: git config core.hooksPath githooks")
     mode = oct(os.stat(str(core.home())).st_mode & 0o777)
-    check(mode == "0o700", "private home %s is %s" % (core.home(), mode), "chmod 700 ~/.claude-os")
+    check(mode == "0o700", "private home %s is %s" % (_tilde(core.home()), mode), "chmod 700 ~/.claude-os")
     check(bool(core.which("brew")), "Homebrew", "https://brew.sh")
     check(bool(core.which("mas")), "mas (App Store updates)", "brew install mas")
     fda = core.run(["ls", os.path.expanduser("~/.Trash")], timeout=5).ok
