@@ -689,7 +689,7 @@ def make_handler(app):
 
     def r_evolve(h, q, b):
         from . import evolve
-        h._json([{"branch": br, "commits": evolve.ahead(br)} for br in evolve.branches()])
+        h._json(evolve.status_rows())
 
     def r_evolve_diff(h, q, b):
         from . import evolve

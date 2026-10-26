@@ -147,16 +147,45 @@ def after_run(ws, summary):
     r = git("fetch", "--quiet", ws["path"], "%s:%s" % (ws["branch"], ws["branch"]))
     if not r.ok:
         return "evolve: committed on %s but couldn't bring it back: %s" % (ws["branch"], r.err[:200])
+    sha = tip(ws["branch"])
     t = test_commit(ws["branch"])
     verdict = "tests pass" if t is not None and t.ok else "TESTS FAIL"
     core.journal("evolve", "%s: %d commit(s), %s" % (ws["branch"], len(commits), verdict),
-                 branch=ws["branch"], commits=commits, tests_ok=bool(t is not None and t.ok))
+                 branch=ws["branch"], commits=commits, tip=sha, tests_ok=bool(t is not None and t.ok))
     return "evolved: %s (%s) · review: cos evolve review %s" % (commits[0].split(" ", 1)[-1], verdict, ws["branch"])
 
 
 def branches():
     r = git("branch", "--list", "evolve/*", "--format=%(refname:short)")
     return [b for b in r.out.splitlines() if b.strip()]
+
+
+def tip(branch):
+    return git("rev-parse", "--verify", "--quiet", branch + "^{commit}").out.strip()
+
+
+def verdicts(names):
+    """{branch: True | False | None}: what the last sandboxed test run said about each branch
+    as it is now. None when none ran on its current tip (it was rebased since, say).
+    Entries from before tips were journaled count for the branch as it is."""
+    last = {}
+    for e in core.read_journal(days=60, kind="evolve"):
+        if e.get("branch") in names and "tests_ok" in e:
+            last[e["branch"]] = e
+    out = {}
+    for b in names:
+        e = last.get(b)
+        out[b] = e["tests_ok"] if e and e.get("tip") in (None, tip(b)) else None
+    return out
+
+
+TESTS_SAID = {True: " · tests pass", False: " · its tests FAIL in the sandbox (merge refuses it)"}
+
+
+def status_rows():
+    names = branches()
+    ok = verdicts(names)
+    return [{"branch": b, "commits": ahead(b), "tests_ok": ok[b]} for b in names]
 
 
 def workspace_path(branch):
@@ -419,14 +448,15 @@ def auto_catch_up(source, cwd=None):
 def main(args):
     c = args.evolve_cmd or "status"
     if c == "status":
-        rows = [{"branch": b, "commits": ahead(b)} for b in branches()]
+        rows = status_rows()
         if args.json:
             core.emit(rows, True, None)
             return 0
         if not rows:
             print("No evolve branches waiting. (The nightly evolve daemon creates them: cos daemon install evolve)")
         for r in rows:
-            print("%s  (%d commit%s)" % (r["branch"], len(r["commits"]), "" if len(r["commits"]) == 1 else "s"))
+            print("%s  (%d commit%s)%s" % (r["branch"], len(r["commits"]), "" if len(r["commits"]) == 1 else "s",
+                                         TESTS_SAID.get(r["tests_ok"], "")))
             for c_ in r["commits"][:5]:
                 print("    %s" % c_)
         from . import hook
@@ -452,10 +482,12 @@ def main(args):
             for path, why in problems:
                 print("  guard: %s: %s" % (path, why))
             core.die("the Guardian blocks this branch (it would publish private data)")
+        sha = tip(args.branch)
         t = test_commit(args.branch)
         if t is None:
             core.die("couldn't run the branch's tests; not merging")
         if not t.ok:
+            core.journal("evolve", "%s: tests fail, not merged" % args.branch, branch=args.branch, tip=sha, tests_ok=False)
             print((t.err or t.out)[-2000:])
             core.die("the branch's tests fail; not merging")
         fixed = addressed_frictions(args.branch)
