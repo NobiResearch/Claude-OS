@@ -183,9 +183,11 @@ def signals(s):
     if up > 14 * 86400:
         out.append(("note", "up %d days; a restart helps updates land" % (up // 86400)))
     wx = core.cache_get("weather", max_age=3 * 3600)
-    if wx and (wx["data"].get("alert") or {}).get("msg"):
-        a = wx["data"]["alert"]
-        out.append((a["level"], a["msg"][0].upper() + a["msg"][1:]))
+    if wx:
+        from . import weather
+        a = weather.as_of(wx["data"] or {}).get("alert") or {}
+        if a.get("msg"):
+            out.append((a["level"], a["msg"][0].upper() + a["msg"][1:]))
     upd = core.cache_get("updates")
     if upd:
         n = upd["data"].get("total", 0)

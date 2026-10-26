@@ -1,9 +1,11 @@
+import calendar
 import datetime as dt
 import unittest
+from unittest import mock
 
 from helpers import TempHome
 
-from cos import cal, weather
+from cos import cal, core, weather
 
 
 def at(day, hour, minute=0):
@@ -51,6 +53,53 @@ class TestWeatherOutlook(unittest.TestCase):
 
     def test_quiet_weather_has_no_alert(self):
         self.assertIsNone(weather.outlook(self.hours((5, 1), (10, 2)), current_code=1))
+
+
+def utc(hour, minute=0):
+    return calendar.timegm((2026, 10, 26, hour, minute, 0))
+
+
+# What Open-Meteo answers at 02:51 for a place two hours ahead of UTC.
+ANSWER = {"utc_offset_seconds": 7200, "current": {"weather_code": 3},
+          "hourly": {"time": ["2026-10-26T02:00", "2026-10-26T03:00", "2026-10-26T04:00"],
+                     "precipitation_probability": [93, 10, 5], "weather_code": [61, 3, 3]}}
+PLACE = {"name": "Somewhere", "lat": 1.0, "lon": 2.0, "source": "city"}
+
+
+class TestWeatherAsOf(TempHome):
+    def test_hours_know_when_they_are(self):
+        f = weather.parse_forecast(ANSWER, PLACE)
+        self.assertEqual([h["ts"] for h in f["hours"]], [utc(0), utc(1), utc(2)], "02:00 at UTC+2 is 00:00 UTC")
+        self.assertIsNone(weather.parse_forecast(dict(ANSWER, utc_offset_seconds=None), PLACE)["hours"][0]["ts"])
+
+    def test_an_hour_that_is_over_no_longer_warns(self):
+        f = weather.parse_forecast(ANSWER, PLACE)
+        self.assertEqual(f["alert"]["msg"], "rain likely around 02:00 (93%)")
+        self.assertIs(weather.as_of(f, now=utc(0, 40)), f, "at 02:40 the 02:00 hour still counts")
+        later = weather.as_of(f, now=utc(1, 30))
+        self.assertIsNone(later["alert"], "at 03:30 rain at 02:00 is old news")
+        self.assertEqual([h["time"] for h in later["hours"]], ["03:00", "04:00"])
+        self.assertEqual(f["alert"]["msg"], "rain likely around 02:00 (93%)", "the cached forecast is left alone")
+
+    def test_rain_later_still_warns(self):
+        answer = dict(ANSWER, hourly=dict(ANSWER["hourly"], precipitation_probability=[93, 10, 80], weather_code=[61, 3, 63]))
+        later = weather.as_of(weather.parse_forecast(answer, PLACE), now=utc(1, 30))
+        self.assertEqual(later["alert"]["msg"], "rain likely around 04:00 (80%)")
+
+    def test_a_cache_without_times_stays_as_it_was(self):
+        f = {"alert": {"level": "note", "msg": "rain likely around 02:00 (93%)"},
+             "hours": [{"time": "02:00", "pp": 93, "code": 61}]}
+        self.assertIs(weather.as_of(f, now=utc(12)), f)
+
+    def test_the_cached_forecast_is_as_of_now(self):
+        core.config_set("weather", PLACE)
+        with mock.patch("time.time", return_value=utc(0, 51)):
+            core.cache_put("weather", dict(weather.parse_forecast(ANSWER, PLACE), configured=True))
+        with mock.patch("time.time", return_value=utc(1, 15)), mock.patch.object(weather.core, "http_get") as get:
+            f = weather.forecast()
+        get.assert_not_called()
+        self.assertIsNone(f["alert"])
+        self.assertNotIn("rain", weather.line(f))
 
 
 if __name__ == "__main__":
