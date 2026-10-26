@@ -476,7 +476,7 @@ def make_handler(app):
         from . import status
         s = status.collect()
         core.cache_put("status", s)
-        h._json(dict(s, claude_os=code_state(app)))
+        h._json(dict(s, claude_os=code_state(app), new_here=core.new_here(), downloaded=core.downloaded()))
 
     def r_restart(h, q, b):
         """Restart only the server (music plays on in the app): exit 75 tells Claude OS.app

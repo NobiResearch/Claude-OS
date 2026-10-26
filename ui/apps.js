@@ -634,17 +634,19 @@
     keywords: "rss news read brief",
     onReopen(w, arg) { if (arg === "brief" && w.showBrief) w.showBrief(); },
     render(w, arg) {
-      let category = "", showAll = false, items = [];
+      let category = "", showAll = false, items = [], loaded = false;
       const side = h("div", { class: "feeds-side" });
       const list = h("div", { class: "feeds-list" });
       w.actions.appendChild(btn("Brief me", () => COS.ask("/brief"), "ghost small", "claude"));
       w.actions.appendChild(btn("", () => load(true), "ghost small icon-only", "refresh"));
       w.body.appendChild(h("div", { class: "feeds" }, side, list));
       async function load(refresh) {
-        clear(list).appendChild(h("div", { class: "loading" }, spinner(), refresh ? "Fetching feeds…" : "Loading…"));
+        clear(list).appendChild(h("div", { class: "loading" }, spinner(), refresh ? "Fetching feeds…"
+          : loaded ? "Loading…" : "Getting the latest headlines (the first time takes a few seconds)…"));
         try {
           const r = await api("/api/feeds?" + new URLSearchParams({ category, all: showAll ? "1" : "", refresh: refresh ? "1" : "" }));
           items = r.items;
+          loaded = true;
           paintSide(r.categories);
           paint();
         } catch (e) { clear(list).appendChild(h("div", { class: "error-box" }, e.message)); }
@@ -691,7 +693,9 @@
     keywords: "evolve board friction roadmap improve lab", dockGap: true,
     onReopen(w, arg) { if (w.showTab && EVOLUTION_TABS.includes(arg)) w.showTab(arg); },
     render(w, arg) {
-      w.showTab = tabs(w, EVOLUTION_TABS, {
+      // A downloaded copy follows its app's releases and never merges evolve branches (0015).
+      const shown = (COS.state.status || {}).downloaded ? EVOLUTION_TABS.filter((t) => t !== "Branches") : EVOLUTION_TABS;
+      w.showTab = tabs(w, shown, {
         Friction(pane) {
           const input = h("input", { class: "search", placeholder: "What got in your way? (Claude OS will work on it)" });
           const add = async () => {
@@ -860,7 +864,11 @@
         await loading(listEl, async () => {
           const rows = (await api("/api/log?days=30" + (kind ? "&kind=" + kind : ""))).slice().reverse();
           clear(listEl);
-          if (!rows.length) { listEl.appendChild(empty("Nothing here yet.")); return; }
+          if (!rows.length) {
+            listEl.appendChild(kind ? empty("Nothing here yet.")
+              : empty("Nothing here yet.", "Claude OS writes down here what it does: every change, every yes or no you give it, every background job."));
+            return;
+          }
           let day = "";
           rows.forEach((e) => {
             const d = e.ts.slice(0, 10);
@@ -1155,7 +1163,21 @@
       line,
       h("div", { class: "today-chips" }, [radioChip, briefChip].concat(["Do I need to clean up my Mac?", "Play something chill", "Catch me up", "What's outdated?"]
         .map((s) => h("button", { class: "chip glass", onclick: () => COS.ask(s) }, s))))));
+    // The first week on a new Mac (the board, 26 Oct): what to try, once, until it's dismissed.
+    const openLink = (label, id) => h("a", { href: "#", onclick: (e) => { e.preventDefault(); COS.open(id); } }, label);
+    const welcome = h("div", { class: "today-welcome glass", hidden: true },
+      h("div", { class: "welcome-title" }, "Welcome to Claude OS"),
+      h("div", { class: "welcome-text" }, "Claude lives on this Mac now, and it asks before it changes anything."),
+      h("ul", { class: "welcome-list" },
+        h("li", null, openLink("Vitals", "vitals"), " shows how your Mac is doing, ", openLink("Storage", "storage"),
+          " what's safe to clean up, ", openLink("Updates", "updates"), " what's out of date."),
+        h("li", null, "Ask Claude anything: here, in the Claude window, or with ⌃⌥Space from any app."),
+        h("li", null, "Weather, your calendar and Apple Music stay off until you turn them on in ",
+          openLink("Settings", "settings"), ".")),
+      h("div", { class: "row gap" }, h("button", { class: "btn small", onclick: () => { COS.store.set("welcome-done", true); welcome.hidden = true; } }, "Got it")));
+    today.firstChild && today.firstChild.appendChild(welcome);
     COS.on("status", (s) => {
+      welcome.hidden = !s.new_here || COS.store.get("welcome-done", false);
       clear(line);
       line.appendChild(h("span", null, fmt.bytes(s.disk.free) + " free"));
       s.signals.forEach((x) => line.appendChild(h("span", { class: x.level === "warn" ? "warn-text" : "" }, x.msg)));
