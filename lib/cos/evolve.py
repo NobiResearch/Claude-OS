@@ -560,6 +560,10 @@ def main(args):
         return 0
     if c == "merge":
         _check_branch(args.branch)
+        if core.downloaded():
+            core.die("a downloaded Claude OS follows its app's releases, so its main takes no local commits "
+                     "(they'd stop the next app from bringing its code). Share the idea as an issue on %s instead."
+                     % core.REPOSITORY)
         github = _github()
         touched = safety_files(args.branch)
         if touched is None:

@@ -120,6 +120,8 @@ notifications and Music automation).
   shows a card with a link to its release page. An app someone built never asks.
 - **Code newer than its app says so.** `core.APP_NEEDED` is the oldest app the code works
   with; a downloaded app older than that gets a warning signal with the download link.
+- **A download's main takes no local commits**, or the next app couldn't bring its code: `cos
+  evolve merge` refuses there, and so does `cos daemon install evolve`.
 - The Keep up to date dialog now says plainly that some changes are merged by Claude without
   a person's review.
 

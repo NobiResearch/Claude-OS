@@ -527,3 +527,16 @@ class TestNewerApp(TempHome):
         fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
         msgs = [m for _, m in status.signals(fake)]
         self.assertTrue(any("needs Claude OS.app" in m and core.RELEASES in m for m in msgs), msgs)
+
+
+class TestDownloadsDontEvolve(TempHome):
+    def test_no_local_merges_and_no_evolve_daemon(self):
+        from cos import daemon
+        with mock.patch.object(core, "downloaded", return_value=True), \
+                mock.patch.object(daemon, "AGENTS_DIR", os.path.join(self.tmp, "LaunchAgents")):
+            self.assertIn("follows its app", daemon.refusal("evolve"))
+            self.assertFalse(daemon.install("evolve").ok)
+            self.assertIsNone(daemon.refusal("pulse"))
+            with mock.patch.object(evolve, "_check_branch"), self.assertRaises(SystemExit):
+                with redirect_stdout(io.StringIO()), mock.patch("sys.stderr", io.StringIO()):
+                    evolve.main(mock.Mock(evolve_cmd="merge", branch="evolve/x", yes=True, reviewed=False, json=False))
