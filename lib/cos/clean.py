@@ -67,6 +67,9 @@ def tilde(p):
 
 
 CACHE_OWNED_ELSEWHERE = {"Homebrew", "pip", "Yarn"}
+# Not caches at all, whatever the folder says: Poetry keeps its virtualenvs here, and
+# JetBrains IDEs keep their Local History.
+NOT_REALLY_CACHES = {"pypoetry", "JetBrains"}
 # Apple services that keep caches here without the com.apple. prefix. Leave them alone.
 APPLE_CACHES = {"CloudKit", "GeoServices", "FamilyCircle", "PassKit", "GameKit", "SiriEntityCache",
                 "askpermissiond", "familycircled", "SiriTTS", "Maps", "storeassetd", "storedownloadd",
@@ -80,7 +83,7 @@ def caches_children():
         return []
     kids = []
     for child in root.iterdir():
-        if (child.name in CACHE_OWNED_ELSEWHERE or child.name in APPLE_CACHES
+        if (child.name in CACHE_OWNED_ELSEWHERE or child.name in APPLE_CACHES or child.name in NOT_REALLY_CACHES
                 or child.name.startswith("com.apple.") or child.is_symlink()):
             continue
         kids.append(child)
@@ -103,12 +106,27 @@ def measure_user_caches(t):
     return sum(n for _, n in entries), [{"path": tilde(k), "bytes": n} for k, n in entries]
 
 
+def running_apps():
+    """Bundle ids and names of the apps running now (lsappinfo, read-only), lowercased."""
+    out = core.run(["lsappinfo", "list"], timeout=10).out
+    return {m.lower() for m in re.findall(r'bundleID="([^"]+)"', out) + re.findall(r'^\s*\d+\) "([^"]+)"', out, re.M)}
+
+
 def apply_user_caches(t):
+    reviewed = _reviewed(t.id)
+    if reviewed is None:
+        return 0
+    busy = running_apps()
     for path, _ in user_cache_entries():
+        if tilde(path) not in reviewed:
+            continue
+        if path.name.lower() in busy:
+            print("  %-22s kept %s: the app is running" % (t.id, tilde(path)))
+            continue
         try:
             remove(path)
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as e:
+            print("  %-22s kept %s: %s" % (t.id, tilde(path), e))
 
 
 def simulators():
@@ -244,8 +262,8 @@ def measure_docker(t):
 
 def old_downloads():
     root = HOME / "Downloads"
-    if not root.exists():
-        return []
+    if root.is_symlink() or not root.exists():
+        return []  # a Downloads that links elsewhere (into Documents, say) isn't downloads
     cutoff = time.time() - STALE_DAYS * 86400
     out = []
     try:
@@ -256,8 +274,12 @@ def old_downloads():
                 st = child.lstat()
             except OSError:
                 continue
-            if max(st.st_mtime, st.st_atime) < cutoff:
-                out.append(child)
+            if max(st.st_mtime, st.st_atime) >= cutoff:
+                continue
+            # A folder's own dates don't change when a file inside it is edited.
+            if child.is_dir() and recently_touched(child):
+                continue
+            out.append(child)
     except PermissionError:
         return []
     return out
@@ -266,11 +288,13 @@ def old_downloads():
 def measure_downloads(t):
     items = [{"path": tilde(p), "bytes": du(p)} for p in old_downloads()]
     items.sort(key=lambda d: -d["bytes"])
-    return sum(d["bytes"] for d in items), items[:15]
+    return sum(d["bytes"] for d in items), items[:REVIEW_MAX]
 
 
 def apply_downloads(t):
-    trash([p for p in old_downloads()])
+    reviewed = _reviewed(t.id)
+    if reviewed is not None:
+        trash([p for p in old_downloads() if tilde(p) in reviewed])
 
 
 def measure_trash(t):
@@ -282,6 +306,21 @@ def measure_trash(t):
 
 def apply_trash(t):
     core.osascript('tell application "Finder" to empty trash', timeout=300)
+
+
+LOCKFILES = ("package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb", "bun.lock")
+REVIEW_MAX = 500  # every item the human could review is in the scan; the desktop shows the first 40
+
+
+def _reviewed(target_id, max_age=24 * 3600):
+    """The paths the last scan listed for a target, which is what the human reviewed: apply
+    acts only on those (and only if they still qualify). None, with a note, without a scan."""
+    scan = core.cache_get("clean", max_age=max_age)
+    for r in ((scan or {}).get("data") or {}).get("targets", []):
+        if r["id"] == target_id:
+            return {d["path"] for d in r.get("details", []) if "path" in d}
+    print("  %-22s skipped: scan first (`cos clean`), so what's removed is what you reviewed" % target_id)
+    return None
 
 
 DEV_ROOTS = ["~/Developer", "~/Projects", "~/projects", "~/code", "~/src", "~/dev", "~/Code"]
@@ -319,6 +358,9 @@ def stale_node_modules():
             nm = Path(raw)
             if not raw or nm.name != "node_modules" or nm.is_symlink() or "node_modules" in nm.parent.parts:
                 continue
+            # Only what `npm install` (or yarn, pnpm, bun) can put back exactly.
+            if not (nm.parent / "package.json").is_file() or not any((nm.parent / l).exists() for l in LOCKFILES):
+                continue
             if not recently_touched(nm.parent):
                 found.append(nm)
     return found
@@ -329,15 +371,20 @@ def measure_node_modules(t):
     with ThreadPoolExecutor(8) as pool:
         items = [{"path": tilde(nm), "bytes": size} for nm, size in zip(mods, pool.map(du, mods))]
     items.sort(key=lambda d: -d["bytes"])
-    return sum(d["bytes"] for d in items), items[:20]
+    return sum(d["bytes"] for d in items), items[:REVIEW_MAX]
 
 
 def apply_node_modules(t):
+    reviewed = _reviewed(t.id)
+    if reviewed is None:
+        return 0
     for nm in stale_node_modules():
+        if tilde(nm) not in reviewed:
+            continue
         try:
             remove(nm)
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as e:
+            print("  %-22s kept %s: %s" % (t.id, tilde(nm), e))
 
 
 def measure_large_files(t):
@@ -402,7 +449,7 @@ TARGETS = [
            "safe", ["~/Library/Caches/Yarn"], action="cmd", cmd=["yarn", "cache", "clean"], requires="yarn"),
     Target("pip-cache", "pip cache", "Wheel and HTTP cache.", "safe", ["~/Library/Caches/pip"]),
     Target("uv-cache", "uv cache", "Python package cache; refetched on demand.",
-           "safe", ["~/.cache/uv"], action="cmd", cmd=["uv", "cache", "clean"], requires="uv",
+           "safe", ["~/.cache/uv"], action="cmd", cmd=["uv", "--no-config", "cache", "clean"], requires="uv",
            busy=("uv",)),  # uvx tools (MCP servers, say) lock the cache; `uv cache clean` would wait
     Target("cargo-cache", "Cargo registry cache", "Downloaded crate archives and sources.",
            "safe", ["~/.cargo/registry/cache", "~/.cargo/registry/src"]),
@@ -441,15 +488,29 @@ PROTECTED = {
 
 
 def _guard(path):
-    """Only ever remove things at least two levels inside the home folder, never a protected root."""
-    home = Path.home()
+    """Only ever remove things at least two levels inside the home folder, never a protected
+    root, and never through a symlink: if any folder between the home folder and the path is
+    a link (a cache folder pointing into Documents, say), deleting would follow it."""
     p = Path(os.path.abspath(os.path.expanduser(str(path))))
-    try:
-        rel = p.relative_to(home)
-    except ValueError:
+    for home in (Path.home(), Path(os.path.realpath(str(Path.home())))):  # a resolved path, too
+        try:
+            rel = p.relative_to(home)
+            break
+        except ValueError:
+            continue
+    else:
         raise ValueError("refusing to touch %s: outside the home folder" % p)
     if len(rel.parts) < 2 or rel.as_posix() in PROTECTED:
         raise ValueError("refusing to remove %s: protected folder" % p)
+    cur = home
+    for part in rel.parts[:-1]:
+        cur = cur / part
+        if cur.is_symlink():
+            raise ValueError("refusing to remove %s: %s is a symlink" % (p, tilde(cur)))
+    try:
+        Path(os.path.realpath(str(p.parent))).relative_to(os.path.realpath(str(home)))
+    except ValueError:
+        raise ValueError("refusing to touch %s: it's really outside the home folder" % p)
     return p
 
 
@@ -463,6 +524,9 @@ def remove(path):
 
 def delete_contents(directory):
     d = Path(directory)
+    if d.is_symlink():
+        print("  kept %s: it's a symlink, and emptying it would empty what it points to" % tilde(d))
+        return
     if not d.is_dir():
         return
     for child in d.iterdir():
@@ -478,8 +542,12 @@ def trash(paths):
     for p in paths:
         if os.path.islink(str(p)):
             continue
-        _guard(p)
-        _guard(os.path.realpath(str(p)))
+        try:
+            _guard(p)
+            _guard(os.path.realpath(str(p)))
+        except ValueError as e:  # one odd item (Downloads on another disk, say) never stops the rest
+            print("  kept %s: %s" % (tilde(p), e))
+            continue
         core.osascript('tell application "Finder" to delete (POSIX file %s as alias)'
                        % core.applescript_str(str(p)), timeout=60)
 
@@ -527,6 +595,9 @@ def apply(ids, yes=False):
     unknown = [i for i in ids if i not in BY_ID]
     if unknown:
         core.die("unknown target(s): %s (see `cos clean`)" % ", ".join(unknown))
+    if "trash" in ids and "downloads-old" in ids:
+        core.die("run `cos clean apply trash --yes` on its own, later: emptying the Trash now would delete "
+                 "the downloads this just moved there, for good")
     targets = [BY_ID[i] for i in ids]
     listonly = [t.id for t in targets if t.action == "list" and not t.apply_fn]
     if listonly:
@@ -550,7 +621,9 @@ def apply(ids, yes=False):
         if t.apply_fn:
             reported = t.apply_fn(t) or 0
         elif t.action == "cmd":
-            r = core.run(t.cmd, timeout=900)
+            # From the home folder: a project's own config (a uv.toml pointing the cache at a
+            # project folder, a Yarn project's .yarn/cache) must never decide what's deleted.
+            r = core.run(t.cmd, timeout=900, cwd=str(HOME))
             if not r.ok:
                 print("  %s: command failed: %s" % (t.id, (r.err or r.out)[:200]))
         else:

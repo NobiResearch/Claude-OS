@@ -392,6 +392,7 @@
                 d.runtime ? h("span", { class: "muted small" }, " " + d.runtime) : null,
                 d.last_used ? h("span", { class: "muted small" }, " last used " + d.last_used) : null,
                 d.bytes != null ? h("span", { class: "num" }, fmt.bytes(d.bytes)) : null))),
+            (t.details || []).length > 40 ? h("div", { class: "muted small" }, "… and " + (t.details.length - 40) + " more (`cos clean --json` lists them all)") : null,
             t.action === "list" ? h("div", { class: "muted small" }, "List only: handle these by hand after a look.")
               : h("div", { class: "row" }, btn("Reclaim " + fmt.bytes(t.bytes), () => reclaim([t.id], t.label), t.safety === "safe" ? "primary small" : "ghost small")));
           list.appendChild(h("div", { class: "target" },
