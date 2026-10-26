@@ -61,7 +61,9 @@ to ask. You're already in your clone's root.
   subject; it becomes the human's notification. If you hit something you couldn't record
   (friction you couldn't log, a test that can't run in the sandbox, a tool you were denied),
   end with `Couldn't record:` and at most 3 lines of `<area>: <what>`, generic like friction
-  (no names, no paths with the username). The morning brief offers them to the human.
+  (no names, no paths with the username). The morning brief offers them to the human, and
+  quotes only a line with a one-word lowercase area, under 100 characters, and no quotes,
+  `$`, backslashes or slashes: write them that way, or they're left out.
 - **Interactive**: show the diff summary and test results, and ask the human whether to
   commit. They're root.
 

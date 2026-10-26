@@ -172,6 +172,9 @@ GETS = {
     "/api/updates": {"ts": NOW - 7200, "data": UPDATES},
     "/api/music/now": MUSIC_NOW,
     "/api/music/station": {"label": "%s — %s" % (MUSIC_NOW["track"], MUSIC_NOW["artist"])},
+    "/api/net": {"level": "ok", "verdict": "Network looks fine: Wi-Fi is strong, the router answers and the "
+                "internet is quick.", "via": "wifi", "vpn": False, "signal_dbm": -54, "signal": "strong",
+                "link_mbps": 866, "dns_ms": 14, "internet_ms": 31, "portal": False},
     "/api/music/playlists": PLAYLISTS,
     "/api/music/search": {"library": [], "catalog": []},
     "/api/feeds": FEEDS,

@@ -30,7 +30,6 @@ what, where, and how we'll know it works.
 
 ## Ideas
 
-- A Network card in Vitals for `cos net` (0010), once friction shows it's asked for.
 - Focus modes via Shortcuts (`cos focus work|off`).
 - Time Machine's last backup age, once it can be read without Full Disk Access or mounting
   (0005, 0012; `cos backup` covers setting it up).

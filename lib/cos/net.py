@@ -289,6 +289,17 @@ def _signal(rssi):
     return "strong" if rssi >= -60 else "good" if rssi >= -70 else "weak" if rssi >= -80 else "very weak"
 
 
+def summary(r):
+    """What the desktop's Network card shows (0010, amended): the verdict and a few numbers,
+    nothing that names the network, the router or the Mac. Kept nowhere."""
+    w, net = r.get("wifi") or {}, r.get("internet") or {}
+    joined = bool(w.get("joined"))
+    return {"level": r.get("level"), "verdict": r.get("verdict"), "via": r.get("via"), "vpn": bool(r.get("vpn")),
+            "signal_dbm": w.get("rssi") if joined else None, "signal": _signal(w["rssi"]) if joined and w.get("rssi") else None,
+            "link_mbps": w.get("tx") if joined else None, "dns_ms": r.get("dns_ms"),
+            "internet_ms": net.get("ms") if net.get("ok") else None, "portal": bool(net.get("portal"))}
+
+
 def render(r):
     mark = {"ok": "✓", "warn": "!", "bad": "✗"}.get(r["level"], "?")
     print("%s %s" % (mark, r["verdict"]))

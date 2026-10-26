@@ -275,6 +275,35 @@
       w.body.appendChild(root);
       w.actions.appendChild(btn("", () => draw(), "ghost small icon-only", "refresh"));
       const off = [];
+      // Network (0010, amended): checked on a click only, never by the 15-second refresh; the
+      // last answer stays on screen across refreshes and is kept nowhere else.
+      const net = { result: null, busy: false, el: null };
+      function netCard() {
+        const r = net.result;
+        const nums = r ? [
+          r.signal_dbm != null ? "Wi-Fi " + r.signal + " (" + r.signal_dbm + " dBm)" : null,
+          r.dns_ms != null ? "names " + r.dns_ms + " ms" : null,
+          r.internet_ms != null ? "internet " + r.internet_ms + " ms" : null,
+        ].filter(Boolean).slice(0, 3) : [];
+        const el = card("Network",
+          r ? h("div", { class: r.level === "ok" ? "ok-text" : r.level === "bad" ? "bad-text" : "warn-text" }, r.verdict)
+            : h("div", { class: "muted" }, net.busy ? "Checking the Wi-Fi, the router and the internet…" : "Is it the Wi-Fi, the router or the internet?"),
+          nums.length ? h("div", { class: "muted small" }, nums.join(" · ")) : null,
+          h("div", { class: "row gap pad-t" },
+            btn(net.busy ? "Checking…" : r ? "Check again" : "Check", checkNet, "ghost small"),
+            // Through the chat: the speed test uses real data, so its Allow card comes first.
+            r ? btn("Test speed…", () => COS.ask("Test my internet speed."), "ghost small") : null));
+        if (net.busy) el.querySelector("button").disabled = true;
+        if (net.el && net.el.parentNode) net.el.replaceWith(el);
+        net.el = el;
+        return el;
+      }
+      async function checkNet() {
+        if (net.busy) return;
+        net.busy = true; netCard();
+        try { net.result = await api("/api/net"); } catch (e) { net.result = { level: "warn", verdict: "Couldn't check: " + e.message }; }
+        net.busy = false; netCard();
+      }
       async function draw() {
         try {
           const s = await api("/api/status");
@@ -305,6 +334,7 @@
             sec.firewall === false ? h("div", { class: "row pad-t" }, btn("Turn on the firewall…", () => COS.ask("Turn on my firewall."), "ghost small"),
               h("span", { class: "muted small" }, "macOS asks for your password")) : null),
         ));
+        root.appendChild(netCard());
         root.appendChild(card("Signals", ...signals));
         const startupBody = h("div", { class: "muted" }, "Checking what starts with this Mac…");
         root.appendChild(card("Starts with your Mac", startupBody));

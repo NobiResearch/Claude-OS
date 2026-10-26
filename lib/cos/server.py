@@ -709,6 +709,12 @@ def make_handler(app):
         s = music.station_seed() if music.player_enabled() else None
         h._json({"label": s["label"]} if s else {})
 
+    def r_net(h, q, b):
+        """Vitals' Network card, on a click only: is it the Wi-Fi, the router or the internet?
+        The same probes as `cos net` (0010), a few seconds, nothing kept or journaled."""
+        from . import net
+        h._json(net.summary(net.check()))
+
     def r_music_control(h, q, b):
         from . import music
         cmd = b.get("cmd")
@@ -869,6 +875,7 @@ def make_handler(app):
         ("POST", "/api/weather/clear"): r_weather_clear,
         ("GET", "/api/music/now"): r_music_now,
         ("GET", "/api/music/station"): r_music_station,
+        ("GET", "/api/net"): r_net,
         ("GET", "/api/music/search"): r_music_search,
         ("GET", "/api/music/playlists"): r_music_playlists,
         ("POST", "/api/music/play"): r_music_play,
