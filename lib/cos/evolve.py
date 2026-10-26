@@ -503,7 +503,7 @@ def follow_app(source, cwd=None):
     app = core.app_record()
     commit, root = app.get("commit"), app.get("root")
     if not app.get("release") or not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit) \
-            or not isinstance(root, str) or os.path.realpath(root) != os.path.realpath(str(cwd or core.ROOT)):
+            or not isinstance(root, str) or not core.same_folder(root, cwd or core.ROOT):
         return None
     if git("merge-base", "--is-ancestor", commit, "HEAD", cwd=cwd).ok:
         return None  # there already, or further on
