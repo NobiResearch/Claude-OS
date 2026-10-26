@@ -45,7 +45,7 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 # Claude Code runs a hook outside the sandbox, and the workspace's hooks run its bin/cos,
 # which the run itself may edit. Its file edits stay in the workspace through acceptEdits
 # alone: a bare Edit or Write allow would reach any path on the Mac.
-SANDBOX_SETTINGS = {"disableAllHooks": True,
+SANDBOX_SETTINGS = {"disableAllHooks": True, "disableSkillShellExecution": True,
                     "sandbox": {"enabled": True, "failIfUnavailable": True,
                                 "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False,
                                 # the test suite starts servers on 127.0.0.1; still no outside network

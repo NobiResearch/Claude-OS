@@ -326,8 +326,8 @@ class TestEvolveStaysInItsSandbox(unittest.TestCase):
         spec = daemon.definitions()["evolve"]
         self.assertEqual(spec["permission_mode"], "acceptEdits")
         for tool in spec["allowed_tools"]:
-            self.assertNotIn(tool, ("Edit", "Write", "NotebookEdit", "MultiEdit"), "a bare allow reaches any path")
-            self.assertFalse(tool.startswith(("Edit(/", "Write(/", "Edit(~", "Write(~")), tool)
+            name = tool.split("(", 1)[0]
+            self.assertNotIn(name, ("Edit", "Write", "NotebookEdit", "MultiEdit"), "any file-tool allow can reach past the workspace")
 
 
 class TestEvolveCommandLine(unittest.TestCase):
