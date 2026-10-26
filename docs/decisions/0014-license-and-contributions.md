@@ -1,6 +1,6 @@
 # 0014 — License and contributions
 
-- **Status:** accepted
+- **Status:** accepted; its license is superseded by [0016](0016-back-to-mit.md), the rest stands
 - **Date:** 2026-10-26
 - **Decided by:** the human
 

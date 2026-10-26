@@ -166,11 +166,9 @@ report it privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## License
 
-Claude OS is free to use, change and share for any noncommercial purpose, under the
-[PolyForm Noncommercial License 1.0.0](LICENSE). Selling it, or something built from it,
-isn't allowed. It's source-available rather than "open source" in the strict sense, which
-would require allowing commercial use. Versions published before 26 October 2026 were under
-the MIT License, and copies of those keep it.
+Claude OS is open source under the [MIT License](LICENSE): use it, change it, build on it,
+ship it. Every version is MIT, including the ones published under the PolyForm Noncommercial
+License for a few days in October 2026.
 
 Claude is a trademark of Anthropic. Claude OS is an independent project, not made or endorsed
 by Anthropic.

@@ -63,7 +63,7 @@ profile for one registered Mac.
    - Python that gets ahead of an older app says "download Claude OS.app X" instead of breaking.
 7. **Publishing.**
    - A GitHub Release only on the human's yes in the conversation, each time, never from a daemon.
-   - The notes say, in plain words: what you need (macOS 14+, Claude Code and a Claude plan, Apple Music for music), what first launch adds and how to remove it, that it's PolyForm Noncommercial (binaries too), and that it isn't made or endorsed by Anthropic.
+   - The notes say, in plain words: what you need (macOS 14+, Claude Code and a Claude plan, Apple Music for music), what first launch adds and how to remove it, that it's MIT-licensed (binaries too; decision 0016), and that it isn't made or endorsed by Anthropic.
    - The notes pass `cos guard --text`.
 
 ## Step 1's result (26 October): passed
