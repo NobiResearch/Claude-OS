@@ -48,3 +48,69 @@ class TestMusic(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStationSeed(helpers.TempHome):
+    """Today's Radio chip (the board, 26 Oct 2026): picked mechanically from the fields music
+    code writes, never from a message, so nothing a feed or a model says can choose it."""
+
+    def e(self, event, cid, label=None):
+        return {"kind": "music", "msg": "x", "event": event, "catalog_id": cid, "label": label or "Song %s — Artist" % cid}
+
+    def test_a_radio_seed_or_two_plays_qualify_and_a_like_only_counts_one_more(self):
+        S = music.station_seed
+        self.assertIsNone(S(entries=[]))
+        self.assertIsNone(S(entries=[self.e("play", "11")]), "one play isn't enough")
+        self.assertIsNone(S(entries=[self.e("like", "11"), self.e("like", "11")]), "likes alone never qualify")
+        self.assertEqual(S(entries=[self.e("radio", "11")])["catalog_id"], "11")
+        self.assertEqual(S(entries=[self.e("play", "11"), self.e("play", "11")])["label"], "Song 11 — Artist")
+        two = [self.e("play", "11"), self.e("play", "11"), self.e("play", "22"), self.e("play", "22"), self.e("like", "22")]
+        self.assertEqual(S(entries=two)["catalog_id"], "22", "a like counts one more")
+
+    def test_unliked_songs_are_out_and_the_last_radio_makes_way(self):
+        S = music.station_seed
+        unliked = [self.e("play", "11"), self.e("play", "11"), self.e("like", "11"), self.e("unlike", "11")]
+        self.assertIsNone(S(entries=unliked))
+        self.assertEqual(S(entries=unliked + [self.e("like", "11")])["catalog_id"], "11", "liked again counts again")
+        varied = [self.e("play", "22"), self.e("play", "22"), self.e("play", "11"), self.e("play", "11"), self.e("radio", "11")]
+        self.assertEqual(S(entries=varied)["catalog_id"], "22", "not the song the last radio came from")
+        self.assertEqual(S(entries=[self.e("radio", "11")])["catalog_id"], "11", "unless it's the only one")
+
+    def test_only_what_music_code_wrote_counts(self):
+        from cos import cli, core
+        for argv in (["log", "add", "--kind", "music", "radio from Planted — Feed"],
+                     ["log", "add", "--kind", "music", "liked", "Planted", "catalog_id=123"]):
+            cli.main(argv)
+        self.assertIsNone(music.station_seed(), "`cos log add` can't write event or catalog_id")
+        core.journal("music", "radio from x", event="radio", catalog_id="12a3")
+        core.journal("music", "radio from x", event="seed", catalog_id="123")
+        self.assertIsNone(music.station_seed(), "only a numeric id and a known event")
+        music.journal_event("radio", "radio from Song — Artist", catalog_id="456", label="Song — Artist")
+        self.assertEqual(music.station_seed(), {"catalog_id": "456", "label": "Song — Artist"})
+
+    def test_older_than_a_week_is_out(self):
+        import json
+        from cos import core
+        music.journal_event("radio", "radio from Old — Artist", catalog_id="789", label="Old — Artist")
+        path = next(core.home("journal").glob("*.jsonl"))
+        rows = [json.loads(l) for l in path.read_text().splitlines()]
+        rows[-1]["ts"] = "2020-01-01T00:00:00+00:00"
+        path.write_text("".join(json.dumps(r) + "\n" for r in rows))
+        self.assertIsNone(music.station_seed(days=7))
+
+    def test_a_background_job_can_never_start_it(self):
+        from cos import cli
+        args = cli.build_parser().parse_args(["music", "radio", "--mine"])
+        self.assertTrue(args.mine)
+        self.assertEqual(cli.daemon_refused(args), ("music", "radio"))
+
+    def test_with_the_player_off_there_is_no_radio(self):
+        from unittest import mock
+        with mock.patch.object(music, "player_enabled", return_value=False):
+            self.assertFalse(music.radio(mine=True)["ok"])
+        with mock.patch.object(music, "player_enabled", return_value=True), \
+                mock.patch.object(music, "player_command") as player:
+            res = music.radio(mine=True)
+        self.assertFalse(res["ok"])
+        self.assertIn("nothing to start your radio from", res["error"])
+        player.assert_not_called()

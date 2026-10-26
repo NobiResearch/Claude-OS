@@ -351,20 +351,26 @@ def play_with_player(item):
     if core.app_running("Music"):
         _tell("pause", timeout=5)  # ours started; now make it the only thing playing
     st = res["state"]
-    return {"ok": True, "matched": True, "now": {
+    return {"ok": True, "matched": True, "catalog_id": str(catalog_id), "now": {
         "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
         "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
         "player": "Claude OS"}}
 
 
-def radio(query=None):
+def radio(query=None, mine=False):
     """A song, then similar music (decision 0005): Apple Music's station for it, played in
-    Claude OS's player. Seeded from the catalog: the best pick for `query`, or the song
-    playing now."""
+    Claude OS's player. Seeded from the catalog: the best pick for `query`, the song playing
+    now, or with `mine` the song station_seed picks from what you've been playing."""
     if not player_enabled():
         return {"ok": False, "error": "radio plays in Claude OS's own player: turn on Apple Music in "
                                       "Settings › Permissions (cos music setup)"}
-    if query:
+    if mine:
+        s = station_seed()
+        if not s:
+            return {"ok": False, "error": "nothing to start your radio from yet: play a song in Claude OS a "
+                                          "couple of times, or start a radio from one"}
+        seed, item = s["catalog_id"], {"name": s["label"]}
+    elif query:
         cat = catalog_search(query, limit=8)
         item = best_catalog_pick(cat["results"])
         if not item:
@@ -388,7 +394,48 @@ def radio(query=None):
         _tell("pause", timeout=5)  # one player at a time
     st = res["state"]
     return {"ok": True, "matched": True, "source": "radio", "chosen": item, "station": st.get("station"),
-            "note": st.get("note"), "now": _own_now(st)}
+            "note": st.get("note"), "catalog_id": str(seed), "now": _own_now(st)}
+
+
+MUSIC_EVENTS = ("play", "radio", "like", "unlike")
+
+
+def journal_event(event, msg, catalog_id=None, label=None, **data):
+    """A music journal entry with what station_seed reads: `event` and the song's Apple Music
+    catalog id. Only music code writes those fields (`cos log add` writes a message and a
+    kind, nothing else), so nothing a feed or a model says can choose what the Radio chip
+    plays (board, 26 Oct 2026)."""
+    cid = str(catalog_id) if catalog_id and str(catalog_id).isdigit() else None
+    core.journal("music", msg, event=event, catalog_id=cid, label=label if cid else None, **data)
+
+
+def station_seed(days=7, entries=None):
+    """The song the Radio chip on Today starts from: one you started a radio from, or played
+    at least twice, in the last `days`. A like counts one more but never qualifies a song on
+    its own, and a song you've unliked since is out. Most plays win, then the most recent,
+    and not the last radio's own song when there's another. Read only from `event` and
+    `catalog_id`, never a message. -> {"catalog_id", "label"} or None."""
+    entries = core.read_journal(days=days, kind="music") if entries is None else entries
+    plays, radios, loved, last, label, last_radio = {}, set(), {}, {}, {}, None
+    for i, e in enumerate(entries):  # oldest first
+        cid, ev = str(e.get("catalog_id") or ""), e.get("event")
+        if not cid.isdigit() or ev not in MUSIC_EVENTS:
+            continue
+        last[cid] = i
+        if e.get("label"):
+            label[cid] = str(e["label"])
+        if ev in ("play", "radio"):
+            plays[cid] = plays.get(cid, 0) + 1
+        if ev == "radio":
+            radios.add(cid)
+            last_radio = cid
+        if ev in ("like", "unlike"):
+            loved[cid] = ev == "like"
+    ok = [c for c in plays if (c in radios or plays[c] >= 2) and loved.get(c) is not False]
+    ranked = sorted(ok, key=lambda c: (plays[c] + (1 if loved.get(c) else 0), last[c]), reverse=True)
+    if len(ranked) > 1 and ranked[0] == last_radio:
+        ranked = ranked[1:] + ranked[:1]
+    return {"catalog_id": ranked[0], "label": label.get(ranked[0]) or "a song you played"} if ranked else None
 
 
 def _id_from_url(url):
@@ -519,8 +566,9 @@ def report(res, query=None):
             print("  playlist: %s" % res["playlist"])
         if res.get("matched") is False:
             print("  note: Music is playing something, but I couldn't confirm it's %r." % chosen.get("name"))
-        core.journal("music", "played %s — %s" % (name, artist), query=query, source=res.get("source"),
-                     track=name, artist=artist, playlist=res.get("playlist"))
+        journal_event("play", "played %s — %s" % (name, artist), catalog_id=res.get("catalog_id"),
+                      label="%s — %s" % (name, artist), query=query, source=res.get("source"),
+                      track=name, artist=artist, playlist=res.get("playlist"))
         return 0
     print("✗ %s" % res.get("error"))
     if res.get("opened"):
@@ -600,7 +648,8 @@ def like():
             return 1
         st = res["state"]  # what the player rated, not what was on a moment ago
         name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
-        core.journal("music", "liked %s" % name, liked=True, track=name, player="Claude OS")
+        journal_event("like", "liked %s" % name, catalog_id=st.get("id") or own.get("id"), label=name,
+                      liked=True, track=name, player="Claude OS")
         print("♥ %s" % name)
         return 0
     if not core.app_running("Music") or now().get("state") not in ("playing", "paused"):
@@ -611,7 +660,7 @@ def like():
     if not r.ok:
         print("✗ couldn't favorite: %s" % r.err[:200])
         return 1
-    core.journal("music", "liked %s" % r.out, liked=True, track=r.out)
+    journal_event("like", "liked %s" % r.out, liked=True, track=r.out)  # a library song: no catalog id
     print("♥ %s" % r.out)
     return 0
 
@@ -627,7 +676,8 @@ def unlike():
         return 1
     st = res["state"]
     name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
-    core.journal("music", "unliked %s" % name, track=name, player="Claude OS")
+    journal_event("unlike", "unliked %s" % name, catalog_id=st.get("id") or own.get("id"), label=name,
+                  track=name, player="Claude OS")
     print("♡ %s" % name)
     return 0
 
@@ -671,7 +721,7 @@ def main(args):
         return 0
     if c == "radio":
         q = " ".join(args.query)
-        res = radio(q or None)
+        res = radio(q or None, mine=args.mine)
         if args.json:
             core.emit(res, True, None)
             return 0 if res.get("ok") else 1
@@ -684,7 +734,8 @@ def main(args):
             print("▶ %s, then similar music (%s)" % (seed, res["station"]))
         else:
             print("▶ %s (%s)" % (seed, res.get("note") or "no station; the song plays alone"))
-        core.journal("music", "radio from %s" % seed, track=seed, station=res.get("station"), query=q or None)
+        journal_event("radio", "radio from %s" % seed, catalog_id=res.get("catalog_id"), label=seed,
+                      track=seed, station=res.get("station"), query=q or None, mine=args.mine or None)
         return 0
     if c == "playlists":
         core.emit(playlists(), args.json, lambda ps: [print("%-40s %d" % (p["name"], p["tracks"])) for p in ps])

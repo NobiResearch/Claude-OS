@@ -171,6 +171,7 @@ GETS = {
     "/api/clean": {"ts": NOW - 3600, "data": CLEAN},
     "/api/updates": {"ts": NOW - 7200, "data": UPDATES},
     "/api/music/now": MUSIC_NOW,
+    "/api/music/station": {"label": "%s — %s" % (MUSIC_NOW["track"], MUSIC_NOW["artist"])},
     "/api/music/playlists": PLAYLISTS,
     "/api/music/search": {"library": [], "catalog": []},
     "/api/feeds": FEEDS,
