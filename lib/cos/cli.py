@@ -134,6 +134,7 @@ def build_parser():
     hk = cmd("hook", "Claude Code hooks (night shift pushes and merges, decision 0006)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
+    hk_sub.add_parser("pretool", help="PreToolUse hook: a card for any cos call that changes something, however it's spelled")
     hk_check = hk_sub.add_parser("check", help="would the night shift push this branch, or merge this pull request, "
                                                "on its own? With nothing: the night's pull requests that wait")
     hk_check.add_argument("target", nargs="?", help="a night/* branch or a pull request number")

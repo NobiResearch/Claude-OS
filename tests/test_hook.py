@@ -315,3 +315,50 @@ class TestInspect(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestPretool(TempHome):
+    """Decision 0017: a cos call that changes something gets a card however it's spelled,
+    because the hook writes it the canonical way and matches the checked-in ask rules."""
+
+    def decide(self, command):
+        return hook.pretool_decision(command, hook.ask_patterns(core.ROOT))
+
+    def test_odd_spellings_still_ask(self):
+        for cmd in ("cos  clean apply x --yes", "cos 'clean' apply x", "./bin/cos clean apply x --yes",
+                    '"/somewhere/Claude OS/bin/cos" clean apply x', "echo hi; cos clean apply x --yes",
+                    "cos status\ncos security on firewall --yes", "cd x && bin/cos update apply brew --yes",
+                    "FOO=1 cos clean apply x --yes", "cos startup --full", "cos net --speed", "cos app",
+                    "cos daemon install pulse", "cos config autonomy.catch_up false"):
+            self.assertIsNotNone(self.decide(cmd), repr(cmd))
+
+    def test_what_cant_be_read_for_sure_asks(self):
+        for cmd in ("cos clean apply `x`", "cos clean apply $(echo x)", "cos clean apply 'x"):
+            self.assertIn("can't read", self.decide(cmd), cmd)
+
+    def test_reading_and_everything_else_has_no_opinion(self):
+        for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",
+                    "git status", "cosmos clean apply", "ls -la", "cos evolve merge evolve/x --yes", "",
+                    "cos --json clean apply x"):  # cos itself refuses that spelling of a mutation
+            self.assertIsNone(self.decide(cmd), repr(cmd))
+
+    def test_the_hook_prints_an_ask_or_nothing(self):
+        def run(command, tool="Bash"):
+            out = io.StringIO()
+            with mock.patch("sys.stdin", io.StringIO(json.dumps({"tool_name": tool, "tool_input": {"command": command}}))), \
+                    redirect_stdout(out):
+                self.assertEqual(hook.pretool(), 0)
+            return out.getvalue()
+        said = json.loads(run("cos  clean apply x --yes"))["hookSpecificOutput"]
+        self.assertEqual((said["hookEventName"], said["permissionDecision"]), ("PreToolUse", "ask"))
+        self.assertEqual(run("cos status"), "")
+        self.assertEqual(run("cos  clean apply x --yes", tool="Read"), "")
+        with mock.patch("sys.stdin", io.StringIO("not json")), redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(hook.pretool(), 0)
+        self.assertEqual(out.getvalue(), "", "an error is no opinion")
+
+    def test_it_is_wired_in(self):
+        with open(os.path.join(str(core.ROOT), ".claude", "settings.json")) as f:
+            hooks = json.load(f)["hooks"]["PreToolUse"]
+        self.assertTrue(any(e.get("matcher") == "Bash" and any("cos hook pretool" in h["command"] for h in e["hooks"])
+                            for e in hooks))
