@@ -117,11 +117,13 @@ their modules lazily, so it ran new modules beside old ones until the human clic
   answers 503 while the chats close.
 - `auto_catch_up` caches its why, so a catch-up that can't happen isn't offered.
 - Pulling the live checkout by hand runs with hooks off (`git -c core.hooksPath=/dev/null pull
-  --ff-only`): its hooksPath is `githooks/`, and a merged commit could add a hook. Claude does
-  so now; the line in CLAUDE.md waits for the human (a safety file Claude doesn't edit).
+  --ff-only`): its hooksPath is `githooks/`, and a merged commit could add a hook. CLAUDE.md
+  says so (the human's go-ahead, 26 October).
 
-**Deferred** until the human asks for it: the server restarting itself when idle. When it
-comes: only the app's server with the switch on, zero chat sessions (never reaped for it), no
-job, no request from the human for some minutes (polls don't count), at most once per (loaded
-commit, target), journaled with the way back. Restarting onto what's waiting on GitHub needs
-the switch's native dialog to say "while the app is open and idle", asked again.
+**Deferred**, and the human agreed (26 October): the server restarting itself when idle. Once
+many people contribute and merges come often, someone who only uses Claude OS should take new
+code when they click Update, not whenever it merges. If it's ever built: only the app's
+server with the switch on, zero chat sessions (never reaped for it), no job, no request from
+the human for some minutes (polls don't count), at most once per (loaded commit, target),
+journaled with the way back. Restarting onto what's waiting on GitHub needs the switch's
+native dialog to say "while the app is open and idle", asked again.
