@@ -344,6 +344,37 @@ def read_journal(days=7, kind=None):
 
 # ---------------------------------------------------------------- json state
 
+def same_repository(url, repository=None):
+    """Is this git URL (https, ssh or scp-style) the repository? Like the app's isRepository."""
+    u = (url or "").strip().lower()
+    for prefix in ("https://", "ssh://git@", "git@"):
+        if u.startswith(prefix):
+            u = u[len(prefix):]
+    u = u.replace("github.com:", "github.com/", 1).rstrip("/")
+    if u.endswith(".git"):
+        u = u[:-4]
+    return u == (repository or REPOSITORY).lower()
+
+
+def install_record():
+    """What Claude OS.app's first launch wrote when it downloaded this checkout (decision 0015,
+    step 5), or {}. A checkout someone cloned themselves has none."""
+    d = load_json(home("state", "install.json"), {})
+    root = d.get("root") if isinstance(d, dict) and d.get("kind") == "download" else None
+    if not isinstance(root, str) or os.path.realpath(root) != os.path.realpath(str(ROOT)):
+        return {}
+    return d
+
+
+def downloaded():
+    """Is this a copy the app downloaded from the project's repository, which isn't the
+    person's own? Its Claude doesn't push or merge, so it has no night shift. Someone who
+    points it at their own fork gets it back."""
+    if not install_record():
+        return False
+    return same_repository(run(["git", "-C", str(ROOT), "config", "--get", "remote.origin.url"], timeout=5).out)
+
+
 def load_json(path, default=None):
     try:
         with open(path) as f:
@@ -415,7 +446,8 @@ def config_set(dotted, value):
 
 # ---------------------------------------------------------------- network
 
-USER_AGENT = "ClaudeOS/0.1 (+https://github.com/NobiResearch/Claude-OS)"
+REPOSITORY = "github.com/NobiResearch/Claude-OS"
+USER_AGENT = "ClaudeOS/0.1 (+https://%s)" % REPOSITORY
 _SSL = None
 
 

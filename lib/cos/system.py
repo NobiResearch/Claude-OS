@@ -86,8 +86,9 @@ def install(args):
     r = core.run(["git", "config", "core.hooksPath", "githooks"], cwd=str(core.ROOT))
     steps.append("✓ Guardian pre-commit hook enabled" if r.ok else "✗ couldn't set git hooks: %s" % r.err)
     if not args.no_daemons:
-        daemon.install("pulse")
-        steps.append("✓ pulse daemon running (every 2h, no LLM)")
+        r = daemon.install("pulse")
+        steps.append("✓ pulse daemon running (every 2h, no LLM)" if daemon.is_loaded("pulse") and not daemon.elsewhere("pulse")
+                     else "✗ pulse not installed: %s" % (r.err or "launchd didn't load it"))
     core.journal("action", "installed Claude OS %s" % __version__)
     print("\n".join(steps))
     print("\nNext: run `cos` to boot into Claude OS.")
@@ -111,13 +112,14 @@ def daemon_note(rows, skipped):
 
 def uninstall(args):
     from . import daemon
-    for name in daemon.definitions():
-        daemon.uninstall(name)
+    kept = [name for name in daemon.definitions() if not daemon.uninstall(name).ok]
+    if kept:
+        print("Left on: %s (they run from another Claude OS on this Mac)." % ", ".join(kept))
     if _ours(LINK):
         os.remove(LINK)
     skills = unlink_skills()
     core.run(["git", "config", "--unset", "core.hooksPath"], cwd=str(core.ROOT))
-    print("Removed daemons, the `cos` link%s and the git hook. Your private data is still in %s."
+    print("Removed its daemons, the `cos` link%s and the git hook. Your private data is still in %s."
           % (", %d skill link%s" % (skills, "" if skills == 1 else "s") if skills else "", _tilde(core.home())))
     return 0
 

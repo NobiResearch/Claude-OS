@@ -328,6 +328,8 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
         return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     if not (cfg.get("autonomy") or {}).get("night_shift"):
         return False, "night shift is off"
+    if core.downloaded():
+        return False, "a downloaded Claude OS doesn't push or merge (decision 0015)"
     cwd = request.get("cwd") or str(core.ROOT)
     branch = parse_push(command)
     if branch:

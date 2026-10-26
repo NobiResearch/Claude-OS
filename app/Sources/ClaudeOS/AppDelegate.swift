@@ -7,6 +7,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     private var windowController: MainWindowController!
     private var statusController: StatusItemController!
     private var hotKey: HotKey?
+    private var setup: SetupWindowController?
     private var sigtermSource: DispatchSourceSignal?
     /// When we last restarted a crashed server. One automatic restart is allowed; a second
     /// crash within `restartWindow` shows an alert instead.
@@ -30,6 +31,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         config.record()  // so `cos` reaches this copy of the app (state/app.json)
         NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self)
 
+        if config.release && config.rootProblem != nil {
+            // A downloaded app with no Claude OS on this Mac yet: the first-launch checklist.
+            let setup = SetupWindowController(config: config) { [weak self] in self?.setupFinished() }
+            self.setup = setup
+            setup.show()
+            activate()
+            return
+        }
+        startDesktop()
+    }
+
+    private func setupFinished() {
+        setup = nil
+        config = AppConfig.load()
+        config.record()
+        startDesktop()
+    }
+
+    private func startDesktop() {
         windowController = MainWindowController(config: config)
         statusController = StatusItemController(
             onOpen: { [weak self] in self?.openMainWindow(nil) },
@@ -81,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     }
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        windowController.show()
+        if let setup = setup { setup.show() } else { windowController?.show() }
         return true
     }
 
@@ -91,12 +111,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
 
     @objc func openMainWindow(_ sender: Any?) {
         activate()
-        windowController.show()
+        if let setup = setup { setup.show() } else { windowController?.show() }
     }
 
     @objc func reload(_ sender: Any?) {
-        windowController.reload()
-        statusController.refresh()
+        windowController?.reload()
+        statusController?.refresh()
     }
 
     @objc private func summonRequested(_ note: Notification) {
@@ -106,15 +126,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     /// Hotkey and "Ask Claude…": bring the desktop forward and open its prompt.
     func summon() {
         activate()
-        windowController.summon()
+        if let setup = setup { setup.show() } else { windowController?.summon() }
     }
 
     /// A click on a notification: the view it names (the board's minutes, the brief…), or
     /// the desktop's prompt when it names none.
     func openFromNotification(_ target: NotifyTarget?) {
-        guard let target = target else { return summon() }
+        guard let target = target, setup == nil else { return summon() }
         activate()
-        windowController.open(target)
+        windowController?.open(target)
     }
 
     private func activate() {

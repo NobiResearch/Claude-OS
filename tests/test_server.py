@@ -182,6 +182,17 @@ class TestServerSecurity(TempHome):
         self.assertIn("only be turned on in Claude OS.app", reply["error"])
         self.assertFalse(core.config()["autonomy"]["night_shift"])
 
+    def test_a_downloaded_copy_has_no_night_shift(self):
+        from unittest import mock
+        with mock.patch.object(server.core, "downloaded", lambda: True), \
+                mock.patch.object(server, "confirm_natively", lambda *a, **k: self.fail("never asks")):
+            reply = json.loads(self.request("POST", "/api/settings/night", {"on": True})[2])
+            self.assertTrue(json.loads(self.request("GET", "/api/settings")[2])["downloaded"])
+        self.assertFalse(reply["night_shift"])
+        self.assertIn("downloaded Claude OS", reply["error"])
+        from cos import core
+        self.assertFalse((core.config().get("autonomy") or {}).get("night_shift"))
+
     def test_keeping_up_to_date_turns_on_only_in_the_dialog_and_pins_the_repository(self):
         from unittest import mock
         from cos import core
