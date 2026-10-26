@@ -125,7 +125,10 @@ notifications and Music automation).
 - **Code newer than its app says so.** `core.APP_NEEDED` is the oldest app the code works
   with; a downloaded app older than that gets a warning signal with the download link.
 - **A download's main takes no local commits**, or the next app couldn't bring its code: `cos
-  evolve merge` refuses there, and so does `cos daemon install evolve`.
+  evolve merge` refuses there, and so do `cos daemon install evolve`, `cos daemon run evolve`
+  and `cos update apply claude-os`.
+- **A download that can't follow its app says why** (a hand edit, say): a warning signal from
+  the last try. It fetches only for a commit it hasn't seen, so the app's server starts fast.
 - The Keep up to date dialog now says plainly that some changes are merged by Claude without
   a person's review.
 

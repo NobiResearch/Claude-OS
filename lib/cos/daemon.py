@@ -469,6 +469,9 @@ def run(name):
     spec = definitions().get(name)
     if not spec:
         core.die("no daemon %r" % name)
+    if name == "evolve" and core.downloaded():
+        print("evolve doesn't run in a downloaded Claude OS (it follows its app's releases): cos daemon uninstall evolve")
+        return 0
     lock = _lock(name)
     if not lock:
         print("%s is already running" % name)

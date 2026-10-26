@@ -188,6 +188,10 @@ def signals(s):
         a = weather.as_of(wx["data"] or {}).get("alert") or {}
         if a.get("msg"):
             out.append((a["level"], a["msg"][0].upper() + a["msg"][1:]))
+    from . import evolve
+    stuck = evolve.follow_problem()
+    if stuck:
+        out.append(("warn", "Claude OS's code couldn't follow its app: %s" % stuck))
     older = core.app_outdated()
     if older:
         out.append(("warn", "this Claude OS needs Claude OS.app %s or newer (this one is %s): download it from %s"

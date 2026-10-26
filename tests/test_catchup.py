@@ -401,10 +401,6 @@ class TestUpdateSource(Repos):
             self.assertEqual(self.head(), self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class TestFollowTheApp(Repos):
     """Decision 0015, step 6: a downloaded copy's code follows its app. Opening a newer
     Claude OS.app moves it to that app's commit (only forward, only over GitHub's merges,
@@ -455,6 +451,35 @@ class TestFollowTheApp(Repos):
         self.app("abc1234")
         self.assertIsNone(evolve.follow_app("app start", cwd=self.live), "only a full commit")
         self.assertEqual(self.head(), self.released)
+
+    def test_a_download_that_cant_follow_says_so(self):
+        from cos import status
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.app(self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
+        with open(os.path.join(self.live, "README.md"), "w") as f:
+            f.write("changed by hand\n")
+        c = evolve.follow_app("app start", cwd=self.live)
+        self.assertFalse(c["updated"])
+        self.assertEqual(evolve.follow_problem(), "it has uncommitted changes")
+        fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
+        self.assertIn("Claude OS's code couldn't follow its app: it has uncommitted changes",
+                      [m for _, m in status.signals(fake)])
+
+    def test_update_apply_and_the_evolve_daemon_leave_a_download_alone(self):
+        from cos import daemon
+        with self.assertRaises(SystemExit), mock.patch("sys.stderr", io.StringIO()):
+            updates.apply_claude_os(yes=True)
+        with redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(daemon.run("evolve"), 0)
+        self.assertIn("doesn't run in a downloaded Claude OS", out.getvalue())
+        self.assertEqual(self.head(), self.released)
+
+    def test_a_held_lock_says_so(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        tip = self.sh("git", "rev-parse", "HEAD", cwd=self.hub)
+        with mock.patch.object(evolve, "_lock", return_value=None):  # another process holds it
+            c = evolve.catch_up(apply=True, fetch=False, cwd=self.live, commit=tip)
+        self.assertEqual(c["why"], "another catch-up is running")
 
     def test_a_download_never_follows_main_on_its_own(self):
         core.config_set("autonomy.catch_up", True)
@@ -540,3 +565,7 @@ class TestDownloadsDontEvolve(TempHome):
             with mock.patch.object(evolve, "_check_branch"), self.assertRaises(SystemExit):
                 with redirect_stdout(io.StringIO()), mock.patch("sys.stderr", io.StringIO()):
                     evolve.main(mock.Mock(evolve_cmd="merge", branch="evolve/x", yes=True, reviewed=False, json=False))
+
+
+if __name__ == "__main__":
+    unittest.main()
