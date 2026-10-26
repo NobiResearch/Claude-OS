@@ -697,6 +697,7 @@
                 const diff = h("pre", { class: "diff", hidden: true });
                 root.appendChild(card(b.branch,
                   h("div", { class: "list" }, b.commits.map((c) => h("div", { class: "mono small" }, c))),
+                  b.tests_ok === false ? h("div", { class: "warn-text small" }, "Its tests fail in the sandbox, so Merge will refuse it.") : null,
                   h("div", { class: "row gap" },
                     btn("Review", async () => {
                       if (!diff.hidden) { diff.hidden = true; return; }
@@ -705,7 +706,7 @@
                       diff.hidden = false;
                     }, "ghost small"),
                     btn("Merge", async () => {
-                      if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body: "Runs the Guardian and the tests again, then fast-forwards main. Nothing is pushed.", ok: "Merge" }))) return;
+                      if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body: "Runs the Guardian and the tests again, then pushes it to GitHub, opens a pull request and squash-merges it once CI passes. Without GitHub, it fast-forwards main.", ok: "Merge" }))) return;
                       const panel = jobPanel(); root.prepend(panel.el);
                       await job("/api/evolve/merge", { branch: b.branch }, panel.update); draw();
                     }, "primary small"),

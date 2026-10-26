@@ -76,8 +76,20 @@ def _catch_up_line():
     return line
 
 
+def _evolve_line():
+    """Evolve branches waiting, with the ones whose tests failed in the sandbox marked: the
+    verdict used to be only in the journal, so a failing branch read as a good one (friction #18)."""
+    from . import evolve
+    waiting = evolve.branches()
+    if not waiting:
+        return None
+    ok = evolve.verdicts(waiting[:3])
+    named = ", ".join(b + (" (its tests FAIL)" if ok[b] is False else "") for b in waiting[:3])
+    return "  evolve: %d branch(es) awaiting review: %s (cos evolve)" % (len(waiting), named)
+
+
 def boot():
-    from . import status, mem, daemon, evolve
+    from . import status, mem, daemon
     s = status.collect(include_slow=False)
     sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
     now = dt.datetime.now()
@@ -99,9 +111,9 @@ def boot():
     for line in (_caught_up_line(), _catch_up_line()):
         if line:
             lines.append(line)
-    waiting = evolve.branches()
-    if waiting:
-        lines.append("  evolve: %d branch(es) awaiting review: %s (cos evolve)" % (len(waiting), ", ".join(waiting[:3])))
+    line = _evolve_line()
+    if line:
+        lines.append(line)
     try:
         ds = daemon.status()
         lines.append("  daemons: " + "  ".join("%s %s" % (r["name"], "●" if r["loaded"] else "–") for r in ds))

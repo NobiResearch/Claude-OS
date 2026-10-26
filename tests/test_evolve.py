@@ -74,6 +74,57 @@ class TestWorkspace(TempHome):
             core.ROOT = original_root
 
 
+class TestVerdicts(TempHome):
+    """A branch whose tests failed in the sandbox says so wherever it's listed (friction #18)."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = os.path.join(self.tmp, "repo")
+        os.makedirs(self.repo)
+        self.g("init", "-q", "-b", "main")
+        self.g("commit", "-q", "--allow-empty", "-m", "base")
+        self.g("checkout", "-q", "-b", "evolve/x")
+        self.g("commit", "-q", "--allow-empty", "-m", "a nightly change")
+        self.g("checkout", "-q", "main")
+        original = evolve.git
+        evolve.git = lambda *a, **k: original(*a, cwd=self.repo, **{x: y for x, y in k.items() if x != "cwd"})
+        self.addCleanup(setattr, evolve, "git", original)
+
+    def g(self, *a):
+        subprocess.run(["git", "-C", self.repo, "-c", "user.email=t@example.com", "-c", "user.name=t"] + list(a),
+                       capture_output=True, check=True)
+
+    def ran(self, ok, tip="now"):
+        data = {"branch": "evolve/x", "tests_ok": ok}
+        if tip:
+            data["tip"] = evolve.tip("evolve/x") if tip == "now" else tip
+        core.journal("evolve", "evolve/x: tests", **data)
+
+    def test_the_last_run_on_the_current_tip_counts(self):
+        self.assertEqual(evolve.verdicts(["evolve/x"]), {"evolve/x": None}, "nothing ran yet")
+        self.ran(False)
+        self.assertEqual(evolve.status_rows(), [{"branch": "evolve/x", "commits": evolve.ahead("evolve/x"), "tests_ok": False}])
+        self.ran(True)
+        self.assertIs(evolve.verdicts(["evolve/x"])["evolve/x"], True)
+
+    def test_a_branch_that_moved_since_has_no_verdict(self):
+        self.ran(False)
+        self.g("branch", "-f", "evolve/x", "main")
+        self.assertIsNone(evolve.verdicts(["evolve/x"])["evolve/x"])
+
+    def test_entries_from_before_tips_were_journaled_still_count(self):
+        self.ran(False, tip=None)
+        self.assertIs(evolve.verdicts(["evolve/x"])["evolve/x"], False)
+
+    def test_the_banner_marks_a_failing_branch(self):
+        from cos import shell
+        self.assertEqual(shell._evolve_line(), "  evolve: 1 branch(es) awaiting review: evolve/x (cos evolve)")
+        self.ran(False)
+        self.assertIn("evolve/x (its tests FAIL)", shell._evolve_line())
+        self.g("branch", "-D", "evolve/x")
+        self.assertIsNone(shell._evolve_line())
+
+
 def _can_sandbox():
     """sandbox-exec can't apply a profile from inside another sandbox (e.g. evolve's own)."""
     if not core.which("sandbox-exec"):
