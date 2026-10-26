@@ -441,6 +441,7 @@ class TestFollowTheApp(Repos):
         c = evolve.follow_app("app start", cwd=self.live)
         self.assertFalse(c["updated"])
         self.assertIn("isn't on origin/main", c["why"])
+        self.assertIn("isn't on origin/main", evolve.follow_problem(), "and the person hears about it")
 
     def test_only_a_release_for_this_checkout(self):
         self.merge("cos net (#42)", "lib/cos/net.py")

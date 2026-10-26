@@ -89,7 +89,11 @@ def _evolve_line():
 
 
 def boot():
-    from . import status, mem, daemon
+    from . import status, mem, daemon, system
+    try:
+        system.keep_download_settings()  # before this session's Claude does anything (0015)
+    except Exception:
+        pass
     s = status.collect(include_slow=False)
     sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
     now = dt.datetime.now()

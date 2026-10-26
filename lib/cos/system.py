@@ -66,6 +66,28 @@ def unlink_skills():
     return removed
 
 
+def keep_download_settings():
+    """A downloaded copy's deny rules live in its gitignored .claude/settings.local.json, which
+    `git clean -X` would delete: put back what's missing whenever Claude OS starts (decision
+    0015). Rules the person added stay. -> True when it wrote the file."""
+    if not core.downloaded():
+        return False
+    path = core.ROOT / ".claude" / "settings.local.json"
+    d = core.load_json(path, {})
+    d = d if isinstance(d, dict) else {}
+    perms = d.get("permissions") if isinstance(d.get("permissions"), dict) else {}
+    deny = perms.get("deny") if isinstance(perms.get("deny"), list) else []
+    missing = [rule for rule in core.DOWNLOAD_DENY if rule not in deny]
+    if not missing:
+        return False
+    perms["deny"] = deny + missing
+    d["permissions"] = perms
+    path.parent.mkdir(exist_ok=True)
+    core.save_json(path, d)
+    core.journal("action", "put back a downloaded copy's deny rules: %s" % ", ".join(missing))
+    return True
+
+
 def install(args):
     from . import daemon
     core.home()

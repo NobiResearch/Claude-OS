@@ -450,6 +450,7 @@ def _where(cwd, fetch, retry=False, commit=None):
     stranger = _stranger(target, cwd) if behind else None
     failed = ((core.cache_get("catch-up-failed") or {}).get("data") or {})
     if off_main:
+        out["latest"] = commit[:7]  # what it was asked for, so follow_problem can say why
         out["why"] = "the app's commit isn't on %s on GitHub" % base
     elif len(counts) != 2:
         out["why"] = "git can't compare it with %s" % base
@@ -522,7 +523,7 @@ def follow_problem():
     commit = core.app_record().get("commit")
     if not isinstance(c, dict) or not isinstance(commit, str) or c.get("latest") != commit[:7]:
         return None
-    return c.get("why") if c.get("behind") and c.get("why") else None
+    return c.get("why") or None
 
 
 def auto_catch_up(source, cwd=None):

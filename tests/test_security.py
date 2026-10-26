@@ -1,8 +1,10 @@
 import io
 import json
 import os
+import re
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 from unittest import mock
 
 from helpers import TempHome
@@ -127,3 +129,68 @@ class TestMutationRegistry(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestStrangerSafeSettings(unittest.TestCase):
+    """The checked-in .claude/settings.json is what everyone who clones or downloads Claude OS
+    runs (decision 0017). It may let Claude run only what's safe for a stranger without a card:
+    Claude OS's own syscalls (read-only unless --yes, and the mutating ones ask) and a few
+    read-only system commands. The owner's broader allows live in their own, gitignored
+    .claude/settings.local.json."""
+
+    VETTED = {"Bash(bin/cos)", "Bash(bin/cos *)", "Bash(./bin/cos *)", "Bash(cos *)",
+              "Bash(sw_vers*)", "Bash(pmset -g*)", "Bash(mdfind *)", "Bash(shortcuts list*)"}
+
+    def settings(self):
+        with open(os.path.join(ROOT, ".claude", "settings.json")) as f:
+            return json.load(f)["permissions"]
+
+    def test_only_vetted_allows(self):
+        allow = set(self.settings()["allow"])
+        self.assertEqual(allow - self.VETTED, set(), "a new allow rule: is it safe for a stranger's Claude?")
+        for rule in allow:
+            for risky in ("Bash(git", "Bash(gh ", "Bash(gh-", "Bash(python", "Bash(sh ", "Bash(bash", "Bash(curl", "Bash(*"):
+                self.assertFalse(rule.startswith(risky), rule)
+
+    def test_the_owner_still_asks_before_publishing(self):
+        ask = self.settings()["ask"]
+        for rule in ("Bash(gh release*)", "Bash(gh repo delete*)", "Bash(xcrun notarytool*)", "Bash(*app/build.sh --release*)"):
+            self.assertIn(rule, ask)
+
+    def test_the_app_writes_the_same_deny_list(self):
+        with open(os.path.join(ROOT, "app", "Sources", "ClaudeOS", "FirstLaunch.swift")) as f:
+            swift = f.read()
+        line = next(l for l in swift.splitlines() if '"deny":' in l)
+        self.assertEqual(re.findall(r'"(Bash\([^"]*\))"', line), core.DOWNLOAD_DENY)
+
+
+class TestKeepDownloadSettings(TempHome):
+    def setUp(self):
+        super().setUp()
+        self.root = os.path.join(self.tmp, "Claude OS")
+        os.makedirs(os.path.join(self.root, ".claude"))
+        patcher = mock.patch.object(core, "ROOT", Path(self.root))
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def local(self):
+        return core.load_json(os.path.join(self.root, ".claude", "settings.local.json"), None)
+
+    def test_a_download_gets_its_denies_back_and_keeps_its_own_rules(self):
+        from cos import system
+        with mock.patch.object(core, "downloaded", return_value=True):
+            self.assertTrue(system.keep_download_settings(), "deleted by git clean -X: written again")
+            self.assertEqual(self.local()["permissions"]["deny"], core.DOWNLOAD_DENY)
+            core.save_json(os.path.join(self.root, ".claude", "settings.local.json"),
+                           {"permissions": {"allow": ["Bash(ls)"], "deny": ["Bash(gh *)", "Bash(rm *)"]}})
+            self.assertTrue(system.keep_download_settings())
+            d = self.local()["permissions"]
+            self.assertEqual(d["allow"], ["Bash(ls)"])
+            self.assertEqual(set(d["deny"]), set(core.DOWNLOAD_DENY) | {"Bash(rm *)"})
+            self.assertFalse(system.keep_download_settings(), "nothing missing: not written")
+
+    def test_a_checkout_that_isnt_a_download_is_left_alone(self):
+        from cos import system
+        with mock.patch.object(core, "downloaded", return_value=False):
+            self.assertFalse(system.keep_download_settings())
+        self.assertIsNone(self.local())

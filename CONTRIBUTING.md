@@ -46,6 +46,11 @@ cos doctor          # checks the wiring
 repository: there your Claude may push branches and merge its own green pull requests.
 Opening a pull request against this repository is your call, not your Claude's.
 
+The checked-in `.claude/settings.json` is safe for strangers (decision
+[0017](docs/decisions/0017-stranger-safe-settings.md)): `git`, `gh` and the tests ask before
+they run. To give your own Claude more room in your fork, allow them in your own, gitignored
+`.claude/settings.local.json`, for example `"Bash(git *)"` and `"Bash(python3 -m unittest *)"`.
+
 ## Review and merge
 
 - CI runs the tests on macOS. A first-time contributor's run waits for a maintainer to
