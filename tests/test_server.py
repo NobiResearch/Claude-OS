@@ -204,6 +204,52 @@ class TestServerSecurity(TempHome):
         self.assertEqual((status, exits), (200, [server.RESTART]))
         self.assertIn("restarted to update", core.read_journal(days=1)[-1]["msg"])
 
+    def test_update_waits_for_a_running_job(self):
+        """A job's output comes through the server: restarting would cut a cleanup off halfway."""
+        from unittest import mock
+
+        class Running:
+            label, ended = "Clean up caches", None
+        self.app.managed = True
+        self.app.jobs["j"] = Running()
+        exits = []
+        with mock.patch.object(server.os, "_exit", exits.append):
+            status, _, data = self.request("POST", "/api/restart", {})
+            time.sleep(0.5)
+        self.assertEqual(status, 409)
+        self.assertIn("Clean up caches", json.loads(data)["error"])
+        self.assertEqual(exits, [])
+        Running.ended = time.time()
+        with mock.patch.object(server.os, "_exit", exits.append):
+            self.assertEqual(self.request("POST", "/api/restart", {})[0], 200)
+            deadline = time.time() + 3
+            while not exits and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(exits, [server.RESTART])
+
+    def test_the_server_keeps_the_code_it_started_with(self):
+        """0011, part three: every module and desktop file is loaded at start, so a checkout
+        that moves under a running server can't mix new code into it."""
+        import pkgutil
+        import sys
+        import tempfile
+        from pathlib import Path
+        names = server.pin_code()
+        everything = [m.name for m in pkgutil.iter_modules(sys.modules["cos"].__path__)]
+        self.assertEqual(sorted(names), sorted(everything))
+        self.assertTrue(all("cos." + n in sys.modules for n in everything))
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "js").mkdir()
+            Path(d, "js", "os.js").write_text("old")
+            files = server.read_ui(d)
+            Path(d, "js", "os.js").write_text("new")
+        self.assertEqual(files, {"js/os.js": b"old"})
+        self.app.ui = {"index.html": b"<p>as started</p>", "os.js": b"// as started"}
+        status, _, body = self.request("GET", "/", token=None)
+        self.assertEqual((status, body), (200, b"<p>as started</p>"))
+        self.assertEqual(self.request("GET", "/os.js", token=None)[2], b"// as started")
+        self.assertEqual(self.request("GET", "/apps.js", token=None)[0], 404, "only what it started with")
+
     def test_a_stale_or_forged_answer_doesnt_count(self):
         from unittest import mock
         from cos import core

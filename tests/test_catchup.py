@@ -246,6 +246,17 @@ class TestReviewFindings(Repos):
         core.config_set("autonomy.catch_up", True)
         core.config_set("autonomy.catch_up_url", self.origin)
 
+    def test_a_catch_up_that_cant_happen_isnt_offered(self):
+        """Its why reaches the cache the desktop's Update item reads, or Update would offer it
+        forever (the board on friction #21)."""
+        core.config_set("autonomy.catch_up", True)
+        core.config_set("autonomy.catch_up_url", "https://github.com/someone/else.git")
+        self.merge("Feature (#2)", "feature.txt")
+        c = evolve.auto_catch_up("pulse", cwd=self.live)
+        self.assertFalse(c["updated"])
+        self.assertIn("isn't the repository", c["why"])
+        self.assertIn("isn't the repository", core.cache_get("catch-up")["data"]["why"])
+
     def test_cos_config_can_only_turn_a_switch_off(self):
         from cos import cli
         for argv in (["config", "autonomy", '{"catch_up": true, "night_shift": true}'], ["config", "autonomy", "false"],

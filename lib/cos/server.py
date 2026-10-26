@@ -28,6 +28,37 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from . import __version__, chat, core
 
 UI_DIR = core.ROOT / "ui"
+
+
+def pin_code():
+    """Load all of Claude OS now (0011, part three). Routes import their modules lazily, so a
+    checkout that moved while the server ran used to give it new modules beside old ones until
+    a restart; now everything it runs is what it started with. -> the module names loaded."""
+    import importlib
+    import pkgutil
+    names = []
+    for m in pkgutil.iter_modules(sys.modules[__package__].__path__):
+        try:
+            importlib.import_module("." + m.name, __package__)
+            names.append(m.name)
+        except Exception:
+            pass  # it would fail just the same if a route imported it later
+    return names
+
+
+def read_ui(folder):
+    """The desktop's files, read once at start for the same reason: a page reloaded while the
+    checkout moved would otherwise get new JavaScript against the old server."""
+    files = {}
+    for dirpath, _, filenames in os.walk(str(folder)):
+        for name in filenames:
+            full = os.path.join(dirpath, name)
+            try:
+                with open(full, "rb") as f:
+                    files[os.path.relpath(full, str(folder))] = f.read()
+            except OSError:
+                pass
+    return files
 COS = str(core.ROOT / "bin" / "cos")
 RESTART = 75  # the exit status that tells Claude OS.app a restart was planned (EX_TEMPFAIL)
 
@@ -212,8 +243,9 @@ class App:
         self.jobs = {}
         self.port = None
         # The commit this server's code came from: once the checkout moves, it's out of date
-        # (any lib/cos module it loads from now on would be newer than the ones it has; 0011).
+        # (serve() pins its modules and desktop files to this commit; 0011, part three).
         self.head = head or core.run(["git", "-C", str(core.ROOT), "rev-parse", "HEAD"], timeout=5).out
+        self.ui = read_ui(UI_DIR)
         self.managed = False  # started by Claude OS.app, which restarts it (see r_restart)
 
 
@@ -347,15 +379,15 @@ def make_handler(app):
             rel = os.path.normpath(path.lstrip("/"))
             if rel.startswith("..") or os.path.isabs(rel):
                 return self._error(404, "no")
-            full = UI_DIR / rel
-            if not full.is_file():
+            body = app.ui.get(rel)
+            if body is None:
                 return self._error(404, "no such file")
-            ctype = mimetypes.guess_type(str(full))[0] or "application/octet-stream"
+            ctype = mimetypes.guess_type(rel)[0] or "application/octet-stream"
             if ctype.startswith("text/") or ctype in ("application/javascript",):
                 ctype += "; charset=utf-8"
             csp = ("default-src 'self'; img-src 'self' https: data:; style-src 'self'; "
                    "script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
-            self._send(200, full.read_bytes(), ctype, {"Content-Security-Policy": csp})
+            self._send(200, body, ctype, {"Content-Security-Policy": csp})
 
         # ---------------------------------------------------- chat
 
@@ -417,10 +449,17 @@ def make_handler(app):
         it was planned. With Keep Claude OS up to date on, the new server catches up first."""
         if not app.managed:
             return h._error(400, "only Claude OS.app restarts its server; in a browser, restart `cos serve`")
+        # A job's output comes through this process: a restart would cut a `clean apply` or an
+        # `update apply` off halfway.
+        running = [j for j in list(app.jobs.values()) if j.ended is None]
+        if running:
+            return h._error(409, "“%s” is still running; Update when it's done" % running[0].label)
         h._json({"ok": True})
 
         def later():
             time.sleep(0.3)
+            if any(j.ended is None for j in list(app.jobs.values())):
+                return  # one started in the meantime: the Update item stays for later
             app.chats.close_all()
             core.journal("action", "Claude OS's server restarted to update", via="app")
             os._exit(RESTART)
@@ -826,6 +865,7 @@ def bind(port, handler):
 
 
 def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=False, head=None):
+    pin_code()
     app = App(token or secrets.token_urlsafe(24), demo=demo, head=head)
     httpd = bind(port, make_handler(app))
     httpd.daemon_threads = True

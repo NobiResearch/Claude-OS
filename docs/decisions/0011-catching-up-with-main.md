@@ -93,3 +93,32 @@ Fixed before the switch was first turned on:
 - A pgrep error and a git error about where commits came from count as "can't tell", never
   "safe"; the one-time "caught up" line survives two sessions booting at once and isn't used
   up by a background job; git also runs with submodules and fsmonitor off.
+
+## Part three: the server keeps the code it started with (26 October)
+
+Friction #21: the live checkout moves after merges (Claude pulls it, `cos update apply`, the
+switch at a boot or pulse) while Claude OS.app's server runs, and the server's routes import
+their modules lazily, so it ran new modules beside old ones until the human clicked Update.
+
+| Seat | Vote | Top reason |
+|---|---|---|
+| Architect | amend (A) | Pin the code at start: import every module (`pkgutil`, no hand-kept list) and serve `ui/` from memory. An idle restart belongs in the server, once per target. |
+| Guardian | amend | Restarting onto code on disk is fine; onto what's waiting on GitHub while the app is open goes past what the switch's dialog promised. A restart cuts off a running job, the manual Update too. `auto_catch_up`'s why never reached the cache, so Update could be offered forever. |
+| Steward | amend (A) | Wants no click, with the switch, idle by what the human did (not the page's polls), never losing a conversation, invisible. |
+| Skeptic | amend | Pinning fixes correctness for a few lines; the restart is a convenience. Don't build it before the human says the click bothers them, and never reap a chat to make it fire. |
+
+**Decided, now:**
+- `cos serve` imports every Claude OS module before it serves (`server.pin_code`, ~50 ms) and
+  reads `ui/` into memory (`server.read_ui`): the server stays one version, whatever moves the
+  checkout. Jobs and new chats run the code on disk, as friction #16 wants.
+- Update refuses while a job runs (409, "… is still running; Update when it's done"), and a job
+  started in the moment before the exit cancels it.
+- `auto_catch_up` caches its why, so a catch-up that can't happen isn't offered.
+- Pulling the live checkout by hand runs with hooks off (`git -c core.hooksPath=/dev/null pull
+  --ff-only`): its hooksPath is `githooks/`, and a merged commit could add a hook.
+
+**Deferred** until the human asks for it: the server restarting itself when idle. When it
+comes: only the app's server with the switch on, zero chat sessions (never reaped for it), no
+job, no request from the human for some minutes (polls don't count), at most once per (loaded
+commit, target), journaled with the way back. Restarting onto what's waiting on GitHub needs
+the switch's native dialog to say "while the app is open and idle", asked again.

@@ -417,8 +417,12 @@
       ok: "Restart",
     });
     if (!ok) return;
-    toast("Restarting…");
-    try { await api("/api/restart", { body: {} }); } catch (e) {}
+    try {
+      await api("/api/restart", { body: {} });
+      toast("Restarting…");
+    } catch (e) {
+      toast(e.message);  // e.g. a cleanup is still running: Update waits for it
+    }
   }
 
   async function pollMusic() {
