@@ -121,4 +121,8 @@ The repository is public; the human's life is not. Rules, in order of enforcemen
    this user's home path and git email, machine-generated commit emails
    (`you@Your-Mac.local`, which leak your login and computer name), plus any extra terms
    listed in `~/.claude-os/guard.json` (`{"extra": ["…"]}`).
-4. A test (`test_repository_is_clean`) runs the same scan over the whole tree.
+4. The pre-push hook (`cos guard --push`) runs the same scan over every commit a push would
+   publish that the remote doesn't have yet, one by one, root commits and merges included,
+   with its message, plus an annotated tag's tagger and message, and blocks any author,
+   committer or tagger address that isn't GitHub's noreply. A push it can't check doesn't go out.
+5. A test (`test_repository_is_clean`) runs the same scan over the whole tree.

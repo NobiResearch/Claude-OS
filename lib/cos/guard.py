@@ -113,7 +113,93 @@ def text_problems(texts):
     return [p for label, text in texts for p in check_text(label, text, patterns)]
 
 
+def push_ranges(lines):
+    """git's pre-push input ("<local ref> <local sha> <remote ref> <remote sha>" per line) ->
+    [(ref, sha, remote sha or None)]. Deletions publish nothing."""
+    out = []
+    for line in lines.splitlines():
+        parts = line.split()
+        if len(parts) != 4 or set(parts[1]) == {"0"}:
+            continue
+        out.append((parts[0], parts[1], None if set(parts[3]) == {"0"} else parts[3]))
+    return out
+
+
+def noreply(email):
+    """Only GitHub's own noreply addresses: "noreply" anywhere else (someone+noreply@…) is
+    still a personal address."""
+    e = (email or "").strip().lower()
+    return e.endswith("@users.noreply.github.com") or e == "noreply@github.com"
+
+
+def _personal(where):
+    return (where, "a personal email address in the commit itself; use your GitHub noreply address "
+                   "(git config user.email)")
+
+
+def push_problems(ranges, remote="origin", cwd=None):
+    """Everything the push would publish: each commit not already on the remote (files and
+    messages, like the night shift's own pushes), each commit's author and committer address,
+    and an annotated tag's tagger and message. Anything git can't answer blocks the push."""
+    from . import evolve
+    root = str(cwd or core.ROOT)
+
+    def git(*args, timeout=30):
+        return core.run(["git", "-C", root] + list(args), timeout=timeout)
+    problems = []
+    for ref, sha, remote_sha in ranges:
+        kind = git("cat-file", "-t", sha).out
+        if kind == "tag":
+            tag = git("cat-file", "tag", sha)
+            if not tag.ok:
+                problems.append((ref, "git couldn't read the tag"))
+                continue
+            head, _, message = tag.out.partition("\n\n")
+            tagger = next((l for l in head.splitlines() if l.startswith("tagger ")), "")
+            email = tagger[tagger.find("<") + 1:tagger.find(">")] if "<" in tagger else ""
+            if tagger and not noreply(email):
+                problems.append(_personal("%s tagger" % ref))
+            problems += [("%s message" % ref, why) for _, why in
+                         check_text("tag", message, SECRET_PATTERNS + personal_patterns())]
+            target = git("rev-parse", "--verify", "--quiet", sha + "^{commit}")
+            if not target.ok:
+                problems.append((ref, "a tag of something other than a commit; the Guardian can't check it"))
+                continue
+            sha = target.out
+        elif kind != "commit":
+            problems.append((ref, "pushes a %s, not a commit; the Guardian can't check it" % (kind or "thing git can't name")))
+            continue
+        # New to the remote: not on any of its branches here, and not in what it had at this ref.
+        since = ["^" + remote_sha] if remote_sha and git("cat-file", "-e", remote_sha + "^{commit}").ok else []
+        listed = git("log", "--format=%H%x1f%ae%x1f%ce", sha, "--not", "--remotes=" + remote, *since)
+        if not listed.ok:
+            problems.append((ref, "can't tell what this push publishes (%s)" % (listed.err or "git failed")[:120]))
+            continue
+        commits = []
+        for line in filter(None, listed.out.splitlines()):
+            full, author, committer = (line.split("\x1f") + ["", ""])[:3]
+            commits.append(full)
+            problems += [_personal("%s %s" % (full[:8], who)) for who, email in
+                         (("author", author), ("committer", committer)) if not noreply(email)]
+        problems += evolve.guard_commits(list(reversed(commits)), cwd=root)
+    return problems
+
+
 def main(args):
+    if getattr(args, "push", False):
+        import sys
+        try:
+            problems = push_problems(push_ranges(sys.stdin.read()), remote=args.remote or "origin")
+        except Exception as e:  # fail closed: a push the Guardian couldn't read isn't a clean one
+            problems = [("push", "the Guardian couldn't check it (%s)" % e)]
+        if not problems:
+            return 0
+        print("guard: blocked — this push would publish:", file=sys.stderr)
+        for path, why in problems:
+            print("  %s: %s" % (path, why), file=sys.stderr)
+        print("Fix the commits (git commit --amend, git rebase -i), or if you're sure, push with --no-verify.",
+              file=sys.stderr)
+        return 1
     if args.text:
         texts = []
         for name in args.text:

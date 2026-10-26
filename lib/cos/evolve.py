@@ -84,20 +84,45 @@ def run_tests(path):
     return core.run_sandboxed(["python3", "-m", "unittest", "discover", "-s", "tests", "-q"], cwd=path)
 
 
-def guard_branch(branch, base=None):
+def guard_branch(branch, base=None, cwd=None):
     """Run the Guardian over every commit the branch would publish, one by one, and its
     message: a file added in one commit and deleted in the next is still pushed."""
+    r = git("rev-list", "--reverse", "%s..%s" % (base or main_branch(cwd), branch), cwd=cwd)
+    if not r.ok:
+        return [(branch, "git couldn't list what it would publish")]
+    return guard_commits(r.out.split(), cwd=cwd)
+
+
+def guard_commits(commits, cwd=None):
+    """The Guardian over each commit's files and message. Root commits and merges count too
+    (`--root -m`: plain diff-tree prints nothing for either), and anything git can't read
+    is a problem, never an empty file."""
     from . import guard
+
+    def git_(*args):
+        return git(*args, cwd=cwd)
     problems = []
-    commits = git("rev-list", "--reverse", "%s..%s" % (base or main_branch(), branch)).out.split()
     patterns = guard.SECRET_PATTERNS + guard.personal_patterns()
     for c in commits:
-        names = git("diff-tree", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=d", c).out
-        paths = [p for p in names.split("\0") if p]
-        problems += [("%s %s" % (c[:8], p), why) for p, why in
-                     guard.scan(paths, lambda p, c=c: git("show", "%s:%s" % (c, p)).out)]
-        message = git("log", "-1", "--format=%B", c).out
-        problems += [("%s message" % c[:8], why) for _, why in guard.check_text("message", message, patterns)]
+        names = git_("diff-tree", "--root", "-m", "--no-commit-id", "--name-only", "-r", "-z", "--diff-filter=d", c)
+        if not names.ok:
+            problems.append((c[:8], "git couldn't list its files"))
+            continue
+        paths = sorted(set(p for p in names.out.split("\0") if p))
+        unread = []
+
+        def read(p, c=c):
+            shown = git_("show", "%s:%s" % (c, p))
+            if not shown.ok:
+                unread.append(p)
+            return shown.out
+        problems += [("%s %s" % (c[:8], p), why) for p, why in guard.scan(paths, read)]
+        problems += [("%s %s" % (c[:8], p), "git couldn't read it") for p in unread]
+        message = git_("log", "-1", "--format=%B", c)
+        if not message.ok:
+            problems.append(("%s message" % c[:8], "git couldn't read it"))
+            continue
+        problems += [("%s message" % c[:8], why) for _, why in guard.check_text("message", message.out, patterns)]
     return problems
 
 
