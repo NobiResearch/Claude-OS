@@ -254,7 +254,8 @@ class TestDownloaded(TempHome):
 
     def test_the_repository_in_any_url_form(self):
         for url in ("https://github.com/NobiResearch/Claude-OS.git", "https://github.com/nobiresearch/claude-os",
-                    "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git/"):
+                    "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git/",
+                    "https://someone@github.com/NobiResearch/Claude-OS.git"):
             self.assertTrue(core.same_repository(url), url)
         for url in ("https://github.com/someone/Claude-OS.git", "https://github.com/NobiResearch/Claude-OS-evil",
                     "https://example.com/NobiResearch/Claude-OS", "", None):
@@ -281,3 +282,14 @@ class TestDownloaded(TempHome):
             self.assertTrue(core.downloaded())
         with origin("https://github.com/someone/Claude-OS.git"):
             self.assertFalse(core.downloaded(), "their own fork")
+        with mock.patch.object(core, "run", return_value=core.Result(1, "", "")):
+            self.assertTrue(core.downloaded(), "an origin git can't read counts as the project's")
+
+    def test_the_same_checkout_however_its_path_is_spelled(self):
+        shouting = str(core.ROOT).upper()
+        if not os.path.exists(shouting):
+            self.skipTest("a case-sensitive file system")
+        self.record(root=shouting)
+        self.assertEqual(core.install_record()["kind"], "download")
+        self.assertTrue(core.same_folder(shouting, core.ROOT))
+        self.assertFalse(core.same_folder("/nonexistent", core.ROOT))

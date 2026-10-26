@@ -44,8 +44,8 @@ enum FirstLaunch {
     }
 
     static func folder(_ path: String) -> Folder {
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: path, isDirectory: &isDir), !isDir.boolValue { return .other }
+        let type = (try? FileManager.default.attributesOfItem(atPath: path))?[.type] as? FileAttributeType
+        if let type = type, type != .typeDirectory { return .other }  // a file, or a link somewhere else
         return folder(path, entries: { try? FileManager.default.contentsOfDirectory(atPath: $0) },
                       isClaudeOS: { AppConfig.isClaudeOS($0, fileExists: { FileManager.default.fileExists(atPath: $0) },
                                                           read: { try? String(contentsOfFile: $0, encoding: .utf8) }) })
@@ -81,25 +81,67 @@ enum FirstLaunch {
          "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": "/dev/null"]
     }
 
+    /// Where a downloaded copy's origin pushes: nowhere. git says it isn't a repository.
+    static let noPush = "/dev/null/no-push-from-a-downloaded-claude-os"
+
     /// The git commands that put `commit` of this repository's main into `dir`, on a `main`
-    /// that tracks GitHub's, the way catch-up expects to find it.
+    /// that tracks GitHub's, the way catch-up expects to find it. Then the Guardian's hooks
+    /// (githooks/, at the commit just checked; setting them runs nothing), and an origin that
+    /// fetches from GitHub but can't push.
     static func cloneSteps(commit: String, into dir: String) -> [[String]] {
         [safeGit + ["clone", "--quiet", "--no-checkout", "--no-recurse-submodules", "--single-branch", "--branch", "main",
                     "https://\(AppConfig.repository).git", dir],
          safeGit + ["-C", dir, "merge-base", "--is-ancestor", commit, "origin/main"],
          safeGit + ["-C", dir, "checkout", "--quiet", "-B", "main", commit],
-         safeGit + ["-C", dir, "branch", "--quiet", "--set-upstream-to=origin/main", "main"]]
+         safeGit + ["-C", dir, "branch", "--quiet", "--set-upstream-to=origin/main", "main"],
+         safeGit + ["-C", dir, "config", "core.hooksPath", "githooks"],
+         safeGit + ["-C", dir, "config", "remote.origin.pushurl", noPush]]
     }
 
     /// A downloaded copy's Claude Code may not push or use GitHub on its own: the repository
     /// isn't the person's (decision 0013 covers only a repository the human owns).
     static let localSettings: [String: Any] = [
-        "permissions": ["deny": ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)"]],
+        "permissions": ["deny": ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)", "Bash(git * push*)"]],
     ]
+
+    /// The download running now, so quitting can stop it and leave nothing behind.
+    final class Download: @unchecked Sendable {
+        private let lock = NSLock()
+        private var process: Process?
+        private var stopped = false
+
+        var cancelled: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
+
+        /// false once cancelled: the caller doesn't start it.
+        func started(_ p: Process) -> Bool {
+            lock.lock(); defer { lock.unlock() }
+            process = p
+            return !stopped
+        }
+
+        func cancel() {
+            lock.lock(); defer { lock.unlock() }
+            stopped = true
+            if process?.isRunning == true { process?.terminate() }
+        }
+    }
+
+    /// Staging folders a quit or a crash left beside the install folder, ours by their name and
+    /// their origin: gone.
+    static func removeLeftovers(beside target: URL) {
+        let fm = FileManager.default
+        let parent = target.deletingLastPathComponent()
+        for name in (try? fm.contentsOfDirectory(atPath: parent.path)) ?? [] where name.hasPrefix(".Claude OS download ") {
+            let dir = parent.appendingPathComponent(name)
+            guard let config = try? String(contentsOf: dir.appendingPathComponent(".git/config"), encoding: .utf8),
+                  AppConfig.originURL(gitConfig: config).map(AppConfig.isRepository) == true else { continue }
+            try? fm.removeItem(at: dir)
+        }
+    }
 
     /// Downloads Claude OS into `target`: into a folder beside it first, so `target` only ever
     /// holds a complete, checked copy. Runs off the main thread; returns why it failed, or nil.
-    static func download(commit: String, git: String, target: URL, home: String) -> String? {
+    static func download(commit: String, git: String, target: URL, home: String, job: Download = Download()) -> String? {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
         let staging = parent.appendingPathComponent(".Claude OS download \(UUID().uuidString)")
@@ -112,7 +154,8 @@ enum FirstLaunch {
         let env = gitEnvironment(home: home)
         let steps = cloneSteps(commit: commit, into: staging.path)
         for (i, args) in steps.enumerated() {
-            let r = run(git, args, environment: env, timeout: i == 0 ? 600 : 60)
+            let r = run(git, args, environment: env, timeout: i == 0 ? 600 : 60, started: job.started)
+            if job.cancelled { return "Stopped." }
             if r.status != 0 {
                 if i == 1 { return "This app's version (\(commit.prefix(7))) isn't on GitHub's main. Download the latest Claude OS.app." }
                 let said = (r.error.isEmpty ? r.output : r.error).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -124,11 +167,17 @@ enum FirstLaunch {
         guard head.output.trimmingCharacters(in: .whitespacesAndNewlines) == commit, folder(staging.path) == .claudeOS else {
             return "The download isn't the Claude OS this app expects; nothing was installed."
         }
+        if job.cancelled { return "Stopped." }
         do {
             let settings = staging.appendingPathComponent(".claude/settings.local.json")
             try fm.createDirectory(at: settings.deletingLastPathComponent(), withIntermediateDirectories: true)
             try JSONSerialization.data(withJSONObject: localSettings, options: [.prettyPrinted, .sortedKeys]).write(to: settings)
-            if folder(target.path) == .empty { try fm.removeItem(at: target) }
+            if folder(target.path) == .empty {
+                // Only an empty folder: Finder's .DS_Store, then rmdir, which fails if anything
+                // else appeared in the meantime.
+                try? fm.removeItem(at: target.appendingPathComponent(".DS_Store"))
+                if rmdir(target.path) != 0 { return "\(target.path) isn't empty anymore; nothing was installed." }
+            }
             try fm.moveItem(at: staging, to: target)
         } catch {
             return "Couldn't put Claude OS in \(target.path): \(error.localizedDescription)"
@@ -160,7 +209,8 @@ enum FirstLaunch {
 
     /// Runs a program with exactly this environment, never through a shell. A timeout
     /// terminates it.
-    static func run(_ path: String, _ args: [String], environment: [String: String], timeout: TimeInterval = 30) -> Result {
+    static func run(_ path: String, _ args: [String], environment: [String: String], timeout: TimeInterval = 30,
+                    started: (Process) -> Bool = { _ in true }) -> Result {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
@@ -169,6 +219,7 @@ enum FirstLaunch {
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
+        guard started(p) else { return Result(status: -1, output: "", error: "cancelled") }
         do { try p.run() } catch { return Result(status: -1, output: "", error: error.localizedDescription) }
         // Drain both pipes while it runs, so a chatty process can't fill one and stall.
         let outData = Drained(out), errData = Drained(err)

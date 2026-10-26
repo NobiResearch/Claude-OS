@@ -16,12 +16,14 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     private var working = false
     private var problem: String?
     private var poll: Timer?
+    private var job: FirstLaunch.Download?
+    private var downloading: DispatchGroup?
 
     private let toolsRow = Row(title: "Apple's command line tools")
     private let claudeRow = Row(title: "Claude Code")
     private let codeRow = Row(title: "Claude OS itself")
-    private let skillsBox = NSButton(checkboxWithTitle: "Use /music, /tidy, /update and /startup in Claude Code, from any folder",
-                                     target: nil, action: nil)
+    private let skillsBox = NSButton(checkboxWithTitle: "Use /music, /tidy, /update and /startup in Claude Code from any folder "
+                                     + "(adds the `cos` command to ~/.local/bin)", target: nil, action: nil)
     private let pulseBox = NSButton(checkboxWithTitle: "Check this Mac's vitals every 2 hours in the background (no AI, no cost)",
                                     target: nil, action: nil)
     private let moveNote = NSTextField(wrappingLabelWithString: "")
@@ -46,8 +48,18 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     }
 
     func show() {
+        if !working { FirstLaunch.removeLeftovers(beside: target) }
         refresh()
         window.makeKeyAndOrderFront(nil)
+    }
+
+    var busy: Bool { working }
+
+    /// Quitting mid-download: stop git, let the download clean up after itself, then `done`.
+    func cancel(then done: @escaping () -> Void) {
+        guard let job = job, let downloading = downloading else { return done() }
+        job.cancel()
+        downloading.notify(queue: .main, execute: done)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool { !working }
@@ -207,12 +219,19 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         working = true
         problem = nil
         render()
-        let target = self.target, home = self.home, version = config.version
+        let target = self.target, home = self.home, version = config.version, job = FirstLaunch.Download()
+        let group = DispatchGroup()
+        group.enter()
+        self.job = job
+        downloading = group
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let why = FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: home)
+            let why = FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: home, job: job)
             if why == nil { FirstLaunch.recordInstall(root: target.path, commit: commit, version: version) }
+            group.leave()  // the staging folder is gone by now
             DispatchQueue.main.async {
                 guard let self = self else { return }
+                self.job = nil
+                self.downloading = nil
                 self.working = false
                 self.problem = why
                 if why == nil { log("downloaded Claude OS \(commit.prefix(7))") }
@@ -223,7 +242,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
     /// The opt-ins the human ticked, through `cos` itself, then the desktop.
     @objc private func open() {
-        guard folder == .claudeOS, !working else { return }
+        guard folder == .claudeOS, !working, tools != nil else { return }
         var steps: [[String]] = []
         if skillsBox.state == .on { steps.append(["install", "--no-daemons"]) }
         if pulseBox.state == .on { steps.append(["daemon", "install", "pulse"]) }

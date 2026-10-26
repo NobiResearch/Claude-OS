@@ -78,6 +78,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         startServer()
     }
 
+    /// Quitting while the first launch downloads Claude OS: stop the download, which removes
+    /// its half-finished copy, then quit.
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let setup = setup, setup.busy else { return .terminateNow }
+        setup.cancel { NSApp.reply(toApplicationShouldTerminate: true) }
+        return .terminateLater
+    }
+
     func applicationWillTerminate(_ notification: Notification) {
         server?.stop()
     }

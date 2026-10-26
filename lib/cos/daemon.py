@@ -105,7 +105,7 @@ def elsewhere(name):
     checkout installs and removes only its own (decision 0015: a downloaded copy never re-points
     a developer's daemons, and its Remove never takes them away)."""
     root = runs_from(name)
-    if not root or os.path.realpath(root) == os.path.realpath(str(core.ROOT)):
+    if not root or core.same_folder(root, core.ROOT):
         return None
     return root if os.path.exists(os.path.join(root, "bin", "cos")) else None
 

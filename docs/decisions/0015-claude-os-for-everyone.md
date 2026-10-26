@@ -89,9 +89,13 @@ notifications and Music automation).
   flags plus https only, and without the system's or the person's git config (a
   `url.insteadOf` there could redirect it). It clones main into a staging folder beside
   `~/Library/Application Support/Claude OS`, checks the release commit is on main, puts `main`
-  on it tracking GitHub's, checks the result is Claude OS at that commit, writes
-  `.claude/settings.local.json` (no `gh`, `gh-axi` or `git push`), and only then moves it into
-  place. A folder that's already there and isn't empty is never touched.
+  on it tracking GitHub's, checks the result is Claude OS at that commit, turns on the
+  Guardian's hooks (`githooks/`), gives origin a push address that goes nowhere, writes
+  `.claude/settings.local.json` (no `gh`, `gh-axi` or `git … push`), and only then moves it
+  into place. A folder that's already there and isn't empty (or is a link) is never touched; an
+  empty one is removed with rmdir, so anything that appears meanwhile stops it. Quitting
+  mid-download stops git and removes the half copy; leftovers from a crash are removed at the
+  next first launch, only if their origin is this repository.
 - The opt-ins (the skills everywhere, pulse) are unticked boxes, applied through `cos` when the
   human opens Claude OS.
 - `~/.claude-os/state/install.json` records the download. With it, and origin still this

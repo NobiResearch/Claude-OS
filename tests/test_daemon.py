@@ -286,6 +286,14 @@ class TestOnlyItsOwnDaemons(TempHome):
         self.assertTrue(daemon.uninstall("pulse").ok)
         self.assertFalse(os.path.exists(daemon.plist_path("pulse")))
 
+    def test_its_own_by_another_spelling(self):
+        shouting = str(core.ROOT).upper()
+        if not os.path.exists(shouting):
+            self.skipTest("a case-sensitive file system")
+        self.installed_from(shouting)
+        self.assertIsNone(daemon.elsewhere("pulse"), "the same checkout, however it's spelled")
+        self.assertTrue(daemon.uninstall("pulse").ok)
+
     def test_not_installed(self):
         self.assertIsNone(daemon.runs_from("pulse"))
         self.assertIsNone(daemon.elsewhere("pulse"))
