@@ -17,8 +17,12 @@ class TempHome(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="cos-test-")
-        self._old = {k: os.environ.get(k) for k in ("CLAUDE_OS_HOME", "HOME", "CLAUDE_OS_DAEMON")}
-        os.environ.pop("CLAUDE_OS_DAEMON", None)  # tests that need it set it themselves
+        self._old = {k: os.environ.get(k) for k in ("CLAUDE_OS_HOME", "HOME", "CLAUDE_OS_DAEMON", "COS_SANDBOXED")}
+        # Tests that need these set them themselves. `cos evolve merge` runs the suite with
+        # both set (core.run_sandboxed), and code that refuses inside a sandbox must not
+        # fail its own tests there.
+        os.environ.pop("CLAUDE_OS_DAEMON", None)
+        os.environ.pop("COS_SANDBOXED", None)
         os.environ["CLAUDE_OS_HOME"] = os.path.join(self.tmp, "state")
         os.environ["HOME"] = os.path.join(self.tmp, "home")
         os.makedirs(os.environ["HOME"])
