@@ -79,7 +79,7 @@ def keep_download_settings():
     d = core.load_json(path, None) if path.exists() else {}
     if not isinstance(d, dict):
         # Not JSON we can read (a hand edit with a trailing comma, say): keep it, beside.
-        aside = path.with_name("settings.local.json.broken-%d" % int(time.time()))
+        aside = path.with_name("settings.local.json.broken-%d-%d" % (int(time.time()), os.getpid()))
         os.replace(str(path), str(aside))
         core.journal("action", "moved a downloaded copy's unreadable settings.local.json aside to %s" % aside.name)
         d = {}
