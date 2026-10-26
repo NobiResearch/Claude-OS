@@ -10,8 +10,13 @@ from . import core
 DATA_VOLUME = "/System/Volumes/Data"
 
 
+# ps and sysctl write decimals the locale's way ("12,5" in Norwegian, say), and Claude OS
+# parses them, so they always run in the C locale.
+C_LOCALE = {"LC_ALL": "C"}
+
+
 def _sysctl(name):
-    r = core.run(["sysctl", "-n", name], timeout=3)
+    r = core.run(["sysctl", "-n", name], timeout=3, env=C_LOCALE)
     return r.out if r.ok else ""
 
 
@@ -77,10 +82,11 @@ def load():
 
 
 def app_name(comm):
-    """Who a process belongs to: the outermost .app in its path, so Firefox's
-    plugin-containers and Chrome's helpers count as Firefox and Google Chrome; otherwise
-    the executable's own name."""
-    m = re.search(r"/([^/]+)\.app/", comm)
+    """Who a process belongs to: the outermost .app in its path when the process is that
+    app's own (under Contents/MacOS or Contents/Frameworks), so Firefox's plugin-containers
+    and Chrome's helpers count as Firefox and Google Chrome. Tools that merely live in a
+    bundle (git inside Xcode.app, run through xcrun) keep their own name."""
+    m = re.search(r"/([^/]+)\.app/(Contents/(MacOS|Frameworks)/)", comm)
     return m.group(1) if m else os.path.basename(comm)
 
 
@@ -112,7 +118,7 @@ def parse_ps(text):
 
 
 def top_processes(n=5):
-    rows = parse_ps(core.run(["ps", "-Ao", "pid=,pcpu=,rss=,comm="], timeout=5).out)
+    rows = parse_ps(core.run(["ps", "-Ao", "pid=,pcpu=,rss=,comm="], timeout=5, env=C_LOCALE).out)
     return {"cpu": sorted(rows, key=lambda p: -p["cpu"])[:n], "memory": sorted(rows, key=lambda p: -p["rss"])[:n]}
 
 
@@ -300,7 +306,9 @@ def render(s):
     top = s.get("top")
     if top:
         print("  top cpu  " + ", ".join(_proc(p, "%.0f%%" % p["cpu"]) for p in top["cpu"][:4]))
-        print("  top mem  " + ", ".join(_proc(p, core.human_bytes(p["rss"])) for p in top["memory"][:4]))
+        # a group's resident memory is a sum, so pages its processes share count more than once
+        print("  top mem  " + ", ".join(_proc(p, ("≈" if p.get("count", 1) > 1 else "") + core.human_bytes(p["rss"]))
+                                         for p in top["memory"][:4]))
     week = disk_trend(trends())
     if week is not None:
         print("  trend    free disk %s%s per week" % ("+" if week >= 0 else "−", core.human_bytes(abs(week))))
