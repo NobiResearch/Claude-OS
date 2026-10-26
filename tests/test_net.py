@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from helpers import TempHome, test_port
+from helpers import IN_SANDBOX, TempHome
 
 from cos import cli, core, daemon, net
 
@@ -159,6 +159,7 @@ class TestNet(TempHome):
         self.assertLess(time.monotonic() - t, 1.5)
         self.assertEqual(got, {"slow": None, "fast": "here", "broken": None})
 
+    @unittest.skipIf(IN_SANDBOX, "needs TCP; the evolve sandbox has no network (CI runs it)")
     def test_the_portal_probe_never_follows_a_redirect(self):
         replies = {"/ok": (200, b"<HTML><HEAD><TITLE>Success</TITLE></HEAD><BODY>Success</BODY></HTML>"),
                    "/login": (302, b"")}
@@ -175,7 +176,7 @@ class TestNet(TempHome):
             def log_message(self, *a):
                 pass
 
-        server = http.server.HTTPServer(("127.0.0.1", test_port()), Portal)
+        server = http.server.HTTPServer(("127.0.0.1", 0), Portal)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)
