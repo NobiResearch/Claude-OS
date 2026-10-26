@@ -1,10 +1,13 @@
+import io
 import os
+import shutil
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 
 from helpers import TempHome
 
-from cos import clean
+from cos import clean, core
 
 
 class TestTargets(unittest.TestCase):
@@ -72,9 +75,10 @@ class TestNodeModules(TempHome):
         old = 1_000_000_000  # 2001
         for root, dirs, files in os.walk(proj):
             os.utime(root, (old, old))
-        with open(os.path.join(proj, "package.json"), "w") as f:
-            f.write("{}")
-        os.utime(os.path.join(proj, "package.json"), (old, old))
+        for name in ("package.json", "package-lock.json"):
+            with open(os.path.join(proj, name), "w") as f:
+                f.write("{}")
+            os.utime(os.path.join(proj, name), (old, old))
         self.assertEqual([p.name for p in clean.stale_node_modules()], ["node_modules"])
         open(os.path.join(proj, "src", "components", "New.tsx"), "w").close()  # fresh edit, deep down
         self.assertEqual(clean.stale_node_modules(), [])
@@ -89,6 +93,120 @@ class TestMeasure(unittest.TestCase):
 
     def test_apply_dry_run_without_yes(self):
         self.assertEqual(clean.apply(["xcode-derived-data"], yes=False), 2)
+
+
+class TestReviewFindings(TempHome):
+    """An independent review of cos clean (night of 26 October): each finding, kept fixed."""
+
+    def setUp(self):
+        super().setUp()
+        from unittest import mock
+        from pathlib import Path
+        self.home = os.environ["HOME"]
+        patch = mock.patch.object(clean, "HOME", Path(self.home))
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def path(self, *parts):
+        return os.path.join(self.home, *parts)
+
+    def touch(self, *parts, old=False):
+        p = self.path(*parts)
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as f:
+            f.write("x")
+        if old:
+            os.utime(p, (1_000_000_000, 1_000_000_000))
+        return p
+
+    def test_a_cache_folder_that_is_a_symlink_is_never_followed(self):
+        thesis = self.touch("Documents", "Thesis", "chapter1.md")
+        os.makedirs(self.path("Library", "Developer", "Xcode"))
+        os.symlink(os.path.dirname(thesis), self.path("Library", "Developer", "Xcode", "DerivedData"))
+        with redirect_stdout(io.StringIO()) as out:
+            clean.delete_contents(self.path("Library", "Developer", "Xcode", "DerivedData"))
+        self.assertTrue(os.path.exists(thesis), "the thesis is still there")
+        self.assertIn("symlink", out.getvalue())
+        with self.assertRaises(ValueError):
+            clean.remove(self.path("Library", "Developer", "Xcode", "DerivedData", "chapter1.md"))
+
+    def test_a_downloads_folder_that_links_elsewhere_isnt_downloads(self):
+        self.touch("Documents", "old.pdf", old=True)
+        os.symlink(self.path("Documents"), self.path("Downloads"))
+        self.assertEqual(clean.old_downloads(), [])
+
+    def test_a_folder_with_a_fresh_file_inside_isnt_an_old_download(self):
+        self.touch("Downloads", "client-site", "index.html")  # edited today
+        os.utime(self.path("Downloads", "client-site"), (1_000_000_000, 1_000_000_000))
+        self.touch("Downloads", "setup.dmg", old=True)
+        self.assertEqual([p.name for p in clean.old_downloads()], ["setup.dmg"])
+
+    def test_only_reviewed_items_are_trashed(self):
+        from unittest import mock
+        for i in range(25):
+            self.touch("Downloads", "file%02d.zip" % i, old=True)
+        self.assertIsNone(clean._reviewed("downloads-old") if not core.cache_get("clean") else None)
+        with mock.patch.object(clean, "du", return_value=1):
+            scan = {"targets": [clean.measure(clean.BY_ID["downloads-old"])]}
+        scan["targets"][0]["details"] = scan["targets"][0]["details"][:15]  # what someone actually saw
+        core.cache_put("clean", scan)
+        trashed = []
+        with mock.patch.object(clean, "trash", lambda ps: trashed.extend(ps)):
+            clean.apply_downloads(clean.BY_ID["downloads-old"])
+        self.assertEqual(len(trashed), 15, "never more than was reviewed")
+
+    def test_without_a_scan_nothing_on_a_list_is_removed(self):
+        from unittest import mock
+        self.touch("Downloads", "setup.dmg", old=True)
+        trashed = []
+        with mock.patch.object(clean, "trash", lambda ps: trashed.extend(ps)), redirect_stdout(io.StringIO()) as out:
+            clean.apply_downloads(clean.BY_ID["downloads-old"])
+        self.assertEqual(trashed, [])
+        self.assertIn("scan first", out.getvalue())
+
+    def test_trashing_downloads_and_emptying_the_trash_together_is_refused(self):
+        with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            clean.apply(["downloads-old", "trash"], yes=True)
+
+    def test_commands_run_from_home_and_uv_ignores_project_config(self):
+        from unittest import mock
+        uv = clean.BY_ID["uv-cache"]
+        self.assertIn("--no-config", uv.cmd)
+        seen = []
+
+        def run(cmd, **kw):
+            seen.append((cmd[0], kw.get("cwd")))
+            return core.Result(0, "", "")
+        with mock.patch.object(clean.core, "run", run), mock.patch.object(clean, "measure", return_value={"bytes": 0}), \
+                mock.patch.object(clean.core, "app_running", lambda *a, **k: False), redirect_stdout(io.StringIO()):
+            clean.apply(["npm-cache"], yes=True)
+        self.assertIn(("npm", self.home), seen)
+
+    def test_node_modules_needs_a_manifest_and_a_lockfile(self):
+        proj = self.path("Developer", "app")
+        os.makedirs(os.path.join(proj, "node_modules", "dep"))
+        for root, dirs, files in os.walk(proj):
+            os.utime(root, (1_000_000_000, 1_000_000_000))
+        self.assertEqual(clean.stale_node_modules(), [], "no package.json: npm install can't put it back")
+
+    def test_running_apps_keep_their_caches_and_some_folders_are_not_caches(self):
+        from unittest import mock
+        self.assertIn("pypoetry", clean.NOT_REALLY_CACHES)
+        out = '  1) "Spotify" ASN:0x0-0x1:\n    bundleID="com.spotify.client"\n'
+        with mock.patch.object(clean.core, "run", return_value=core.Result(0, out, "")):
+            self.assertEqual(clean.running_apps(), {"spotify", "com.spotify.client"})
+
+    def test_one_odd_item_doesnt_stop_the_others(self):
+        from unittest import mock
+        outside = tempfile.mkdtemp(prefix="cos-elsewhere-")
+        self.addCleanup(shutil.rmtree, outside, True)
+        ok = self.touch("Downloads", "a.dmg", old=True)
+        asked = []
+        with mock.patch.object(clean.core, "osascript", lambda s, timeout=0: asked.append(s)), \
+                redirect_stdout(io.StringIO()) as out:
+            clean.trash([outside + "/b.dmg", ok])
+        self.assertEqual(len(asked), 1)
+        self.assertIn("kept", out.getvalue())
 
 
 if __name__ == "__main__":
