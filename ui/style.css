@@ -92,6 +92,13 @@ button.mb-item:hover { background: var(--hover); }
 .today-line { margin-top: 14px; display: flex; flex-wrap: wrap; gap: 6px 14px; color: var(--muted); font-size: 12.5px; }
 .today-line span::before { content: "◆ "; color: var(--accent); font-size: 9px; vertical-align: 1px; }
 .today-chips { margin-top: 18px; display: flex; flex-wrap: wrap; gap: 8px; }
+.today-welcome { margin-top: 22px; max-width: 460px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--line);
+  background: rgba(37, 33, 29, 0.55); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); font-size: 13px; line-height: 1.5; }
+.today-welcome .welcome-title { font-weight: 600; font-size: 14.5px; margin-bottom: 4px; }
+.today-welcome .welcome-text { color: var(--muted); margin-bottom: 8px; }
+.today-welcome .welcome-list { margin: 0 0 12px 18px; padding: 0; color: var(--muted); }
+.today-welcome a { color: var(--text); font-weight: 500; text-decoration: none; border-bottom: 1px solid var(--line-2); }
+.today-welcome a:hover { color: var(--accent); }
 #windows { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
 #windows > * { pointer-events: auto; }
 

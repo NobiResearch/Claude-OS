@@ -295,3 +295,20 @@ class TestDownloaded(TempHome):
         self.assertFalse(core.same_folder("/nonexistent", core.ROOT))
         self.assertFalse(core.same_folder("/tmp/a\x00b", core.ROOT), "a NUL in the path")
         self.assertFalse(core.same_folder(None, core.ROOT))
+
+
+class TestNewHere(TempHome):
+    """Today's welcome card shows in Claude OS's first week on a Mac (the board, 26 Oct)."""
+
+    def test_the_first_week_from_the_journals_first_entry(self):
+        import datetime as dt
+        import json as js
+        self.assertTrue(core.new_here(), "no journal yet")
+        old = (dt.datetime.now().astimezone() - dt.timedelta(days=30)).isoformat(timespec="seconds")
+        path = core.home("journal", "2000-01.jsonl")
+        path.write_text(js.dumps({"ts": old, "kind": "note", "msg": "long ago"}) + "\n")
+        self.assertFalse(core.new_here())
+        path.write_text(js.dumps({"ts": core.now_iso(), "kind": "note", "msg": "today"}) + "\n")
+        self.assertTrue(core.new_here())
+        path.write_text("not json\n")
+        self.assertFalse(core.new_here(), "a journal it can't read is an old one")
