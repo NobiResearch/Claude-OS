@@ -76,7 +76,10 @@
       "Bash(gh-axi release*)",
       "Bash(gh api *releases*)",
       "Bash(gh-axi api *releases*)",
-      "Bash(xcrun notarytool*)"
+      "Bash(xcrun notarytool*)",
+      "Bash(app/build.sh --release*)",
+      "Bash(./app/build.sh --release*)",
+      "Bash(*app/build.sh --release*)"
     ],
     "deny": [
       "Edit(~/.claude-os/config.json)"

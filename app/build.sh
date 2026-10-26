@@ -18,20 +18,46 @@
 #   CLAUDE_OS_DAEMON set           ad hoc (a headless run must never meet a keychain prompt)
 #   otherwise                      the first valid "Apple Development" identity, by SHA-1
 #                                  (ad hoc if there is none)
+#
+#   app/build.sh --release [--no-notarize]
+#       the app strangers download (decision 0015): from a clean checkout at origin/main,
+#       nothing machine-specific inside (no paths, a stripped binary, scanned before signing),
+#       Developer ID with the hardened runtime, notarized and stapled, zipped in build/.
+#       Needs COS_RELEASE_PROFILE (a Developer ID provisioning profile for the release App ID,
+#       COS_RELEASE_BUNDLE_ID, default app.claude-os.desktop) and COS_NOTARY_PROFILE (a
+#       `xcrun notarytool store-credentials` Keychain profile). Every check stops the build;
+#       nothing falls back to ad hoc. Publishing it is a separate step, on the human's yes.
 set -euo pipefail
 
-usage() { sed -n '2,21s/^# \{0,1\}//p' "$0"; }
+usage() { sed -n '2,30s/^# \{0,1\}//p' "$0"; }
 
 INSTALL=0
 OPEN=0
+RELEASE=0
+NOTARIZE=1
 for arg in "$@"; do
     case "$arg" in
         --install) INSTALL=1 ;;
         --open) OPEN=1 ;;
+        --release) RELEASE=1 ;;
+        --no-notarize) NOTARIZE=0 ;;
         -h|--help) usage; exit 0 ;;
         *) echo "build.sh: unknown option: $arg" >&2; usage >&2; exit 2 ;;
     esac
 done
+if [ "$RELEASE" = 1 ] && [ "${1:-}" != "--release" ]; then
+    # So the permission prompt's rules (`app/build.sh --release*`) always see it.
+    echo "build.sh: write --release first: app/build.sh --release [--no-notarize]" >&2
+    exit 2
+fi
+if [ "$RELEASE" = 1 ] && { [ "$INSTALL" = 1 ] || [ "$OPEN" = 1 ]; }; then
+    echo "build.sh: a release is for downloading, not for installing over your own build" >&2
+    exit 2
+fi
+if [ "$RELEASE" = 0 ] && [ "$NOTARIZE" = 0 ]; then
+    echo "build.sh: --no-notarize only goes with --release" >&2
+    exit 2
+fi
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$ROOT"
@@ -42,6 +68,13 @@ if [ -z "$VERSION" ]; then
     exit 1
 fi
 
+COMMIT=""
+if [ "$RELEASE" = 1 ]; then
+    echo "==> release checks"
+    /usr/bin/env python3 app/release.py preflight
+    COMMIT="$(git rev-parse HEAD)"
+fi
+
 echo "==> swift build (release)"
 swift build -c release --package-path app
 BIN_DIR="$(swift build -c release --package-path app --show-bin-path)"
@@ -49,11 +82,18 @@ BIN_DIR="$(swift build -c release --package-path app --show-bin-path)"
 APP="build/Claude OS.app"
 # MusicKit only works for a bundle id registered (with the MusicKit service) in the signing
 # team's developer account. Anyone building their own copy sets COS_BUNDLE_ID to theirs.
-BUNDLE_ID="${COS_BUNDLE_ID:-local.claude-os.desktop}"
+if [ "$RELEASE" = 1 ]; then
+    BUNDLE_ID="${COS_RELEASE_BUNDLE_ID:-app.claude-os.desktop}"
+else
+    BUNDLE_ID="${COS_BUNDLE_ID:-local.claude-os.desktop}"
+fi
 echo "==> assembling $APP ($VERSION, $BUNDLE_ID)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/ClaudeOS" "$APP/Contents/MacOS/ClaudeOS"
+if [ "$RELEASE" = 1 ]; then
+    strip -S "$APP/Contents/MacOS/ClaudeOS"  # the debug map names object files by their full path
+fi
 
 # The icon only changes when icon.swift does, so cache the .icns between builds.
 ICNS="build/AppIcon.icns"
@@ -68,11 +108,11 @@ fi
 cp "$ICNS" "$APP/Contents/Resources/AppIcon.icns"
 
 # plistlib does the XML escaping, so odd characters in paths can't break the plist.
-/usr/bin/env python3 - "$APP/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" "$BUNDLE_ID" <<'PY'
+/usr/bin/env python3 - "$APP/Contents/Info.plist" "$VERSION" "$ROOT" "$PATH" "$BUNDLE_ID" "$COMMIT" <<'PY'
 import plistlib
 import sys
 
-out, version, root, path, bundle_id = sys.argv[1:6]
+out, version, root, path, bundle_id, commit = sys.argv[1:7]
 location = ("Claude OS shows the weather for where you are. "
             "Your location is rounded to about a kilometre and stays on this Mac.")
 calendar = "Claude OS shows today's events on your desktop and in your morning brief. It only reads; it never changes your calendar."
@@ -100,13 +140,78 @@ info = {
     "NSRemindersUsageDescription": reminders,
     # claude-os://music/play?id=… lets `cos` drive the built-in player (see Player.swift).
     "CFBundleURLTypes": [{"CFBundleURLName": "Claude OS", "CFBundleURLSchemes": ["claude-os"]}],
-    "ClaudeOSRoot": root,
-    "ClaudeOSPath": path,
 }
+if commit:
+    # A release: nothing machine-specific. The app finds its code and PATH at runtime, and
+    # knows which commit it was built from.
+    info["ClaudeOSCommit"] = commit
+    info["NSAppleEventsUsageDescription"] = "Claude OS controls the Music app when you ask it to play something there."
+else:
+    info["ClaudeOSRoot"] = root
+    info["ClaudeOSPath"] = path
 with open(out, "wb") as f:
     plistlib.dump(info, f)
 PY
 plutil -lint "$APP/Contents/Info.plist" >/dev/null
+
+# --- release (decision 0015) -----------------------------------------------------------
+if [ "$RELEASE" = 1 ]; then
+    echo "==> scanning the bundle for anything private (before it's signed)"
+    /usr/bin/env python3 app/release.py scan "$APP"
+
+    # Developer ID only: the identity named in COS_SIGN_IDENTITY, or the first one listed.
+    IDENTITIES="$(security find-identity -v -p codesigning 2>/dev/null || true)"
+    SIGN_ID="${COS_SIGN_IDENTITY:-$(printf '%s\n' "$IDENTITIES" | awk '/"Developer ID Application: / && !found { print $2; found = 1 }')}"
+    # A whole SHA-1, on a Developer ID Application line: never "-" (ad hoc) or a fragment.
+    if ! [[ "$SIGN_ID" =~ ^[0-9A-F]{40}$ ]] ||
+       ! printf '%s\n' "$IDENTITIES" | awk -v id="$SIGN_ID" '$2 == id && /"Developer ID Application: / { ok = 1 } END { exit !ok }'; then
+        echo "build.sh: a release is signed with a Developer ID Application identity, and there's none to use" >&2
+        exit 1
+    fi
+
+    if [ -z "${COS_RELEASE_PROFILE:-}" ]; then
+        echo "build.sh: set COS_RELEASE_PROFILE to the release's Developer ID provisioning profile" >&2
+        exit 1
+    fi
+    echo "==> checking the provisioning profile"
+    /usr/bin/env python3 app/release.py profile "$COS_RELEASE_PROFILE" "$BUNDLE_ID" build/release-entitlements.plist
+    cp "$COS_RELEASE_PROFILE" "$APP/Contents/embedded.provisionprofile"
+
+    echo "==> signing with Developer ID ${SIGN_ID:0:8}…, the hardened runtime and a secure timestamp"
+    codesign --force --options runtime --timestamp --entitlements build/release-entitlements.plist \
+        --sign "$SIGN_ID" "$APP"
+    codesign --verify --strict --deep "$APP"
+    SIGNATURE="$(codesign -dv --verbose=2 "$APP" 2>&1)"
+    TEAM="$(/usr/libexec/PlistBuddy -c 'Print :com.apple.developer.team-identifier' build/release-entitlements.plist)"
+    if [[ "$SIGNATURE" != *"(runtime)"* ]]; then
+        echo "build.sh: no hardened runtime in the signature" >&2
+        exit 1
+    fi
+    if [[ "$SIGNATURE" != *"Authority=Developer ID Application: "* ]] || [[ "$SIGNATURE" != *"TeamIdentifier=$TEAM"* ]]; then
+        echo "build.sh: the signature isn't Developer ID for the profile's team" >&2
+        exit 1
+    fi
+
+    ZIP="build/Claude-OS-$VERSION.zip"
+    rm -f "$ZIP"
+    ditto -c -k --keepParent "$APP" "$ZIP"
+    if [ "$NOTARIZE" = 1 ]; then
+        if [ -z "${COS_NOTARY_PROFILE:-}" ]; then
+            echo "build.sh: set COS_NOTARY_PROFILE to your notarytool Keychain profile (or add --no-notarize for a local check)" >&2
+            exit 1
+        fi
+        echo "==> notarizing (Apple checks it; a few minutes)"
+        xcrun notarytool submit "$ZIP" --keychain-profile "$COS_NOTARY_PROFILE" --wait
+        xcrun stapler staple "$APP"
+        rm -f "$ZIP"
+        ditto -c -k --keepParent "$APP" "$ZIP"
+        spctl -a -vv "$APP" 2>&1 | grep -E '^(build|source)' | sed -E 's/(Developer ID Application: ).*/\1<the certificate holder>/' || true
+        echo "==> built $ZIP: Developer ID, notarized and stapled (commit ${COMMIT:0:7})"
+    else
+        echo "==> built $ZIP: Developer ID, NOT notarized: a local check, not for publishing"
+    fi
+    exit 0
+fi
 
 # --- signing -------------------------------------------------------------------------
 # SIGN_ID is what codesign gets ("-" is ad hoc); SIGN_LABEL is what we print, and never
