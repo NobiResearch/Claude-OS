@@ -150,3 +150,183 @@ final class ReleaseRootTests: XCTestCase {
         XCTAssertTrue(path.hasSuffix(":/usr/bin:/bin:/usr/sbin:/sbin"))
     }
 }
+
+/// Decision 0015, step 5: a downloaded app's first launch checks without prompting, and
+/// downloads only this repository, only with a hardened git.
+final class FirstLaunchTests: XCTestCase {
+    func testTheToolsNeedGitAndPython() {
+        let both: Set<String> = ["/L/CLT/usr/bin/git", "/L/CLT/usr/bin/python3"]
+        XCTAssertEqual(FirstLaunch.toolsReady("/L/CLT", isExecutable: both.contains), "/L/CLT")
+        XCTAssertNil(FirstLaunch.toolsReady("/L/CLT", isExecutable: { $0.hasSuffix("/git") }), "no python3")
+        XCTAssertNil(FirstLaunch.toolsReady("", isExecutable: { _ in true }), "xcode-select said nothing")
+        XCTAssertNil(FirstLaunch.toolsReady("relative", isExecutable: { _ in true }))
+    }
+
+    func testClaudeCodeFromAFixedList() {
+        XCTAssertEqual(FirstLaunch.claudeCode(home: "/Users/x", isExecutable: { $0 == "/opt/homebrew/bin/claude" }),
+                       "/opt/homebrew/bin/claude")
+        XCTAssertEqual(FirstLaunch.claudeCode(home: "/Users/x", isExecutable: { _ in true }), "/Users/x/.local/bin/claude")
+        XCTAssertNil(FirstLaunch.claudeCode(home: "/Users/x", isExecutable: { _ in false }))
+    }
+
+    func testTheInstallFolderIsUsedOnlyWhenEmpty() {
+        func folder(_ entries: [String]?, claudeOS: Bool = false) -> FirstLaunch.Folder {
+            FirstLaunch.folder("/f", entries: { _ in entries }, isClaudeOS: { _ in claudeOS })
+        }
+        XCTAssertEqual(folder(nil), .absent)
+        XCTAssertEqual(folder([]), .empty)
+        XCTAssertEqual(folder([".DS_Store"]), .empty)
+        XCTAssertEqual(folder(["bin", "lib", ".git"], claudeOS: true), .claudeOS)
+        XCTAssertEqual(folder(["notes.txt"]), .other)
+        XCTAssertEqual(folder(["bin", "lib", ".git"]), .other, "a fork or a half copy is left alone")
+    }
+
+    func testAFileOrALinkWhereTheFolderGoesIsLeftAlone() throws {
+        let fm = FileManager.default
+        let dir = fm.temporaryDirectory.appendingPathComponent("cos-fl-\(UUID().uuidString)")
+        try fm.createDirectory(at: dir.appendingPathComponent("empty"), withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: dir) }
+        let file = dir.appendingPathComponent("file")
+        try Data().write(to: file)
+        XCTAssertEqual(FirstLaunch.folder(file.path), .other)
+        let link = dir.appendingPathComponent("link")
+        try fm.createSymbolicLink(at: link, withDestinationURL: dir.appendingPathComponent("empty"))
+        XCTAssertEqual(FirstLaunch.folder(link.path), .other, "a link to an empty folder isn't ours to remove")
+        XCTAssertEqual(FirstLaunch.folder(dir.appendingPathComponent("empty").path), .empty)
+        XCTAssertEqual(FirstLaunch.folder(dir.appendingPathComponent("absent").path), .absent)
+    }
+
+    func testOnlyOurLeftoversAreCleanedUp() throws {
+        let fm = FileManager.default
+        let parent = fm.temporaryDirectory.appendingPathComponent("cos-left-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: parent) }
+        func staging(_ name: String, origin: String?) throws -> URL {
+            let dir = parent.appendingPathComponent(name)
+            try fm.createDirectory(at: dir.appendingPathComponent(".git"), withIntermediateDirectories: true)
+            if let origin = origin {
+                try "[remote \"origin\"]\n\turl = \(origin)\n".write(to: dir.appendingPathComponent(".git/config"), atomically: true, encoding: .utf8)
+            }
+            return dir
+        }
+        let ours = try staging(".Claude OS download 1", origin: "https://github.com/NobiResearch/Claude-OS.git")
+        let strange = try staging(".Claude OS download 2", origin: "https://github.com/someone/else.git")
+        let unknown = try staging(".Claude OS download 3", origin: nil)
+        let other = try staging("Something", origin: "https://github.com/NobiResearch/Claude-OS.git")
+        FirstLaunch.removeLeftovers(beside: parent.appendingPathComponent("Claude OS"))
+        XCTAssertFalse(fm.fileExists(atPath: ours.path))
+        for kept in [strange, unknown, other] { XCTAssertTrue(fm.fileExists(atPath: kept.path), kept.lastPathComponent) }
+    }
+
+    func testACancelledDownloadNeverStarts() {
+        let job = FirstLaunch.Download()
+        job.cancel()
+        let r = FirstLaunch.run("/bin/sleep", ["5"], environment: [:], launch: job.launch)
+        XCTAssertEqual(r.status, -1)
+        XCTAssertTrue(job.cancelled)
+    }
+
+    func testCancellingStopsTheRunningStep() {
+        let job = FirstLaunch.Download()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { job.cancel() }
+        let started = Date()
+        let r = FirstLaunch.run("/bin/sleep", ["30"], environment: [:], timeout: 60, launch: job.launch)
+        XCTAssertNotEqual(r.status, 0)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "stopped, not run to the end")
+    }
+
+    func testWhereTheAppRunsFrom() {
+        XCTAssertTrue(FirstLaunch.translocated("/private/var/folders/xy/T/AppTranslocation/1234/d/Claude OS.app"))
+        XCTAssertFalse(FirstLaunch.translocated("/Applications/Claude OS.app"))
+        XCTAssertTrue(FirstLaunch.inApplications("/Applications/Claude OS.app", home: "/Users/x"))
+        XCTAssertTrue(FirstLaunch.inApplications("/Users/x/Applications/Claude OS.app", home: "/Users/x"))
+        XCTAssertFalse(FirstLaunch.inApplications("/Users/x/Downloads/Claude OS.app", home: "/Users/x"))
+    }
+
+    func testOnlyAFullCommitIsUsed() {
+        XCTAssertTrue(FirstLaunch.isCommit(String(repeating: "a1", count: 20)))
+        for bad in [nil, "", "abc1234", String(repeating: "A1", count: 20), String(repeating: "g1", count: 20),
+                    String(repeating: "a1", count: 20) + " "] {
+            XCTAssertFalse(FirstLaunch.isCommit(bad), bad ?? "nil")
+        }
+    }
+
+    func testTheCloneIsThisRepositoryWithAHardenedGit() {
+        let commit = String(repeating: "ab", count: 20)
+        let steps = FirstLaunch.cloneSteps(commit: commit, into: "/tmp/x")
+        for step in steps {
+            XCTAssertEqual(Array(step.prefix(FirstLaunch.safeGit.count)), FirstLaunch.safeGit)
+        }
+        for flag in ["core.hooksPath=/dev/null", "credential.helper=", "protocol.allow=never", "protocol.https.allow=always"] {
+            XCTAssertTrue(FirstLaunch.safeGit.contains(flag), flag)
+        }
+        XCTAssertTrue(steps[0].contains("https://github.com/NobiResearch/Claude-OS.git"))
+        XCTAssertTrue(steps[0].contains("--no-recurse-submodules"))
+        XCTAssertEqual(Array(steps[1].suffix(4)), ["merge-base", "--is-ancestor", commit, "origin/main"])
+        XCTAssertEqual(Array(steps[2].suffix(4)), ["--quiet", "-B", "main", commit])
+        let env = FirstLaunch.gitEnvironment(home: "/Users/x")
+        XCTAssertEqual(env["GIT_CONFIG_GLOBAL"], "/dev/null")
+        XCTAssertEqual(env["GIT_CONFIG_NOSYSTEM"], "1")
+        XCTAssertEqual(env["GIT_TERMINAL_PROMPT"], "0")
+    }
+
+    func testADownloadedCopysClaudeDoesntUseGitHub() {
+        let deny = (FirstLaunch.localSettings["permissions"] as? [String: [String]])?["deny"] ?? []
+        XCTAssertEqual(Set(deny), ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)", "Bash(git * push*)"])
+        let steps = FirstLaunch.cloneSteps(commit: String(repeating: "ab", count: 20), into: "/tmp/x")
+        XCTAssertTrue(steps.contains { $0.suffix(2) == ["core.hooksPath", "githooks"] }, "the Guardian's hooks")
+        XCTAssertTrue(steps.contains { $0.suffix(2) == ["remote.origin.pushurl", FirstLaunch.noPush] }, "origin can't push")
+    }
+
+    /// The real download, from GitHub: only with COS_NETWORK_TESTS=1 and COS_TEST_COMMIT=<a commit on main>.
+    func testTheDownloadFromGitHub() throws {
+        let env = ProcessInfo.processInfo.environment
+        guard env["COS_NETWORK_TESTS"] == "1", let commit = env["COS_TEST_COMMIT"],
+              let dir = FirstLaunch.developerDir() else { throw XCTSkip("needs COS_NETWORK_TESTS=1 and COS_TEST_COMMIT") }
+        let parent = FileManager.default.temporaryDirectory.appendingPathComponent("cos-download-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: parent) }
+        let target = parent.appendingPathComponent("Claude OS")
+        XCTAssertNil(FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: NSHomeDirectory()))
+        XCTAssertEqual(FirstLaunch.folder(target.path), .claudeOS)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: target.appendingPathComponent(".claude/settings.local.json").path))
+        let branch = FirstLaunch.run(dir + "/usr/bin/git", ["-C", target.path, "rev-parse", "--abbrev-ref", "main@{upstream}"],
+                                     environment: FirstLaunch.gitEnvironment(home: NSHomeDirectory()))
+        XCTAssertEqual(branch.output.trimmingCharacters(in: .whitespacesAndNewlines), "origin/main")
+        let env2 = FirstLaunch.gitEnvironment(home: NSHomeDirectory())
+        func config(_ key: String) -> String {
+            FirstLaunch.run(dir + "/usr/bin/git", ["-C", target.path, "config", "--get", key], environment: env2)
+                .output.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        XCTAssertEqual(config("core.hooksPath"), "githooks")
+        XCTAssertEqual(config("remote.origin.pushurl"), FirstLaunch.noPush)
+        let push = FirstLaunch.run(dir + "/usr/bin/git", ["-C", target.path, "push", "--dry-run", "origin", "main"], environment: env2)
+        XCTAssertNotEqual(push.status, 0, "a downloaded copy can't push to origin")
+        let leftovers = try FileManager.default.contentsOfDirectory(atPath: parent.path)
+        XCTAssertEqual(leftovers, ["Claude OS"], "the staging folder is gone")
+        XCTAssertNotNil(FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: NSHomeDirectory()),
+                        "a folder that's already there is never replaced")
+        let bogus = String(repeating: "0", count: 40)
+        let other = parent.appendingPathComponent("Other")
+        XCTAssertNotNil(FirstLaunch.download(commit: bogus, git: dir + "/usr/bin/git", target: other, home: NSHomeDirectory()))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: other.path), "a failed download leaves nothing behind")
+    }
+
+    /// A picture of the checklist for a human to look at: only with COS_SNAPSHOT_DIR=<folder>.
+    func testSnapshotOfTheChecklist() throws {
+        guard let dir = ProcessInfo.processInfo.environment["COS_SNAPSHOT_DIR"] else { throw XCTSkip("needs COS_SNAPSHOT_DIR") }
+        let config = AppConfig(root: URL(fileURLWithPath: "/nonexistent"), path: "", version: "0.8.0", release: true,
+                               commit: String(repeating: "c0", count: 20), rootProblem: "none yet", serveCommandOverride: nil)
+        let setup = SetupWindowController(config: config, onReady: {})
+        let appearance = try XCTUnwrap(NSAppearance(named: .aqua))
+        setup.window.appearance = appearance
+        setup.refresh()
+        let view = try XCTUnwrap(setup.window.contentView)
+        view.wantsLayer = true
+        appearance.performAsCurrentDrawingAppearance { view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor }
+        setup.window.layoutIfNeeded()
+        view.layoutSubtreeIfNeeded()
+        let rep = try XCTUnwrap(view.bitmapImageRepForCachingDisplay(in: view.bounds))
+        appearance.performAsCurrentDrawingAppearance { view.cacheDisplay(in: view.bounds, to: rep) }
+        let png = try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+        try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("first-launch.png"))
+    }
+}

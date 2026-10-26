@@ -548,7 +548,8 @@ def make_handler(app):
                            "shortcut": music.shortcut_installed()},
                  "weather": {"name": place.get("name"), "source": place.get("source")},
                  "night_shift": bool(cfg["autonomy"].get("night_shift")),
-                 "catch_up": bool(cfg["autonomy"].get("catch_up"))})
+                 "catch_up": bool(cfg["autonomy"].get("catch_up")),
+                 "downloaded": core.downloaded()})
 
     def r_settings_music(h, q, b):
         from . import music
@@ -564,6 +565,9 @@ def make_handler(app):
 
     def r_settings_night(h, q, b):
         on = bool(b.get("on"))
+        if on and core.downloaded():
+            return h._json({"night_shift": False, "error": "A downloaded Claude OS has no night shift: its Claude "
+                            "doesn't push to GitHub or merge pull requests."})
         if on:
             # The page can call this route, but only the human can click the app's own dialog.
             answer = confirm_natively("night")

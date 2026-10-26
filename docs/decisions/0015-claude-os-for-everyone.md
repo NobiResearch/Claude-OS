@@ -79,6 +79,33 @@ shared nonce). The test build was never notarized or uploaded; it's in the Trash
 check in a second macOS user account (notarized, a quarantined download, Calendar, Location,
 notifications and Music automation).
 
+## Step 5: the checklist (27 October)
+
+- A release that finds no Claude OS shows a native window (`SetupWindowController`, logic in
+  `FirstLaunch`): the command line tools (`xcode-select -p`; `--install` on a click, then it
+  polls), Claude Code (found in a fixed list of folders, or a link to Anthropic's page), and the
+  download, enabled only once the tools are there.
+- The download runs the developer folder's own git, never the /usr/bin shim, with catch-up's
+  flags plus https only, and without the system's or the person's git config (a
+  `url.insteadOf` there could redirect it). It clones main into a staging folder beside
+  `~/Library/Application Support/Claude OS`, checks the release commit is on main, puts `main`
+  on it tracking GitHub's, checks the result is Claude OS at that commit, turns on the
+  Guardian's hooks (`githooks/`), gives origin a push address that goes nowhere, writes
+  `.claude/settings.local.json` (no `gh`, `gh-axi` or `git … push`), and only then moves it
+  into place. A folder that's already there and isn't empty (or is a link) is never touched;
+  an empty one is removed with rmdir, so anything that appears meanwhile stops it. Quitting
+  mid-download stops git and waits up to 10 seconds for the half copy to go; leftovers from a
+  crash are removed at the next first launch, only if their origin is this repository.
+- Someone who points a download at their own fork also clears `remote.origin.pushurl`.
+- The opt-ins (the skills everywhere, pulse) are unticked boxes, applied through `cos` when the
+  human opens Claude OS.
+- `~/.claude-os/state/install.json` records the download. With it, and origin still this
+  repository, `cos` hides Night shift and refuses it, and the night shift's hook never approves.
+- `cos daemon install` and `uninstall` (and `cos install`/`uninstall`) leave alone a daemon
+  that runs from another Claude OS checkout.
+- `~/.claude-os` is created with mode 0700 when the app is first to make it.
+- Still to come in step 5: Remove Claude OS.
+
 ## Not now
 
 An installer that sets up Claude Code itself, an organization developer account, and the App Store,

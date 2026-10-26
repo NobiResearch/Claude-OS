@@ -90,8 +90,31 @@ def is_loaded(name):
     return core.run(["launchctl", "print", "gui/%d/%s" % (os.getuid(), label(name))], timeout=5).ok
 
 
+def runs_from(name):
+    """The checkout an installed daemon runs from, or None."""
+    try:
+        with open(plist_path(name), "rb") as f:
+            root = plistlib.load(f).get("WorkingDirectory")
+    except Exception:  # missing, unreadable or not a plist
+        return None
+    return root if isinstance(root, str) else None
+
+
+def elsewhere(name):
+    """Another Claude OS checkout on this Mac that runs this daemon: its folder, or None. Each
+    checkout installs and removes only its own (decision 0015: a downloaded copy never re-points
+    a developer's daemons, and its Remove never takes them away)."""
+    root = runs_from(name)
+    if not root or core.same_folder(root, core.ROOT):
+        return None
+    return root if os.path.exists(os.path.join(root, "bin", "cos")) else None
+
+
 def install(name):
     spec = definitions()[name]
+    other = elsewhere(name)
+    if other:
+        return core.Result(1, "", "it runs from another Claude OS (%s); turn it off there first" % _tilde(other))
     os.makedirs(AGENTS_DIR, exist_ok=True)
     path = plist_path(name)
     if is_loaded(name):
@@ -106,10 +129,19 @@ def install(name):
 
 
 def uninstall(name):
+    other = elsewhere(name)
+    if other:
+        return core.Result(1, "", "it runs from another Claude OS (%s), so it was left on" % _tilde(other))
     core.run(["launchctl", "bootout", "gui/%d/%s" % (os.getuid(), label(name))], timeout=10)
     if os.path.exists(plist_path(name)):
         os.remove(plist_path(name))
     core.journal("action", "daemon %s uninstalled" % name, daemon=name)
+    return core.Result(0, "", "")
+
+
+def _tilde(path):
+    from .system import _tilde
+    return _tilde(path)
 
 
 def describe_schedule(sched):
@@ -461,6 +493,7 @@ def main(args):
         return 0
     if c in ("install", "uninstall"):
         targets = names if args.all else args.names
+        failed = False
         if not targets:
             core.die("name a daemon (%s) or pass --all" % ", ".join(names))
         for n in targets:
@@ -468,11 +501,16 @@ def main(args):
                 core.die("no daemon %r" % n)
             if c == "install":
                 r = install(n)
-                print("%s %s" % (n, "installed and loaded" if is_loaded(n) else "installed (load failed: %s)" % r.err))
+                if elsewhere(n):
+                    print("%s not installed: %s" % (n, r.err))
+                    failed = True
+                else:
+                    print("%s %s" % (n, "installed and loaded" if is_loaded(n) else "installed (load failed: %s)" % r.err))
             else:
-                uninstall(n)
-                print("%s removed" % n)
-        return 0
+                r = uninstall(n)
+                print("%s %s" % (n, "removed" if r.ok else "not removed: %s" % r.err))
+                failed = failed or not r.ok
+        return 1 if failed else 0
     if c == "run":
         return run(args.name)
     if c == "logs":

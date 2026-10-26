@@ -239,3 +239,64 @@ class TestLiveRuns(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestOnlyItsOwnDaemons(TempHome):
+    """Decision 0015, step 5: a checkout installs and removes only the daemons that run from
+    it, so a downloaded copy never re-points a developer's, and its Remove leaves them on."""
+
+    def setUp(self):
+        super().setUp()
+        self.agents = os.path.join(self.tmp, "LaunchAgents")
+        os.makedirs(self.agents)
+        patcher = mock.patch.object(daemon, "AGENTS_DIR", self.agents)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.calls = []
+        run = mock.patch.object(daemon.core, "run", lambda cmd, **k: self.calls.append(cmd) or core.Result(0, "", ""))
+        run.start()
+        self.addCleanup(run.stop)
+
+    def installed_from(self, root):
+        import plistlib
+        with open(daemon.plist_path("pulse"), "wb") as f:
+            plistlib.dump({"Label": "com.claude-os.pulse", "WorkingDirectory": root}, f)
+
+    def other_checkout(self):
+        root = os.path.join(self.tmp, "elsewhere")
+        os.makedirs(os.path.join(root, "bin"))
+        open(os.path.join(root, "bin", "cos"), "w").close()
+        return root
+
+    def test_another_checkouts_daemon_is_left_alone(self):
+        self.installed_from(self.other_checkout())
+        r = daemon.install("pulse")
+        self.assertFalse(r.ok)
+        self.assertIn("another Claude OS", r.err)
+        self.assertFalse(daemon.uninstall("pulse").ok)
+        self.assertTrue(os.path.exists(daemon.plist_path("pulse")))
+        self.assertFalse([c for c in self.calls if c[:1] == ["launchctl"]], "launchd wasn't touched")
+
+    def test_its_own_or_an_orphan_is_replaced(self):
+        for root in (str(core.ROOT), os.path.join(self.tmp, "gone")):
+            self.installed_from(root)
+            self.assertIsNone(daemon.elsewhere("pulse"), root)
+            self.assertTrue(daemon.install("pulse").ok, root)
+            self.assertEqual(daemon.runs_from("pulse"), str(core.ROOT))
+        self.assertTrue(daemon.uninstall("pulse").ok)
+        self.assertFalse(os.path.exists(daemon.plist_path("pulse")))
+
+    def test_its_own_by_another_spelling(self):
+        shouting = str(core.ROOT).upper()
+        if not os.path.exists(shouting):
+            self.skipTest("a case-sensitive file system")
+        self.installed_from(shouting)
+        self.assertIsNone(daemon.elsewhere("pulse"), "the same checkout, however it's spelled")
+        self.assertTrue(daemon.uninstall("pulse").ok)
+
+    def test_not_installed(self):
+        self.assertIsNone(daemon.runs_from("pulse"))
+        self.assertIsNone(daemon.elsewhere("pulse"))
+        with open(daemon.plist_path("pulse"), "w") as f:
+            f.write("not a plist")
+        self.assertIsNone(daemon.elsewhere("pulse"))

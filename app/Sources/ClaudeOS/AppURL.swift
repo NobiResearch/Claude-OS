@@ -11,6 +11,14 @@ enum AppURL {
             ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude-os")
     }
 
+    /// ~/.claude-os holds the journal and memory, so only its owner may look inside. On a new
+    /// Mac the app can be the first to create it.
+    static func makeBase() {
+        guard !FileManager.default.fileExists(atPath: base.path) else { return }
+        try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true,
+                                                 attributes: [.posixPermissions: 0o700])
+    }
+
     /// Created on first use (at launch, from the app delegate) and written for `cos`.
     static let nonce: String = {
         var bytes = [UInt8](repeating: 0, count: 16)
@@ -18,6 +26,7 @@ enum AppURL {
         let value = bytes.map { String(format: "%02x", $0) }.joined()
         let file = base.appendingPathComponent("state/app.nonce")
         do {
+            makeBase()
             try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
             FileManager.default.createFile(atPath: file.path, contents: Data(value.utf8), attributes: [.posixPermissions: 0o600])
         } catch {

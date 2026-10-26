@@ -951,6 +951,7 @@
           notifyToggle));
 
         // Night shift (decision 0006): Claude pushes its own night/* branches while you're away.
+        // A downloaded copy has none: the repository isn't the person's (0015).
         const nightToggle = h("input", { type: "checkbox", class: "switch" });
         nightToggle.checked = !!s.night_shift;
         nightToggle.addEventListener("change", async () => {
@@ -960,7 +961,7 @@
           if (nightToggle.checked && !r.night_shift) toast(r.error || "Night shift stays off.", r.error ? "bad" : "");
           draw();
         });
-        box.appendChild(h("div", { class: "daemon" },
+        if (!s.downloaded || s.night_shift) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Night shift", s.night_shift ? pill("ok", "on") : pill("note", "off")),
             h("div", { class: "small" }, "Let Claude push its own night/… branches, open pull requests and merge the ones that pass while you're away. Never a force push; every commit is checked for private data, and pull requests that change Claude OS's own safety checks wait for your merge."),

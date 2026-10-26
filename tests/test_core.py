@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import unittest
+from unittest import mock
 
 from helpers import TempHome
 
@@ -245,3 +246,50 @@ class TestWhichApp(TempHome):
         self.record(bundle=self.app("Downloads"), release=True)
         with self.assertRaises(SystemExit):
             cli.app_cmd("install")
+
+
+class TestDownloaded(TempHome):
+    """Decision 0015, step 5: a copy Claude OS.app downloaded from the project's repository
+    has no night shift; one someone cloned, or pointed at their own fork, does."""
+
+    def test_the_repository_in_any_url_form(self):
+        for url in ("https://github.com/NobiResearch/Claude-OS.git", "https://github.com/nobiresearch/claude-os",
+                    "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git/",
+                    "https://someone@github.com/NobiResearch/Claude-OS.git"):
+            self.assertTrue(core.same_repository(url), url)
+        for url in ("https://github.com/someone/Claude-OS.git", "https://github.com/NobiResearch/Claude-OS-evil",
+                    "https://example.com/NobiResearch/Claude-OS", "", None):
+            self.assertFalse(core.same_repository(url), url)
+
+    def record(self, **kw):
+        core.save_json(core.home("state", "install.json"), dict({"kind": "download", "root": str(core.ROOT)}, **kw))
+
+    def test_only_a_record_for_this_checkout_counts(self):
+        self.assertEqual(core.install_record(), {})
+        self.record(root="/somewhere/else")
+        self.assertEqual(core.install_record(), {})
+        self.record(kind="clone")
+        self.assertEqual(core.install_record(), {})
+        self.record()
+        self.assertEqual(core.install_record()["kind"], "download")
+
+    def test_downloaded_follows_origin(self):
+        def origin(url):
+            return mock.patch.object(core, "run", return_value=core.Result(0, url, ""))
+        with origin("https://github.com/NobiResearch/Claude-OS.git"):
+            self.assertFalse(core.downloaded(), "no record: a clone of its own")
+            self.record()
+            self.assertTrue(core.downloaded())
+        with origin("https://github.com/someone/Claude-OS.git"):
+            self.assertFalse(core.downloaded(), "their own fork")
+        with mock.patch.object(core, "run", return_value=core.Result(1, "", "")):
+            self.assertTrue(core.downloaded(), "an origin git can't read counts as the project's")
+
+    def test_the_same_checkout_however_its_path_is_spelled(self):
+        shouting = str(core.ROOT).upper()
+        if not os.path.exists(shouting):
+            self.skipTest("a case-sensitive file system")
+        self.record(root=shouting)
+        self.assertEqual(core.install_record()["kind"], "download")
+        self.assertTrue(core.same_folder(shouting, core.ROOT))
+        self.assertFalse(core.same_folder("/nonexistent", core.ROOT))

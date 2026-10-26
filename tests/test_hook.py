@@ -58,6 +58,12 @@ class TestDecide(TempHome):
         self.assertFalse(ok)
         self.assertIn("off", why)
 
+    def test_never_in_a_downloaded_copy(self):
+        with mock.patch.object(hook.core, "downloaded", lambda: True):
+            ok, why = hook.decide(request("git push -u origin night/x"), ON, look=looking())
+        self.assertFalse(ok)
+        self.assertIn("downloaded", why)
+
     def test_never_in_a_daemon(self):
         with mock.patch.dict(os.environ, {"CLAUDE_OS_DAEMON": "evolve"}):
             self.assertFalse(hook.decide(request("git push -u origin night/x"), ON, look=looking())[0])
