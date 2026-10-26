@@ -102,8 +102,8 @@ class TestSafetyFiles(TempHome):
         subprocess.run(["git", "-C", self.repo, "-c", "user.email=t@example.com", "-c", "user.name=t"] + list(a),
                        capture_output=True, check=True)
 
-    def merge(self, yes=True, reviewed=False):
-        args = argparse.Namespace(evolve_cmd="merge", branch="evolve/x", yes=yes, reviewed=reviewed, json=False)
+    def merge(self, yes=True, reviewed=False, tip=None):
+        args = argparse.Namespace(evolve_cmd="merge", branch="evolve/x", yes=yes, reviewed=reviewed, tip=tip, json=False)
         out, err = io.StringIO(), io.StringIO()
         with mock.patch.object(evolve, "_github", return_value=True), \
                 mock.patch.object(evolve, "guard_branch", return_value=[("x", "stop here")]) as guard, \
@@ -128,6 +128,31 @@ class TestSafetyFiles(TempHome):
         self.assertFalse(checked, "nothing else runs before the review")
         rc, said, checked = self.merge(reviewed=True)
         self.assertTrue(checked, "reviewed: on to the Guardian and the tests")
+
+    def test_a_review_covers_the_commit_that_was_shown(self):
+        shown = evolve.status_rows()[0]["tip"]
+        self.assertEqual(shown, evolve.tip("evolve/x"))
+        rc, said, checked = self.merge(reviewed=True, tip=shown)
+        self.assertTrue(checked)
+        self.g("checkout", "-q", "evolve/x")
+        self.g("commit", "-q", "--allow-empty", "-m", "arrived after the review")
+        self.g("checkout", "-q", "main")
+        rc, said, checked = self.merge(reviewed=True, tip=shown)
+        self.assertNotEqual(rc, 0)
+        self.assertIn("has moved since it was reviewed", said)
+        self.assertFalse(checked)
+
+    def test_what_github_has_is_the_base(self):
+        """A commit only this Mac's main has, carried along by the branch, counts too."""
+        base = subprocess.run(["git", "-C", self.repo, "rev-parse", "main"], capture_output=True, text=True).stdout.strip()
+        self.g("update-ref", "refs/remotes/origin/main", base)
+        os.makedirs(os.path.join(self.repo, "lib", "cos"), exist_ok=True)
+        open(os.path.join(self.repo, "lib", "cos", "core.py"), "w").write("local only\n")
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "on this Mac's main only")
+        self.g("checkout", "-q", "-b", "evolve/y")
+        self.g("checkout", "-q", "main")
+        self.assertEqual(evolve.safety_files("evolve/y"), ["lib/cos/core.py"])
 
 
 class TestVerdicts(TempHome):
@@ -160,7 +185,7 @@ class TestVerdicts(TempHome):
         self.assertEqual(evolve.verdicts(["evolve/x"]), {"evolve/x": None}, "nothing ran yet")
         self.ran(False)
         self.assertEqual(evolve.status_rows(), [{"branch": "evolve/x", "commits": evolve.ahead("evolve/x"), "tests_ok": False,
-                                                 "protected": []}])
+                                                 "protected": [], "tip": evolve.tip("evolve/x")}])
         self.ran(True)
         self.assertIs(evolve.verdicts(["evolve/x"])["evolve/x"], True)
 

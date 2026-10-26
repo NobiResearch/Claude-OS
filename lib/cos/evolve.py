@@ -180,21 +180,39 @@ def verdicts(names):
     return out
 
 
-TESTS_SAID = {True: " · tests pass", False: " · its tests FAIL in the sandbox (merge refuses it)"}
+def _moved_since(args, now=None):
+    """Why not to merge, if `--tip` names the commit that was reviewed and the branch has
+    moved since: an OK covers what was shown, not what arrived after."""
+    if not getattr(args, "tip", None):
+        return None
+    now = now if now is not None else tip(args.branch)
+    if now != args.tip:
+        return "%s has moved since it was reviewed (%s, now %s); look at it again" % (
+            args.branch, args.tip[:7], now[:7] or "gone")
+    return None
+
+
+TESTS_SAID = {True:" · tests pass", False: " · its tests FAIL in the sandbox (merge refuses it)"}
 
 
 def safety_files(branch):
     """The files of Claude OS's gate the branch changes (what `cos hook check` guards), or
     None if git can't say. Such a branch gets a guardian review before it merges (0013)."""
     from . import hook
-    paths = hook.changed(git, main_branch(), branch)
+    # Against GitHub's main when there is one: that's what the pull request is judged
+    # against, so commits only this Mac's main has that a branch carries along count too.
+    base = "origin/" + main_branch()
+    if not git("rev-parse", "--verify", "--quiet", base + "^{commit}").ok:
+        base = main_branch()
+    paths = hook.changed(git, base, branch)
     return None if paths is None else [p for p in paths if hook.protected(p)]
 
 
 def status_rows():
     names = branches()
     ok = verdicts(names)
-    return [{"branch": b, "commits": ahead(b), "tests_ok": ok[b], "protected": safety_files(b) or []} for b in names]
+    return [{"branch": b, "commits": ahead(b), "tests_ok": ok[b], "protected": safety_files(b) or [], "tip": tip(b)}
+            for b in names]
 
 
 def workspace_path(branch):
@@ -524,12 +542,18 @@ def main(args):
             return 2
         if review and not args.reviewed:
             core.die(review)
+        moved = _moved_since(args)
+        if moved:
+            core.die(moved)
         problems = guard_branch(args.branch)
         if problems:
             for path, why in problems:
                 print("  guard: %s: %s" % (path, why))
             core.die("the Guardian blocks this branch (it would publish private data)")
         sha = tip(args.branch)
+        moved = _moved_since(args, sha)
+        if moved:
+            core.die(moved)
         t = test_commit(args.branch)
         if t is None:
             core.die("couldn't run the branch's tests; not merging")
@@ -555,7 +579,8 @@ def main(args):
         from . import mem
         for fid in fixed:
             mem.close_friction(fid, note="merged %s" % args.branch)
-        core.journal("action", "evolve merged %s" % args.branch, branch=args.branch, closed=fixed)
+        core.journal("action", "evolve merged %s" % args.branch, branch=args.branch, closed=fixed, tip=sha,
+                     safety_files=touched, reviewed=bool(args.reviewed))
         print("merged %s%s" % (args.branch, " (closed friction %s)" % ", ".join("#%d" % f for f in fixed) if fixed else ""))
         return 0
     if c == "discard":

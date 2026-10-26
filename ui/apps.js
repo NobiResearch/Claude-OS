@@ -712,7 +712,7 @@
                         (gate ? " It changes Claude OS's own safety checks (" + b.protected.slice(0, 4).join(", ") + "). Look at it with Review first: merging it counts as your review." : "");
                       if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body, ok: "Merge" }))) return;
                       const panel = jobPanel(); root.prepend(panel.el);
-                      await job("/api/evolve/merge", { branch: b.branch, reviewed: gate > 0 }, panel.update); draw();
+                      await job("/api/evolve/merge", { branch: b.branch, reviewed: gate > 0, tip: b.tip || undefined }, panel.update); draw();
                     }, "primary small"),
                     btn("Discard", async () => {
                       if (!(await COS.confirm({ title: "Discard " + b.branch + "?", ok: "Discard", danger: true }))) return;
