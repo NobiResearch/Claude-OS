@@ -698,6 +698,7 @@
                 root.appendChild(card(b.branch,
                   h("div", { class: "list" }, b.commits.map((c) => h("div", { class: "mono small" }, c))),
                   b.tests_ok === false ? h("div", { class: "warn-text small" }, "Its tests fail in the sandbox, so Merge will refuse it.") : null,
+                  (b.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Claude OS's own safety checks: " + b.protected.slice(0, 4).join(", ")) : null,
                   h("div", { class: "row gap" },
                     btn("Review", async () => {
                       if (!diff.hidden) { diff.hidden = true; return; }
@@ -706,9 +707,12 @@
                       diff.hidden = false;
                     }, "ghost small"),
                     btn("Merge", async () => {
-                      if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body: "Runs the Guardian and the tests again, then pushes it to GitHub, opens a pull request and squash-merges it once CI passes. Without GitHub, it fast-forwards main.", ok: "Merge" }))) return;
+                      const gate = (b.protected || []).length;
+                      const body = "Runs the Guardian and the tests again, then pushes it to GitHub, opens a pull request and squash-merges it once CI passes. Without GitHub, it fast-forwards main." +
+                        (gate ? " It changes Claude OS's own safety checks (" + b.protected.slice(0, 4).join(", ") + "). Look at it with Review first: merging it counts as your review." : "");
+                      if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body, ok: "Merge" }))) return;
                       const panel = jobPanel(); root.prepend(panel.el);
-                      await job("/api/evolve/merge", { branch: b.branch }, panel.update); draw();
+                      await job("/api/evolve/merge", { branch: b.branch, reviewed: gate > 0 }, panel.update); draw();
                     }, "primary small"),
                     btn("Discard", async () => {
                       if (!(await COS.confirm({ title: "Discard " + b.branch + "?", ok: "Discard", danger: true }))) return;

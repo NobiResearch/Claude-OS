@@ -200,6 +200,9 @@ def build_parser():
         ev.add_argument("branch")
         if verb != "review":
             ev.add_argument("--yes", action="store_true")
+        if verb == "merge":
+            ev.add_argument("--reviewed", action="store_true",
+                            help="a guardian review passed: needed when the branch changes safety files (0013)")
 
     g = cmd("guard", "block private data from the public repo", json_flag=False)
     g.add_argument("--all", action="store_true", help="scan every tracked file, not just staged ones")

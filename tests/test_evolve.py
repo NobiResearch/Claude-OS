@@ -1,7 +1,10 @@
+import argparse
+import io
 import json
 import os
 import subprocess
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from unittest import mock
 
 from helpers import TempHome
@@ -76,6 +79,57 @@ class TestWorkspace(TempHome):
             core.ROOT = original_root
 
 
+class TestSafetyFiles(TempHome):
+    """A branch that changes Claude OS's gate merges only after a guardian review (0013)."""
+
+    def setUp(self):
+        super().setUp()
+        self.repo = os.path.join(self.tmp, "repo")
+        os.makedirs(os.path.join(self.repo, "lib", "cos"))
+        self.g("init", "-q", "-b", "main")
+        self.g("commit", "-q", "--allow-empty", "-m", "base")
+        self.g("checkout", "-q", "-b", "evolve/x")
+        for path in ("lib/cos/hook.py", "docs.md"):
+            open(os.path.join(self.repo, path), "w").write("x\n")
+        self.g("add", "-A")
+        self.g("commit", "-q", "-m", "a nightly change")
+        self.g("checkout", "-q", "main")
+        original = evolve.git
+        evolve.git = lambda *a, **k: original(*a, cwd=self.repo, **{x: y for x, y in k.items() if x != "cwd"})
+        self.addCleanup(setattr, evolve, "git", original)
+
+    def g(self, *a):
+        subprocess.run(["git", "-C", self.repo, "-c", "user.email=t@example.com", "-c", "user.name=t"] + list(a),
+                       capture_output=True, check=True)
+
+    def merge(self, yes=True, reviewed=False):
+        args = argparse.Namespace(evolve_cmd="merge", branch="evolve/x", yes=yes, reviewed=reviewed, json=False)
+        out, err = io.StringIO(), io.StringIO()
+        with mock.patch.object(evolve, "_github", return_value=True), \
+                mock.patch.object(evolve, "guard_branch", return_value=[("x", "stop here")]) as guard, \
+                redirect_stdout(out), redirect_stderr(err):
+            try:
+                rc = evolve.main(args)
+            except SystemExit as e:
+                rc = e.code
+        return rc, out.getvalue() + err.getvalue(), guard.called
+
+    def test_it_lists_the_safety_files(self):
+        self.assertEqual(evolve.safety_files("evolve/x"), ["lib/cos/hook.py"])
+        self.assertEqual(evolve.status_rows()[0]["protected"], ["lib/cos/hook.py"])
+
+    def test_merge_wants_a_review_first(self):
+        rc, said, checked = self.merge(yes=False)
+        self.assertEqual(rc, 2)
+        self.assertIn("a guardian agent reviews it first", said)
+        rc, said, checked = self.merge()
+        self.assertNotEqual(rc, 0)
+        self.assertIn("lib/cos/hook.py", said)
+        self.assertFalse(checked, "nothing else runs before the review")
+        rc, said, checked = self.merge(reviewed=True)
+        self.assertTrue(checked, "reviewed: on to the Guardian and the tests")
+
+
 class TestVerdicts(TempHome):
     """A branch whose tests failed in the sandbox says so wherever it's listed (friction #18)."""
 
@@ -105,7 +159,8 @@ class TestVerdicts(TempHome):
     def test_the_last_run_on_the_current_tip_counts(self):
         self.assertEqual(evolve.verdicts(["evolve/x"]), {"evolve/x": None}, "nothing ran yet")
         self.ran(False)
-        self.assertEqual(evolve.status_rows(), [{"branch": "evolve/x", "commits": evolve.ahead("evolve/x"), "tests_ok": False}])
+        self.assertEqual(evolve.status_rows(), [{"branch": "evolve/x", "commits": evolve.ahead("evolve/x"), "tests_ok": False,
+                                                 "protected": []}])
         self.ran(True)
         self.assertIs(evolve.verdicts(["evolve/x"])["evolve/x"], True)
 

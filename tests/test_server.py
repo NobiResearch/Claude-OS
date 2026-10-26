@@ -104,6 +104,16 @@ class TestServerSecurity(TempHome):
         self.assertEqual(self.request("POST", "/api/clean/apply", {"ids": ["../../etc"]})[0], 400)
         self.assertEqual(self.request("POST", "/api/evolve/merge", {"branch": "main"})[0], 400)
 
+    def test_the_merge_dialog_is_the_review(self):
+        """The Evolve window's Merge dialog names a branch's safety files; the human's OK is
+        their review (0013). Nothing else turns --reviewed on."""
+        jobs = []
+        self.app.job = lambda argv, label: jobs.append(argv) or {"id": "x"}
+        for path, body, flag in (("merge", {"reviewed": True}, True), ("merge", {}, False),
+                                 ("merge", {"reviewed": "yes"}, False), ("discard", {"reviewed": True}, False)):
+            self.assertEqual(self.request("POST", "/api/evolve/" + path, dict(body, branch="evolve/x"))[0], 200)
+            self.assertEqual("--reviewed" in jobs[-1], flag, (path, body))
+
     def test_radio_button_reaches_the_player_route(self):
         from cos import music
         orig = music.player_enabled

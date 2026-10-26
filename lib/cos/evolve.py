@@ -183,10 +183,18 @@ def verdicts(names):
 TESTS_SAID = {True: " · tests pass", False: " · its tests FAIL in the sandbox (merge refuses it)"}
 
 
+def safety_files(branch):
+    """The files of Claude OS's gate the branch changes (what `cos hook check` guards), or
+    None if git can't say. Such a branch gets a guardian review before it merges (0013)."""
+    from . import hook
+    paths = hook.changed(git, main_branch(), branch)
+    return None if paths is None else [p for p in paths if hook.protected(p)]
+
+
 def status_rows():
     names = branches()
     ok = verdicts(names)
-    return [{"branch": b, "commits": ahead(b), "tests_ok": ok[b]} for b in names]
+    return [{"branch": b, "commits": ahead(b), "tests_ok": ok[b], "protected": safety_files(b) or []} for b in names]
 
 
 def workspace_path(branch):
@@ -487,6 +495,8 @@ def main(args):
                                          TESTS_SAID.get(r["tests_ok"], "")))
             for c_ in r["commits"][:5]:
                 print("    %s" % c_)
+            if r["protected"]:
+                print("    changes Claude OS's safety files: %s (a guardian review first, 0013)" % ", ".join(r["protected"][:4]))
         from . import hook
         night = hook.waiting()
         if night:  # quiet when there are none, or GitHub can't be asked
@@ -501,10 +511,19 @@ def main(args):
     if c == "merge":
         _check_branch(args.branch)
         github = _github()
+        touched = safety_files(args.branch)
+        if touched is None:
+            core.die("couldn't list what %s changes; not merging" % args.branch)
+        review = ("%s changes Claude OS's safety files (%s). Decision 0013: a guardian agent reviews it "
+                  "first, then merge with --reviewed." % (args.branch, ", ".join(touched[:4]))) if touched else ""
         if not args.yes:
             how = "push it, open a pull request, wait for CI and squash-merge" if github else "fast-forward %s" % main_branch()
             print("Would check %s with the Guardian and its tests, then %s. Add --yes." % (args.branch, how))
+            if review:
+                print(review)
             return 2
+        if review and not args.reviewed:
+            core.die(review)
         problems = guard_branch(args.branch)
         if problems:
             for path, why in problems:
