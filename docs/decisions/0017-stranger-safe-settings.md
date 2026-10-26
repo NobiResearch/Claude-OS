@@ -70,10 +70,11 @@ runs code from any folder. A download's `settings.local.json` denies `gh` and `g
   card; `test_security` checks that every one in `cli.MUTATING` is there. The hook reads
   shell syntax with Python's shlex, which isn't zsh: spellings neither of them anticipated may
   remain.
-- The evolve daemon may edit its workspace clone, `.claude/settings.json` included, through
-  Edit or its sandboxed shell. If Claude Code reloads project settings during a run, a hook
-  added there would run outside the sandbox. Consider `--setting-sources` without the project
-  for daemons, or denying edits under `.claude/`.
+- Closed since (#93, #94): the evolve run could edit its workspace's settings, its hooks ran
+  code it could edit outside the sandbox, and its bare Edit/Write allows reached any path. It
+  now runs with `disableAllHooks`, may not edit the settings files, and edits only inside its
+  workspace (acceptEdits). The morning and board runs still load hooks: the brief reads the
+  boot banner.
 - In a stranger's clone, `cos evolve merge <branch> --yes` pushes, opens a pull request and
   merges through its own subprocesses (an evolve branch has to exist first).
 - `cos remember` can carry injected text into every boot banner.
