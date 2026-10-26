@@ -6,7 +6,7 @@ import time
 import unittest
 from http.server import ThreadingHTTPServer
 
-from helpers import TempHome
+from helpers import TempHome, test_port
 
 from cos import chat, server
 
@@ -54,7 +54,7 @@ class TestServerSecurity(TempHome):
     def setUp(self):
         super().setUp()
         self.app = server.App("test-token")
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(self.app))
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", test_port()), server.make_handler(self.app))
         self.httpd.daemon_threads = True
         self.app.port = self.httpd.server_address[1]
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
@@ -379,7 +379,7 @@ class TestDemoMode(TempHome):
     def test_demo_never_reads_or_changes_the_real_machine(self):
         from cos import demo
         app = server.App("t", demo=True)
-        httpd = ThreadingHTTPServer(("127.0.0.1", 0), server.make_handler(app))
+        httpd = ThreadingHTTPServer(("127.0.0.1", test_port()), server.make_handler(app))
         app.port = httpd.server_address[1]
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:

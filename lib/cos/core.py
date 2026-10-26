@@ -163,7 +163,9 @@ def _drain(p):
 
 # Deny by default: what model-written code may touch is listed, not what it mayn't. It reads
 # the system, the toolchains (Python, Xcode's, Homebrew) and its own two folders, writes only
-# those, and talks only to localhost (the server tests need it). No Apple Events, no
+# those, and talks to one localhost port, its own (COS_TEST_PORT: the server tests bind it),
+# so nothing else listening on localhost (a dev server, a database, a browser bridge, a
+# proxy) is reachable. No Apple Events, no
 # LaunchServices (`open` a URL), no pasteboard, no DNS, nothing of the human's home folder,
 # not even which files are in it. bsd.sb brings the system's own plumbing: logging,
 # preferences, user lookups, and stat() anywhere (for symlinks), which the home rule narrows.
@@ -180,8 +182,8 @@ SANDBOX_PROFILE = """(version 1)
   (subpath %(cwd)s) (subpath %(tmp)s)
   (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (regex #"^/dev/fd/"))
 (allow file-ioctl (literal "/dev/null") (literal "/dev/tty"))
-(allow network-bind network-inbound (local ip "localhost:*"))
-(allow network-outbound (remote ip "localhost:*"))
+(allow network-bind network-inbound (local ip "localhost:%(port)d"))
+(allow network-outbound (remote ip "localhost:%(port)d"))
 (deny file-read-metadata (subpath %(home)s))
 (allow file-read-metadata %(way_in)s)
 (deny file-read* file-read-metadata %(private)s)
@@ -211,6 +213,14 @@ def _sandbox_path(path, developer):
     return ":".join(keep[:at] + [tools] + [p for p in keep[at:] if p != tools])
 
 
+def _free_port():
+    """A localhost port nothing listens on right now: the one the sandbox may use."""
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
 def run_sandboxed(cmd, cwd, timeout=600):
     """Run untrusted code (e.g. tests an evolve run wrote) under the deny-by-default profile,
     with a throwaway HOME and only the environment set here: nothing the human's shell
@@ -231,12 +241,14 @@ def run_sandboxed(cmd, cwd, timeout=600):
                 steps.add(p)
         way_in = " ".join("(literal %s)" % json.dumps(p) for p in sorted(steps)) + \
             " (subpath %s) (subpath %s)" % (json.dumps(real), json.dumps(tmp))
+        port = _free_port()
         profile = SANDBOX_PROFILE % {"cwd": json.dumps(real), "tmp": json.dumps(tmp), "private": private,
-                                     "readable": readable, "home": json.dumps(home_dir), "way_in": way_in}
+                                     "readable": readable, "home": json.dumps(home_dir), "way_in": way_in,
+                                     "port": port}
         # CLAUDE_OS_DAEMON makes `cos` refuse every mutating command inside, too.
         env = {"PATH": path, "HOME": tmp, "TMPDIR": tmp + "/", "LANG": "en_US.UTF-8",
                "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1",
-               "CLAUDE_OS_DAEMON": "sandboxed-tests"}
+               "CLAUDE_OS_DAEMON": "sandboxed-tests", "COS_TEST_PORT": str(port)}
         argv = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in sorted(env.items())]
         return run(argv + ["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real)
 

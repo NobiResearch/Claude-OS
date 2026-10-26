@@ -8,7 +8,7 @@ import unittest
 from contextlib import redirect_stdout
 from unittest import mock
 
-from helpers import TempHome
+from helpers import TempHome, test_port
 
 from cos import cli, core, daemon, net
 
@@ -175,7 +175,7 @@ class TestNet(TempHome):
             def log_message(self, *a):
                 pass
 
-        server = http.server.HTTPServer(("127.0.0.1", 0), Portal)
+        server = http.server.HTTPServer(("127.0.0.1", test_port()), Portal)
         threading.Thread(target=server.serve_forever, daemon=True).start()
         self.addCleanup(server.server_close)
         self.addCleanup(server.shutdown)

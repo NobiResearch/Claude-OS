@@ -11,6 +11,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 REAL_HOME = os.path.expanduser("~")
 
 
+def test_port():
+    """The localhost port a test's own server binds: any (0) normally; inside the evolve
+    sandbox, the one port it may use (core.run_sandboxed), so model-written tests reach
+    nothing else on localhost. One server at a time, closed before the next binds."""
+    return int(os.environ.get("COS_TEST_PORT") or 0)
+
+
 class TempHome(unittest.TestCase):
     """Points both HOME and CLAUDE_OS_HOME at a throwaway folder, so no test can touch
     the real home folder or the real ~/.claude-os."""

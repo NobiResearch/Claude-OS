@@ -320,6 +320,31 @@ class TestSandbox(TempHome):
         r = core.run_sandboxed(["git", "--version"], cwd=work)
         self.assertTrue(r.ok, "git works inside: %s" % r.err)
 
+    @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
+    def test_one_localhost_port_its_own(self):
+        """Something else listening on localhost (a dev server, a database, a browser bridge)
+        is out of reach; the port the sandbox hands out works, for the tests' own servers."""
+        import socket
+        work = os.path.join(self.tmp, "work")
+        os.makedirs(work)
+        outside = socket.socket()
+        outside.bind(("127.0.0.1", 0))
+        outside.listen(1)
+        self.addCleanup(outside.close)
+        probe = ("import os, socket\n"
+                 "def reach(port):\n"
+                 "    try:\n"
+                 "        socket.create_connection(('127.0.0.1', port), timeout=2).close(); return 'reached'\n"
+                 "    except OSError as e: return type(e).__name__\n"
+                 "own = int(os.environ['COS_TEST_PORT'])\n"
+                 "s = socket.socket(); s.bind(('127.0.0.1', own)); s.listen(1)\n"
+                 "print(reach(%d), reach(own))\n" % outside.getsockname()[1])
+        r = core.run_sandboxed(["python3", "-c", probe], cwd=work)
+        self.assertTrue(r.ok, r.err)
+        elsewhere, own = r.out.split()
+        self.assertNotEqual(elsewhere, "reached", "a port that isn't its own is out of reach")
+        self.assertEqual(own, "reached")
+
 
 if __name__ == "__main__":
     unittest.main()
