@@ -10,15 +10,16 @@ your human. Use it.
 ## The laws
 
 1. **The human is root.** Anything irreversible or outward-facing (deleting user files,
-   emptying the Trash, upgrading software, pushing to GitHub, sending messages, changing
-   system settings, buying things) needs a clear yes from the human in *this* conversation.
-   Scanning, reading and proposing are always fine. One standing yes: while the human has
-   **Night shift** on (Settings › Permissions), `cos hook permission` approves pushing a
-   `night/*` branch of Claude OS for a pull request, and merging one that's green and leaves
-   Claude OS's safety files alone (decision 0006). Pull requests that touch those files wait
-   for the human's merge. Never flip that switch yourself, and never merge any other way.
-   Another: with **Keep Claude OS up to date** on, Claude OS fast-forwards its own checkout
-   to what's merged on GitHub, only where no old code is loaded (decision 0011).
+   emptying the Trash, upgrading software, sending messages, changing system settings,
+   buying things) needs a clear yes from the human in *this* conversation. Scanning, reading
+   and proposing are always fine. One standing yes: **this repository is Claude's**
+   (decision 0013). In the Claude OS repository, commit, push branches, open and comment on
+   pull requests, and squash-merge them once CI is green, without asking. The Guardian still
+   checks every commit, push and pull request text for private data, `main` takes only green
+   pull requests, and a pull request that changes Claude OS's safety files gets an
+   independent review (a `guardian` agent) before it merges. Deleting the repository still
+   asks. Another: with **Keep Claude OS up to date** on, Claude OS fast-forwards its own
+   checkout to what's merged on GitHub, only where no old code is loaded (decision 0011).
 2. **Scan before you touch; leave a trace.** Prefer `cos` syscalls: they're read-only by
    default, require `--yes` to mutate, and journal what they did. If you change the machine
    any other way, record it: `bin/cos log add "what you did"`.
@@ -107,15 +108,13 @@ client the human is working in.
   `changes/README.md`), never by editing `CHANGELOG.md`, so pull requests can't conflict
   over it; record design decisions as `docs/decisions/NNNN-title.md` (the board helps decide).
 - Roadmap and ideas: `docs/roadmap.md`. Evolve pulls from friction first, then the roadmap.
-- **Night shift** (the human is away and the switch is on):
-  - Start each `night/<slug>` branch from `origin/main` in a worktree under `~/.claude-os/dev`.
-  - Push with exactly `git push -u origin night/<slug>` as a command of its own, after
-    `bin/cos hook check night/<slug>`. Open the pull request with `gh pr create --title "…"
-    --body-file <file>`, after `bin/cos guard --text <file>` says it's clean: the hook checks
-    pull request text the same way and asks the human if the Guardian objects.
-  - When CI is green, run `bin/cos hook check <PR>`. If it says ✓, merge with exactly the
-    command it prints. If it says the human will be asked (the PR touches safety files, or a
-    check isn't green), leave the PR open for the morning instead of stalling on a prompt.
-  - Never merge through `gh api`, `gh-axi` or anything else. Changes to `.github/` stay local.
-  - Keep at most 3 pull requests waiting for the human; then work on things that merge on
-    their own, or stop.
+- **Shipping a change** (the repository is Claude's, decision 0013):
+  - Start each branch (`night/<slug>`) from `origin/main` in a worktree under
+    `~/.claude-os/dev`. The live checkout stays clean on `main`.
+  - Open the pull request with `gh pr create --title "…" --body-file <file>`, after
+    `bin/cos guard --text <file>` says it's clean.
+  - When CI is green, merge with `gh pr merge <N> --squash --delete-branch
+    --match-head-commit <sha>`, so what merges is what CI checked; `bin/cos hook check <PR>`
+    prints it. If the PR changes safety files (`hook check` says so), have a `guardian` agent
+    review the diff first and fix what it finds. Always squash; never merge through `gh api`.
+  - After a merge, `git pull --ff-only` in the live checkout.
