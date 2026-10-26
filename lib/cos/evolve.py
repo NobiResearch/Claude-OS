@@ -15,6 +15,7 @@ import datetime as dt
 import os
 import re
 import shutil
+import time
 
 from . import core
 
@@ -197,7 +198,8 @@ GITHUB_COMMITTER = "GitHub <noreply@github.com>"
 SQUASHED = re.compile(r"\(#\d+\)$")
 # Nothing from the incoming tree runs (core.hooksPath is relative, so a merged githooks/
 # post-merge would), and nothing can stop to ask for a login: a boot must never stall.
-SAFE_GIT = ["-c", "core.hooksPath=/dev/null", "-c", "credential.helper="]
+SAFE_GIT = ["-c", "core.hooksPath=/dev/null", "-c", "credential.helper=",
+            "-c", "submodule.recurse=false", "-c", "core.fsmonitor=false"]
 QUIET = {"GIT_TERMINAL_PROMPT": "0", "GIT_ASKPASS": "", "SSH_ASKPASS": ""}
 FETCH_EVERY = 600
 
@@ -212,25 +214,105 @@ def _origin_problem(cwd):
     return None
 
 
-def _stranger(base, cwd):
+def _stranger(target, cwd):
     """The first incoming commit that isn't GitHub squash-merging a pull request, or None.
-    Main's ruleset only allows those, so anything else is worth a human's look."""
-    out = git("log", "--first-parent", "--format=%H%x1f%P%x1f%cn <%ce>%x1f%s", "HEAD.." + base, cwd=cwd).out
-    for line in filter(None, out.splitlines()):
+    Main's ruleset only allows those, so anything else is worth a human's look. "?" when git
+    can't say: that's never taken for "none"."""
+    r = git("log", "--first-parent", "--format=%H%x1f%P%x1f%cn <%ce>%x1f%s", "HEAD.." + target, cwd=cwd)
+    lines = [l for l in r.out.splitlines() if l]
+    if not r.ok or not lines:
+        return "?"
+    for line in lines:
         sha, parents, committer, subject = (line.split("\x1f") + ["", "", ""])[:4]
         if len(parents.split()) != 1 or committer != GITHUB_COMMITTER or not SQUASHED.search(subject):
             return sha[:7]
     return None
 
 
-def catch_up(apply=False, fetch=True, source="cli", cwd=None):
+def _lock(wait):
+    """One process moves the checkout at a time, and one about to load Claude OS's code waits
+    for a move in progress. -> an open file holding the lock, or None after `wait` seconds."""
+    import fcntl
+    f = open(str(core.home("state", "catch-up.lock")), "w")
+    deadline = time.time() + wait
+    while True:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return f
+        except OSError:
+            if time.time() >= deadline:
+                f.close()
+                return None
+            time.sleep(0.2)
+
+
+def wait_for_moves(wait=15):
+    """Before importing the server: let a catch-up that's under way finish first."""
+    lock = _lock(wait)
+    if lock:
+        lock.close()
+
+
+def hold_serving():
+    """Every `cos serve` holds this shared lock while it runs, so a catch-up can tell that a
+    server has Claude OS's code loaded (the app's, or one in a browser). Keep the file open."""
+    import fcntl
+    f = open(str(core.home("state", "serve.lock")), "a")
+    fcntl.flock(f, fcntl.LOCK_SH)
+    return f
+
+
+def serving():
+    """Is some `cos serve` running? An answer we can't get counts as yes."""
+    import fcntl
+    try:
+        f = open(str(core.home("state", "serve.lock")), "a")
+    except OSError:
+        return True
+    try:
+        fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        fcntl.flock(f, fcntl.LOCK_UN)
+        return False
+    except OSError:
+        return True
+    finally:
+        f.close()
+
+
+def code_in_use():
+    """Would moving the checkout pull code from under something that has it loaded?"""
+    return serving() or core.app_running("ClaudeOS", unknown=True)
+
+
+def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False):
     """Where the live checkout stands against main on GitHub; with apply, fast-forward it.
 
     Only a clean main with no commits of its own moves, only forward, and only over commits
-    GitHub made by squash-merging a pull request. fetch: True fetches when the last fetch is
-    10 minutes old, "force" always, False never. The answer is cached for the boot banner."""
-    from . import hook
+    GitHub made by squash-merging a pull request. Everything is decided about one commit,
+    resolved once, and that's the one merged. fetch: True fetches when the last fetch is 10
+    minutes old, "force" always, False never. A move that failed for a commit isn't tried
+    again for it unless `retry` (the human asked). The answer is cached for the banner."""
     cwd = str(cwd or core.ROOT)
+    lock = _lock(wait=15) if apply else None
+    if apply and not lock:
+        out = _where(cwd, fetch=False)
+        out["why"] = out["why"] or "another catch-up is running"
+        return out
+    try:
+        out = _where(cwd, fetch, retry)
+        if apply and out["behind"] and not out["why"] and (os.environ.get("CLAUDE_OS_DAEMON") or os.environ.get("COS_SANDBOXED")):
+            out["why"] = "a background job never moves Claude OS's own code"
+        if apply and out["behind"] and not out["why"]:
+            _fast_forward(out, cwd, source)
+        core.cache_put("catch-up", {k: v for k, v in out.items() if k != "target"})
+        return out
+    finally:
+        if lock:
+            lock.close()
+
+
+def _where(cwd, fetch, retry=False):
+    from . import hook
     main = main_branch(cwd)
     base = "origin/" + main
     origin = _origin_problem(cwd)
@@ -240,16 +322,19 @@ def catch_up(apply=False, fetch=True, source="cli", cwd=None):
                      cwd=cwd, timeout=8 if fetch == "force" else 4, env=QUIET)
         fetched = r.ok
         core.cache_put("catch-up-fetch", {"ok": r.ok})
-    counts = git("rev-list", "--left-right", "--count", "HEAD..." + base, cwd=cwd).out.split()
+    resolved = git("rev-parse", "--verify", "--quiet", base + "^{commit}", cwd=cwd)
+    target = resolved.out if resolved.ok else ""
+    counts = git("rev-list", "--left-right", "--count", "HEAD..." + target, cwd=cwd).out.split() if target else []
     ahead, behind = (int(counts[0]), int(counts[1])) if len(counts) == 2 else (0, 0)
     out = {"behind": behind, "ahead": ahead, "head": git("rev-parse", "--short", "HEAD", cwd=cwd).out,
-           "latest": git("rev-parse", "--short", base, cwd=cwd).out, "subjects": [], "protected": [],
+           "latest": target[:7], "target": target, "subjects": [], "protected": [],
            "paths": [], "updated": False, "fetched": fetched, "why": None}
     if behind:
-        out["subjects"] = git("log", "--format=%s", "HEAD.." + base, cwd=cwd).out.splitlines()
-        out["paths"] = git("diff", "--no-renames", "--name-only", "HEAD", base, cwd=cwd).out.splitlines()
+        out["subjects"] = git("log", "--format=%s", "HEAD.." + target, cwd=cwd).out.splitlines()
+        out["paths"] = git("diff", "--no-renames", "--name-only", "HEAD", target, cwd=cwd).out.splitlines()
         out["protected"] = [p for p in out["paths"] if hook.protected(p)]
-    stranger = _stranger(base, cwd) if behind else None
+    stranger = _stranger(target, cwd) if behind else None
+    failed = ((core.cache_get("catch-up-failed") or {}).get("data") or {})
     if len(counts) != 2:
         out["why"] = "git can't compare it with %s" % base
     elif git("symbolic-ref", "--short", "HEAD", cwd=cwd).out != main:
@@ -260,49 +345,44 @@ def catch_up(apply=False, fetch=True, source="cli", cwd=None):
         out["why"] = "it has %d commit%s GitHub hasn't got" % (ahead, "" if ahead == 1 else "s")
     elif origin:
         out["why"] = origin
+    elif stranger == "?":
+        out["why"] = "git couldn't say where the incoming commits came from"
     elif stranger:
         out["why"] = "commit %s didn't come from a GitHub pull request merge" % stranger
-    elif apply and (os.environ.get("CLAUDE_OS_DAEMON") or os.environ.get("COS_SANDBOXED")):
-        out["why"] = "a background job never moves Claude OS's own code"
-    if apply and behind and not out["why"]:
-        _fast_forward(out, base, cwd, source)
-    core.cache_put("catch-up", out)
+    elif behind and not retry and failed.get("target") == target:
+        out["why"] = failed.get("why")
     return out
 
 
-def _fast_forward(out, base, cwd, source):
-    import fcntl
-    lock = open(str(core.home("state", "catch-up.lock")), "w")
+def _fast_forward(out, cwd, source):
+    old = git("rev-parse", "HEAD", cwd=cwd).out
+    r = core.run(["git"] + SAFE_GIT + ["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", out["target"]],
+                 cwd=cwd, timeout=60, env=QUIET)
+    if not r.ok:
+        out["why"] = "git refused the fast-forward: %s" % (r.err or r.out)[:200]
+        core.cache_put("catch-up-failed", {"target": out["target"], "why": out["why"]})
+        return
     try:
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            out["why"] = "another catch-up is running"
-            return
-        old = git("rev-parse", "HEAD", cwd=cwd).out
-        r = core.run(["git"] + SAFE_GIT + ["merge", "--ff-only", "--no-overwrite-ignore", "--quiet", base],
-                     cwd=cwd, timeout=60, env=QUIET)
-        if not r.ok:
-            out["why"] = "git refused the fast-forward: %s" % (r.err or r.out)[:200]
-            return
-        out.update(updated=True, head=git("rev-parse", "--short", "HEAD", cwd=cwd).out, ahead=0)
-        core.journal("action", "Claude OS caught up with %s: %d change%s" % (
-                         base, out["behind"], "" if out["behind"] == 1 else "s"),
-                     source=source, old=old, new=git("rev-parse", "HEAD", cwd=cwd).out,
-                     subjects=out["subjects"][:20], protected=out["protected"], undo="git reset --keep %s" % old)
-        out["behind"] = 0
-        core.cache_put("caught-up", {"subjects": out["subjects"], "protected": out["protected"],
-                                     "source": source, "head": out["head"]})
-    finally:
-        lock.close()
+        core.home("cache", "catch-up-failed.json").unlink()
+    except OSError:
+        pass
+    out.update(updated=True, head=git("rev-parse", "--short", "HEAD", cwd=cwd).out, ahead=0)
+    core.journal("action", "Claude OS caught up with main: %d change%s" % (
+                     out["behind"], "" if out["behind"] == 1 else "s"),
+                 source=source, old=old, new=git("rev-parse", "HEAD", cwd=cwd).out,
+                 subjects=out["subjects"][:20], protected=out["protected"], undo="git reset --keep %s" % old)
+    out["behind"] = 0
+    core.cache_put("caught-up", {"subjects": out["subjects"], "protected": out["protected"],
+                                 "source": source, "head": out["head"]})
 
 
 def auto_catch_up(source, cwd=None):
     """With "Keep Claude OS up to date" on (0011, part two), fast-forward. Callers only call
-    it where no old code is loaded: the server's start, a terminal session's boot, pulse
-    while the app is closed. -> catch_up's dict, or None when the switch is off."""
-    auto = core.config()["autonomy"]
-    if not auto.get("catch_up"):
+    it where no old code is loaded: the app's server before it imports anything, a terminal
+    session's boot and pulse while no server has the code loaded (code_in_use).
+    -> catch_up's dict, or None when the switch is off."""
+    auto = core.config().get("autonomy")
+    if not isinstance(auto, dict) or auto.get("catch_up") is not True:
         return None
     if not auto.get("catch_up_url") or git("config", "--get", "remote.origin.url", cwd=cwd).out != auto["catch_up_url"]:
         c = catch_up(fetch=True, source=source, cwd=cwd)

@@ -204,10 +204,12 @@ def which(name):
     return shutil.which(name)
 
 
-def app_running(name):
-    # -a: macOS pgrep skips its own ancestors unless asked, and the app's chat runs inside
-    # the app, so without it Claude OS looked "not running" from inside Claude OS.
-    return run(["pgrep", "-a", "-xq", name], timeout=3).rc == 0
+def app_running(name, unknown=False):
+    """Is the app running? -a: macOS pgrep skips its own ancestors unless asked, and the app's
+    chat runs inside the app. pgrep says 0 (yes) or 1 (no); anything else (a timeout, an
+    error) is `unknown`, which callers deciding something risky set to True."""
+    rc = run(["pgrep", "-a", "-xq", name], timeout=3).rc
+    return rc == 0 if rc in (0, 1) else unknown
 
 
 def applescript_str(s):

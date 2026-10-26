@@ -74,3 +74,22 @@ waits for its opt-in switch. Part one reports, and moves the code when the human
 checkout that lags behind a change to the gate stops the night shift's merges. The Skeptic
 called that a bug. The chair kept it: the gate that decides must be main's gate, and
 catching up makes the lag short.
+
+## After an independent review (26 October)
+
+Fixed before the switch was first turned on:
+
+- `cos config` turns an `autonomy` switch off and nothing else; setting the whole group (or
+  the pinned URL) was a way around the native dialog. A non-dict `autonomy` no longer
+  crashes the server's start, and nothing around the catch-up can keep the app from its server.
+- Only Claude OS.app's own server catches up at its start (`--exit-on-stdin-eof`, not from a
+  chat), and never while another server runs. Every `cos serve` holds a shared lock for its
+  life, so boot and pulse don't move code under a browser's server either (`code_in_use`).
+- The commit everything is decided about is resolved once and is the one merged, under a
+  lock taken before the checks; a server about to start waits for a move in progress and
+  records the commit it loads before importing anything.
+- A move that failed for a commit isn't offered again (no endless Update) until the human
+  asks (`cos update apply claude-os --yes`).
+- A pgrep error and a git error about where commits came from count as "can't tell", never
+  "safe"; the one-time "caught up" line survives two sessions booting at once and isn't used
+  up by a background job; git also runs with submodules and fsmonitor off.

@@ -204,10 +204,10 @@ class TestKeepUpToDate(Repos):
         self.switch()
         real = evolve.catch_up
         with mock.patch.object(evolve, "catch_up", lambda **kw: real(**dict(kw, cwd=self.live))):
-            with mock.patch.object(core, "app_running", lambda name: name == "ClaudeOS"):
+            with mock.patch.object(core, "app_running", lambda name, **kw: name == "ClaudeOS"):
                 c = daemon.pulse_catch_up()
             self.assertEqual((c["behind"], c["updated"]), (1, False), "the app's server would mix versions")
-            with mock.patch.object(core, "app_running", lambda name: False), \
+            with mock.patch.object(core, "app_running", lambda name, **kw: False), \
                     mock.patch.object(evolve, "git", lambda *a, **kw: evolve.core.run(
                         ["git"] + list(a), cwd=self.live, timeout=kw.get("timeout", 60))):
                 self.assertTrue(daemon.pulse_catch_up()["updated"])
@@ -237,6 +237,128 @@ class TestKeepUpToDate(Repos):
             self.assertEqual(cm.exception.code, 2, key)
             with redirect_stdout(io.StringIO()):
                 self.assertEqual(cli.main(["config", key, "false"]), 0, "off is always fine")
+
+
+class TestReviewFindings(Repos):
+    """An independent review of 0011's code (night of 26 October): each finding, kept fixed."""
+
+    def switch(self):
+        core.config_set("autonomy.catch_up", True)
+        core.config_set("autonomy.catch_up_url", self.origin)
+
+    def test_cos_config_can_only_turn_a_switch_off(self):
+        from cos import cli
+        for argv in (["config", "autonomy", '{"catch_up": true, "night_shift": true}'], ["config", "autonomy", "false"],
+                     ["config", "autonomy.catch_up_url", "https://github.com/x/y.git"], ["config", "autonomy.catch_up", "1"]):
+            with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
+                cli.main(argv)
+            self.assertEqual(cm.exception.code, 2, argv)
+        self.assertIsInstance(core.config()["autonomy"], dict)
+        core.config_set("autonomy", False)  # however it got there, nothing crashes on it
+        self.assertIsNone(evolve.auto_catch_up("boot", cwd=self.live))
+
+    def test_only_the_apps_own_server_catches_up_and_never_under_another_server(self):
+        from cos import cli
+        self.switch()
+        calls = []
+        with mock.patch.object(evolve, "auto_catch_up", lambda *a, **k: calls.append(a) or {"updated": False}), \
+                mock.patch("cos.server.main", lambda args: args.serving.close() or 0):
+            cli.main(["serve", "--port", "0"])  # a browser's server
+            os.environ["CLAUDE_OS_APP"] = "1"
+            try:
+                cli.main(["serve", "--port", "0", "--exit-on-stdin-eof"])  # started from an app chat
+            finally:
+                del os.environ["CLAUDE_OS_APP"]
+            self.assertEqual(calls, [])
+            other = evolve.hold_serving()
+            try:
+                self.assertTrue(evolve.serving())
+                cli.main(["serve", "--port", "0", "--exit-on-stdin-eof"])
+                self.assertEqual(calls, [], "never under another running server")
+            finally:
+                other.close()
+            self.assertFalse(evolve.serving())
+            cli.main(["serve", "--port", "0", "--exit-on-stdin-eof"])
+            self.assertEqual(calls, [("app start",)])
+
+    def test_boot_and_pulse_dont_move_code_under_a_browser_server(self):
+        from cos import daemon
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.switch()
+        held = evolve.hold_serving()
+        try:
+            real = evolve.catch_up
+            with mock.patch.object(evolve, "catch_up", lambda **kw: real(**dict(kw, cwd=self.live))), \
+                    mock.patch.object(core, "app_running", lambda name, **kw: False):
+                self.assertFalse(daemon.pulse_catch_up()["updated"])
+        finally:
+            held.close()
+
+    def test_what_is_merged_is_what_was_checked(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        checked = self.sh("git", "rev-parse", "HEAD", cwd=self.hub)
+        real = evolve._fast_forward
+
+        def meanwhile(out, cwd, source):
+            # another process fetches a commit nobody checked, between the checks and the merge
+            self.merge("pushed straight to main", "lib/cos/x.py")
+            self.sh("git", "fetch", "--quiet", "origin", cwd=self.live)
+            real(out, cwd, source)
+        with mock.patch.object(evolve, "_fast_forward", meanwhile):
+            self.assertTrue(self.catch_up(apply=True)["updated"])
+        self.assertEqual(self.head(), checked)
+
+    def test_a_move_that_failed_isnt_offered_again_until_asked(self):
+        from cos import server
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        with self._untracked("lib/cos/net.py") as f:  # an untracked file where the merge adds one
+            f.write("in the way\n")
+        c = self.catch_up(apply=True)
+        self.assertFalse(c["updated"])
+        self.assertIn("refused", c["why"])
+        self.assertIn("refused", self.catch_up()["why"], "remembered for that commit")
+        self.switch()
+        app = server.App("t", head="0" * 40)
+        app.managed = True
+        with mock.patch.object(server.core, "run", lambda *a, **k: core.Result(0, "0" * 40, "")):
+            self.assertEqual(server.code_state(app)["waiting"], 0, "no Update offered for a move that can't happen")
+        self.assertIn("refused", self.catch_up(apply=True, retry=True)["why"], "the human can still try")
+
+    def _untracked(self, path):
+        os.makedirs(os.path.dirname(os.path.join(self.live, path)), exist_ok=True)
+        return open(os.path.join(self.live, path), "w")
+
+    def test_a_pgrep_that_fails_isnt_taken_for_no(self):
+        with mock.patch.object(core, "run", return_value=core.Result(124, "", "timed out")):
+            self.assertTrue(core.app_running("ClaudeOS", unknown=True))
+            self.assertFalse(core.app_running("ClaudeOS"))
+        with mock.patch.object(core, "run", return_value=core.Result(1, "", "")):
+            self.assertFalse(core.app_running("ClaudeOS", unknown=True))
+
+    def test_the_caught_up_line_survives_a_race_and_isnt_spent_by_a_daemon(self):
+        core.cache_put("caught-up", {"subjects": ["cos net (#42)"], "protected": [], "source": "pulse", "head": "abc"})
+        os.environ["CLAUDE_OS_DAEMON"] = "morning"
+        try:
+            self.assertIsNone(shell._caught_up_line())
+        finally:
+            del os.environ["CLAUDE_OS_DAEMON"]
+        blob = core.cache_get("caught-up")
+        core.home("cache", "caught-up.json").unlink()  # another session showed it first
+        with mock.patch.object(core, "cache_get", return_value=blob):
+            self.assertIn("caught up", shell._caught_up_line())
+
+    def test_a_git_error_about_where_commits_came_from_isnt_safe(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        real = evolve.git
+
+        def broken_log(*a, **kw):
+            if a[:2] == ("log", "--first-parent"):
+                return core.Result(128, "", "fatal")
+            return real(*a, **kw)
+        with mock.patch.object(evolve, "git", broken_log):
+            c = self.catch_up(apply=True)
+        self.assertFalse(c["updated"])
+        self.assertIn("couldn't say where", c["why"])
 
 
 class TestOrigin(Repos):
