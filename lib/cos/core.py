@@ -162,10 +162,12 @@ def _drain(p):
 
 
 # Deny by default: what model-written code may touch is listed, not what it mayn't. It reads
-# the system, the toolchains (Python, Xcode's git, Homebrew) and its own two folders, writes
-# only those, and talks only to localhost (the server tests need it). No Apple Events, no
-# LaunchServices (`open` a URL), no pasteboard, no DNS, nothing of the human's home folder.
-# bsd.sb brings the system's own plumbing: logging, preferences, user lookups.
+# the system, the toolchains (Python, Xcode's, Homebrew) and its own two folders, writes only
+# those, and talks only to localhost (the server tests need it). No Apple Events, no
+# LaunchServices (`open` a URL), no pasteboard, no DNS, nothing of the human's home folder,
+# not even which files are in it. bsd.sb brings the system's own plumbing: logging,
+# preferences, user lookups, and stat() anywhere (for symlinks), which the home rule narrows.
+# Later rules win.
 SANDBOX_PROFILE = """(version 1)
 (deny default)
 (import "bsd.sb")
@@ -173,23 +175,20 @@ SANDBOX_PROFILE = """(version 1)
 (allow process-exec)
 (allow signal (target same-sandbox))
 (allow sysctl-read)
-(allow file-read-metadata)
-(allow file-read*
-  (literal "/") (subpath "/System") (subpath "/usr") (subpath "/bin") (subpath "/sbin") (subpath "/dev")
-  (subpath "/private/etc") (subpath "/private/var/db/timezone") (subpath "/private/var/db/dyld")
-  (subpath "/private/var/select")
-  (subpath "/Library/Frameworks/Python.framework") (subpath "/Library/Developer/CommandLineTools")
-  (subpath "/Applications/Xcode.app") (literal "/Library/Preferences/com.apple.dt.Xcode.plist")
-  (subpath "/opt/homebrew")
-  (subpath %(cwd)s) (subpath %(tmp)s) (regex %(xcrun)s))
+(allow file-read* (literal "/") %(readable)s)
 (allow file-write*
-  (subpath %(cwd)s) (subpath %(tmp)s) (regex %(xcrun)s)
+  (subpath %(cwd)s) (subpath %(tmp)s)
   (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (regex #"^/dev/fd/"))
 (allow file-ioctl (literal "/dev/null") (literal "/dev/tty"))
 (allow network-bind network-inbound (local ip "localhost:*"))
 (allow network-outbound (remote ip "localhost:*"))
-(deny file-read* %(private)s)
+(deny file-read-metadata (subpath %(home)s))
+(allow file-read-metadata %(way_in)s)
+(deny file-read* file-read-metadata %(private)s)
 """
+SANDBOX_READ = ("/System", "/usr", "/bin", "/sbin", "/dev", "/private/etc", "/private/var/db/timezone",
+                "/private/var/db/dyld", "/private/var/select", "/Library/Frameworks/Python.framework",
+                "/Library/Developer/CommandLineTools", "/Applications/Xcode.app", "/opt/homebrew")
 
 # Never readable by model-written code, even if its folder were inside the home folder:
 # credentials and the human's private state.
@@ -200,9 +199,16 @@ SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/
                "/Library/Developer/CommandLineTools/", "/Applications/Xcode.app/")
 
 
-def _sbpl_regex(literal_prefix):
-    """An SBPL regex matching paths that start with this literal text."""
-    return '#"^%s"' % "".join("\\" + c if c in '.^$*+?()[]{}|\\"' else c for c in literal_prefix)
+def _sandbox_path(path, developer):
+    """The human's PATH, cut to the toolchains, with the developer folder's real tools ahead of
+    /usr/bin. /usr/bin/git and python3 are xcrun shims, and xcrun keeps a cache in the shared
+    per-user temp folder; the sandbox mustn't write there."""
+    keep = [p for p in path.split(":") if p.startswith(SANDBOX_BIN)] or ["/usr/bin", "/bin"]
+    tools = os.path.join(developer, "usr", "bin") if developer else ""
+    if not tools.startswith(SANDBOX_BIN) or not os.path.isdir(tools):
+        return ":".join(keep)
+    at = keep.index("/usr/bin") if "/usr/bin" in keep else 0
+    return ":".join(keep[:at] + [tools] + [p for p in keep[at:] if p != tools])
 
 
 def run_sandboxed(cmd, cwd, timeout=600):
@@ -213,13 +219,20 @@ def run_sandboxed(cmd, cwd, timeout=600):
     real = os.path.realpath(cwd)
     home_dir = os.path.realpath(os.path.expanduser("~"))
     private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
-    # Xcode's git shim (xcrun) keeps a cache in the per-user temp folder, outside $TMPDIR.
-    user_tmp = os.path.realpath(run(["getconf", "DARWIN_USER_TEMP_DIR"], timeout=5).out.strip() or "/nonexistent")
-    path = ":".join(p for p in os.environ.get("PATH", "").split(":") if p.startswith(SANDBOX_BIN)) or "/usr/bin:/bin"
+    path = _sandbox_path(os.environ.get("PATH", ""), run(["xcode-select", "-p"], timeout=5).out.strip())
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-") as tmp:
         tmp = os.path.realpath(tmp)
+        readable = " ".join("(subpath %s)" % json.dumps(p) for p in SANDBOX_READ + (real, tmp))
+        # stat() on the way down to its own folders, which may be inside the home folder.
+        steps = {real, tmp}
+        for p in (real, tmp):
+            while p != os.path.dirname(p):
+                p = os.path.dirname(p)
+                steps.add(p)
+        way_in = " ".join("(literal %s)" % json.dumps(p) for p in sorted(steps)) + \
+            " (subpath %s) (subpath %s)" % (json.dumps(real), json.dumps(tmp))
         profile = SANDBOX_PROFILE % {"cwd": json.dumps(real), "tmp": json.dumps(tmp), "private": private,
-                                     "xcrun": _sbpl_regex(user_tmp + "/xcrun_db")}
+                                     "readable": readable, "home": json.dumps(home_dir), "way_in": way_in}
         # CLAUDE_OS_DAEMON makes `cos` refuse every mutating command inside, too.
         env = {"PATH": path, "HOME": tmp, "TMPDIR": tmp + "/", "LANG": "en_US.UTF-8",
                "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1",

@@ -105,7 +105,11 @@ class TestCli(TempHome):
         self.assertEqual([c for c in ran if "fetch" in c], [])
 
     def test_entry_point_runs_under_system_python(self):
-        python = "/usr/bin/python3" if os.path.exists("/usr/bin/python3") else sys.executable
+        # macOS's own Python. The evolve sandbox puts the developer folder on PATH and that one
+        # is used there: /usr/bin/python3 is an xcrun shim to it, and xcrun can't run inside.
+        developer = [os.path.join(d, "python3") for d in os.environ.get("PATH", "").split(":")
+                     if d.endswith("/Developer/usr/bin")]
+        python = next((p for p in developer + ["/usr/bin/python3"] if os.path.exists(p)), sys.executable)
         r = subprocess.run([python, COS, "version"], capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
         self.assertIn("Claude OS", r.stdout)
