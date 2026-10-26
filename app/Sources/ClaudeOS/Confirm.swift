@@ -25,10 +25,11 @@ enum Confirm {
             yes: "Turn On"),
         "catch-up": Question(
             title: "Keep Claude OS up to date?",
-            body: "When you merge a pull request on GitHub, Claude OS brings it to this Mac by itself: when the app "
-                + "starts, when a terminal session starts, and in the background while the app is closed. It only "
-                + "moves a clean main forward, only over GitHub's own pull request merges, and each update is in "
-                + "your journal with the way back. You can turn it off any time in Settings.",
+            body: "When a pull request is merged on GitHub, Claude OS brings it to this Mac by itself: when the app "
+                + "starts, when a terminal session starts, and in the background while the app is closed. Some of "
+                + "those changes are merged by Claude on its own, without a person's review. It only moves a clean "
+                + "main forward, only over GitHub's own pull request merges, and each update is in your journal "
+                + "with the way back. You can turn it off any time in Settings.",
             yes: "Keep Up to Date"),
     ]
 

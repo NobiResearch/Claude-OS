@@ -392,22 +392,23 @@ def code_in_use():
     return serving() or core.app_running("ClaudeOS", unknown=True)
 
 
-def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False):
+def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False, commit=None):
     """Where the live checkout stands against main on GitHub; with apply, fast-forward it.
 
     Only a clean main with no commits of its own moves, only forward, and only over commits
     GitHub made by squash-merging a pull request. Everything is decided about one commit,
-    resolved once, and that's the one merged. fetch: True fetches when the last fetch is 10
+    resolved once, and that's the one merged: main's tip, or `commit` if it's on main (a
+    downloaded copy following its app). fetch: True fetches when the last fetch is 10
     minutes old, "force" always, False never. A move that failed for a commit isn't tried
     again for it unless `retry` (the human asked). The answer is cached for the banner."""
     cwd = str(cwd or core.ROOT)
     lock = _lock(wait=15) if apply else None
     if apply and not lock:
-        out = _where(cwd, fetch=False)
+        out = _where(cwd, fetch=False, commit=commit)
         out["why"] = out["why"] or "another catch-up is running"
         return out
     try:
-        out = _where(cwd, fetch, retry)
+        out = _where(cwd, fetch, retry, commit)
         if apply and out["behind"] and not out["why"] and (os.environ.get("CLAUDE_OS_DAEMON") or os.environ.get("COS_SANDBOXED")):
             out["why"] = "a background job never moves Claude OS's own code"
         if apply and out["behind"] and not out["why"]:
@@ -419,7 +420,7 @@ def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False):
             lock.close()
 
 
-def _where(cwd, fetch, retry=False):
+def _where(cwd, fetch, retry=False, commit=None):
     from . import hook
     main = main_branch(cwd)
     base = "origin/" + main
@@ -432,6 +433,11 @@ def _where(cwd, fetch, retry=False):
         core.cache_put("catch-up-fetch", {"ok": r.ok})
     resolved = git("rev-parse", "--verify", "--quiet", base + "^{commit}", cwd=cwd)
     target = resolved.out if resolved.ok else ""
+    off_main = False
+    if commit and target:
+        off_main = not (re.fullmatch(r"[0-9a-f]{40}", commit) and
+                        git("merge-base", "--is-ancestor", commit, target, cwd=cwd).ok)
+        target = "" if off_main else commit
     counts = git("rev-list", "--left-right", "--count", "HEAD..." + target, cwd=cwd).out.split() if target else []
     ahead, behind = (int(counts[0]), int(counts[1])) if len(counts) == 2 else (0, 0)
     out = {"behind": behind, "ahead": ahead, "head": git("rev-parse", "--short", "HEAD", cwd=cwd).out,
@@ -443,7 +449,9 @@ def _where(cwd, fetch, retry=False):
         out["protected"] = [p for p in out["paths"] if hook.protected(p)]
     stranger = _stranger(target, cwd) if behind else None
     failed = ((core.cache_get("catch-up-failed") or {}).get("data") or {})
-    if len(counts) != 2:
+    if off_main:
+        out["why"] = "the app's commit isn't on %s on GitHub" % base
+    elif len(counts) != 2:
         out["why"] = "git can't compare it with %s" % base
     elif git("symbolic-ref", "--short", "HEAD", cwd=cwd).out != main:
         out["why"] = "the checkout isn't on %s" % main
@@ -484,11 +492,32 @@ def _fast_forward(out, cwd, source):
                                  "source": source, "head": out["head"]})
 
 
+def follow_app(source, cwd=None):
+    """A downloaded copy's code follows its app (decision 0015, step 6): opening a newer
+    Claude OS.app moves the checkout forward to the commit that app was built from, before
+    the server loads anything, with catch-up's guards. Never back: an app older than its code
+    hears about it instead (core.app_outdated). -> catch_up's dict, or None when there's
+    nothing to follow."""
+    if not core.downloaded():
+        return None
+    app = core.app_record()
+    commit, root = app.get("commit"), app.get("root")
+    if not app.get("release") or not isinstance(commit, str) or not re.fullmatch(r"[0-9a-f]{40}", commit) \
+            or not isinstance(root, str) or os.path.realpath(root) != os.path.realpath(str(cwd or core.ROOT)):
+        return None
+    if git("merge-base", "--is-ancestor", commit, "HEAD", cwd=cwd).ok:
+        return None  # there already, or further on
+    return catch_up(apply=True, fetch="force", source=source, cwd=cwd, commit=commit)
+
+
 def auto_catch_up(source, cwd=None):
     """With "Keep Claude OS up to date" on (0011, part two), fast-forward. Callers only call
     it where no old code is loaded: the app's server before it imports anything, a terminal
-    session's boot and pulse while no server has the code loaded (code_in_use).
+    session's boot and pulse while no server has the code loaded (code_in_use). A downloaded
+    copy never follows main: it follows its app (follow_app).
     -> catch_up's dict, or None when the switch is off."""
+    if core.downloaded():
+        return None
     auto = core.config().get("autonomy")
     if not isinstance(auto, dict) or auto.get("catch_up") is not True:
         return None

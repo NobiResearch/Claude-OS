@@ -7,6 +7,7 @@ the repository. The repository is public; this module is the boundary.
 import datetime as _dt
 import json
 import os
+import re
 import shutil
 import signal
 import ssl
@@ -458,6 +459,10 @@ def config_set(dotted, value):
 # ---------------------------------------------------------------- network
 
 REPOSITORY = "github.com/NobiResearch/Claude-OS"
+RELEASES = "https://%s/releases" % REPOSITORY
+# The oldest Claude OS.app this code works with (decision 0015, step 6). Raise it when the
+# server needs something only a newer app does, and a downloaded app that's older says so.
+APP_NEEDED = "0.7.0"
 USER_AGENT = "ClaudeOS/0.1 (+https://%s)" % REPOSITORY
 _SSL = None
 
@@ -512,6 +517,20 @@ def app_record():
     """What Claude OS.app wrote about itself when it last launched (state/app.json), or {}."""
     d = load_json(home("state", "app.json"), {})
     return d if isinstance(d, dict) else {}
+
+
+def version_tuple(v):
+    """'0.8.1' -> (0, 8, 1); None for anything else."""
+    return tuple(int(p) for p in v.split(".")) if isinstance(v, str) and re.fullmatch(r"\d+(\.\d+){0,3}", v) else None
+
+
+def app_outdated():
+    """A downloaded app older than this code needs: {"have", "needed"}, or None."""
+    app = app_record()
+    have, needed = version_tuple(app.get("version")), version_tuple(APP_NEEDED)
+    if not app.get("release") or not have or have >= needed:
+        return None
+    return {"have": app["version"], "needed": APP_NEEDED}
 
 
 def _is_claude_os_app(path):

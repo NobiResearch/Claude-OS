@@ -512,6 +512,11 @@
                   btn("Ask Claude to update", () => COS.ask("Bring Claude OS up to date with what's merged on GitHub."), "primary small"),
                   h("span", { class: "muted small" }, "It asks you first; then Update in the menu bar restarts onto it.")))));
         }
+        // A downloaded Claude OS.app (decision 0015): it never replaces itself, so it says when there's a newer one.
+        const newer = ((src.app || {}).items || [])[0];
+        if (newer) root.appendChild(card("Claude OS.app " + newer.latest,
+          h("div", { class: "muted" }, "A newer Claude OS.app is out (this one is " + newer.installed + "). Download it, replace this one in Applications, and open it: Claude OS comes along."),
+          h("div", { class: "row gap" }, h("a", { class: "btn primary small", href: newer.url, target: "_blank", rel: "noopener" }, "Download"))));
         if ((data.missing_tools || []).includes("mas")) root.appendChild(h("div", { class: "muted small pad-t" }, "Tip: `brew install mas` lets Claude OS see App Store updates too."));
       }
       load(false);
@@ -969,6 +974,7 @@
           nightToggle));
 
         // Keep Claude OS up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
+        // A downloaded copy follows its app's releases instead (0015), so it has no such switch.
         const upToggle = h("input", { type: "checkbox", class: "switch" });
         upToggle.checked = !!s.catch_up;
         upToggle.addEventListener("change", async () => {
@@ -978,7 +984,7 @@
           if (upToggle.checked && !r.catch_up) toast(r.error || "It stays off.", r.error ? "bad" : "");
           draw();
         });
-        box.appendChild(h("div", { class: "daemon" },
+        if (!s.downloaded || s.catch_up) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Keep Claude OS up to date", s.catch_up ? pill("ok", "on") : pill("note", "off")),
             h("div", { class: "small" }, "When you merge a pull request on GitHub, Claude OS brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),

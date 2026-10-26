@@ -403,3 +403,127 @@ class TestUpdateSource(Repos):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestFollowTheApp(Repos):
+    """Decision 0015, step 6: a downloaded copy's code follows its app. Opening a newer
+    Claude OS.app moves it to that app's commit (only forward, only over GitHub's merges,
+    only a commit on main); it never follows main by itself."""
+
+    def setUp(self):
+        super().setUp()
+        self.released = self.head()
+        dl = mock.patch.object(core, "downloaded", return_value=True)
+        dl.start()
+        self.addCleanup(dl.stop)
+
+    def app(self, commit, release=True, root=None):
+        core.save_json(core.home("state", "app.json"),
+                       {"release": release, "commit": commit, "version": "0.8.0", "root": root or self.live})
+
+    def test_a_newer_app_brings_its_code(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        app_commit = self.sh("git", "rev-parse", "HEAD", cwd=self.hub)
+        self.merge("Later on main (#43)", "lib/cos/later.py")
+        self.app(app_commit)
+        c = evolve.follow_app("app start", cwd=self.live)
+        self.assertTrue(c["updated"], c["why"])
+        self.assertEqual(self.head(), app_commit, "the app's commit, not main's tip")
+        self.assertIsNone(evolve.follow_app("app start", cwd=self.live), "nothing more to follow")
+
+    def test_never_back_and_never_off_main(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.assertTrue(self.catch_up(apply=True)["updated"])
+        self.app(self.released)
+        self.assertIsNone(evolve.follow_app("app start", cwd=self.live), "an older app doesn't move code back")
+        self.sh("git", "checkout", "--quiet", "-b", "side", cwd=self.hub)
+        self.merge("Not on main (#44)", "x.py")
+        self.sh("git", "push", "--quiet", "origin", "side", cwd=self.hub)
+        side = self.sh("git", "rev-parse", "HEAD", cwd=self.hub)
+        self.sh("git", "fetch", "--quiet", "origin", "side", cwd=self.live)
+        self.app(side)
+        c = evolve.follow_app("app start", cwd=self.live)
+        self.assertFalse(c["updated"])
+        self.assertIn("isn't on origin/main", c["why"])
+
+    def test_only_a_release_for_this_checkout(self):
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        tip = self.sh("git", "rev-parse", "HEAD", cwd=self.hub)
+        for record in ({"release": False}, {"root": os.path.join(self.tmp, "elsewhere")}):
+            self.app(tip, **record)
+            self.assertIsNone(evolve.follow_app("app start", cwd=self.live), record)
+        self.app("abc1234")
+        self.assertIsNone(evolve.follow_app("app start", cwd=self.live), "only a full commit")
+        self.assertEqual(self.head(), self.released)
+
+    def test_a_download_never_follows_main_on_its_own(self):
+        core.config_set("autonomy.catch_up", True)
+        core.config_set("autonomy.catch_up_url", self.origin)
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        self.assertIsNone(evolve.auto_catch_up("pulse", cwd=self.live))
+        self.assertIsNone(updates.check_claude_os())
+        self.assertIsNone(shell._catch_up_line())
+        self.assertEqual(self.head(), self.released)
+
+
+class TestNewerApp(TempHome):
+    """A downloaded app says when a newer one is out, at most one look a day; one someone
+    built never asks GitHub."""
+
+    def release(self, tag="v0.9.0", url="https://github.com/NobiResearch/Claude-OS/releases/tag/v0.9.0", **kw):
+        body = dict({"tag_name": tag, "html_url": url, "draft": False}, **kw)
+
+        class Reply(io.BytesIO):
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *a):
+                return False
+        import json
+        return mock.patch.object(core, "http_get", return_value=Reply(json.dumps(body).encode()))
+
+    def app(self, **kw):
+        core.save_json(core.home("state", "app.json"), dict({"release": True, "version": "0.8.0"}, **kw))
+
+    def test_a_newer_release_is_one_quiet_line(self):
+        self.app()
+        with self.release():
+            s = updates.check_app()
+        self.assertEqual(s["items"][0]["latest"], "0.9.0")
+        self.assertEqual(s["items"][0]["url"], "https://github.com/NobiResearch/Claude-OS/releases/tag/v0.9.0")
+        with mock.patch.object(core, "http_get", side_effect=AssertionError("asked twice in a day")):
+            self.assertEqual(updates.check_app()["items"][0]["latest"], "0.9.0")
+
+    def test_the_same_or_older_or_odd_releases_say_nothing(self):
+        self.app()
+        for kw in ({"tag": "v0.8.0"}, {"tag": "v0.7.9"}, {"tag": "nightly"},
+                   {"url": "https://evil.example/releases/tag/v0.9.0"}, {"draft": True}):
+            core.home("cache", "app-release.json").unlink(missing_ok=True)
+            with self.release(**kw):
+                self.assertEqual(updates.check_app()["items"], [], kw)
+
+    def test_offline_is_asked_again_tomorrow_not_now(self):
+        self.app()
+        with mock.patch.object(core, "http_get", side_effect=OSError("offline")):
+            self.assertEqual(updates.check_app()["items"], [])
+        with mock.patch.object(core, "http_get", side_effect=AssertionError("asked again")):
+            self.assertEqual(updates.check_app()["items"], [])
+
+    def test_an_app_someone_built_never_asks(self):
+        self.app(release=False)
+        with mock.patch.object(core, "http_get", side_effect=AssertionError("asked GitHub")):
+            self.assertIsNone(updates.check_app())
+
+    def test_code_newer_than_its_app_says_download(self):
+        from cos import status
+        self.app(version="0.6.0")
+        older = core.app_outdated()
+        self.assertEqual(older, {"have": "0.6.0", "needed": core.APP_NEEDED})
+        self.app(version=core.APP_NEEDED)
+        self.assertIsNone(core.app_outdated())
+        self.app(release=False, version="0.1.0")
+        self.assertIsNone(core.app_outdated(), "someone's own build")
+        self.app(version="0.6.0")
+        fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
+        msgs = [m for _, m in status.signals(fake)]
+        self.assertTrue(any("needs Claude OS.app" in m and core.RELEASES in m for m in msgs), msgs)
