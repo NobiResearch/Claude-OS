@@ -46,8 +46,6 @@
       "Bash(git commit *)",
       "Bash(git show *)",
       "Read",
-      "Edit",
-      "Write",
       "Grep",
       "Glob",
       "Agent"

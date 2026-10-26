@@ -31,6 +31,11 @@ If the change adds a syscall, a daemon, a permission, or touches safety (guard, 
 `ALWAYS_DENIED`, `ask` rules), consult the board first (spawn the four board agents in
 parallel with a short brief) and follow their conditions. A Guardian `reject` means stop.
 
+A nightly run can't write under `.claude/` (skills, agents, settings) or outside its clone.
+If the change needs that (a new mutating command, say, whose `ask` rule lives in the
+checked-in settings), don't commit half of it: stop and name it under `Couldn't record:`
+(for example `permissions: a new command needs an ask rule`).
+
 ## 3. Build it
 
 - Follow `CLAUDE.md` ("Working on Claude OS itself"): stdlib only, existing style, tests.
