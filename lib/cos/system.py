@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 
 from . import __version__, core
 
@@ -73,8 +74,15 @@ def keep_download_settings():
     if not core.downloaded():
         return False
     path = core.ROOT / ".claude" / "settings.local.json"
-    d = core.load_json(path, {})
-    d = d if isinstance(d, dict) else {}
+    if os.path.islink(str(path)):
+        return False  # someone's own arrangement: never replaced by a plain file
+    d = core.load_json(path, None) if path.exists() else {}
+    if not isinstance(d, dict):
+        # Not JSON we can read (a hand edit with a trailing comma, say): keep it, beside.
+        aside = path.with_name("settings.local.json.broken-%d" % int(time.time()))
+        os.replace(str(path), str(aside))
+        core.journal("action", "moved a downloaded copy's unreadable settings.local.json aside to %s" % aside.name)
+        d = {}
     perms = d.get("permissions") if isinstance(d.get("permissions"), dict) else {}
     deny = perms.get("deny") if isinstance(perms.get("deny"), list) else []
     missing = [rule for rule in core.DOWNLOAD_DENY if rule not in deny]

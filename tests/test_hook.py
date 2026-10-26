@@ -166,7 +166,8 @@ class TestMerge(TempHome):
 
     def test_read_only_api_calls_pass_and_writes_ask(self):
         for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files"):
-            self.assertTrue(hook.decide(request(cmd), core.config())[0], cmd)
+            self.assertTrue(hook.decide(request(cmd), ON)[0], cmd)
+            self.assertFalse(hook.decide(request(cmd), core.config())[0], "not with the switch off (0017): " + cmd)
         for cmd in ("gh api -X PUT repos/x/y/pulls/31/merge", "gh api --method PUT repos/x/y/pulls/31/merge",
                     "gh api repos/x/y/issues -f title=x", "gh api graphql -F query=x", "gh api graphql",
                     "gh api repos/x/y/pulls/31/merge --input f", "gh api", "gh-axi api repos/x/y"):
@@ -205,10 +206,21 @@ class TestPullRequestText(TempHome):
         for cmd in bad:
             self.assertIsNone(hook.parse_pr_text(cmd), repr(cmd))
 
-    def test_clean_text_passes_even_with_night_shift_off(self):
+    def test_clean_text_passes_while_night_shift_is_on(self):
         cmd = 'gh pr create --title "Fix a thing" --body-file %s' % self.body("Fixes the cleanup total.\n")
-        ok, why = hook.decide(request(cmd), core.config())
+        ok, why = hook.decide(request(cmd), ON)
         self.assertTrue(ok, why)
+
+    def test_with_night_shift_off_it_approves_nothing(self):
+        # Decision 0017: a stranger's clone has no gh allow, so its gh calls reach this hook;
+        # with the switch off they must show a card.
+        for cmd in ('gh pr comment 1 --body-file %s' % self.body("notes\n"), "gh api user", "gh api user/emails",
+                    'gh pr create --title "x" --body-file %s' % self.body("ok\n")):
+            ok, why = hook.decide(request(cmd), core.config())
+            self.assertFalse(ok, cmd)
+            self.assertIn("off", why)
+        with mock.patch.object(hook.core, "downloaded", return_value=True):
+            self.assertFalse(hook.decide(request("gh api user"), ON)[0], "nor in a downloaded copy")
 
     def test_private_data_in_a_body_or_title_asks_the_human(self):
         token = "ghp_" + "a1b2c3d4e5" * 4

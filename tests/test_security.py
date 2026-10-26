@@ -154,7 +154,8 @@ class TestStrangerSafeSettings(unittest.TestCase):
 
     def test_the_owner_still_asks_before_publishing(self):
         ask = self.settings()["ask"]
-        for rule in ("Bash(gh release*)", "Bash(gh repo delete*)", "Bash(xcrun notarytool*)", "Bash(*app/build.sh --release*)"):
+        for rule in ("Bash(gh release*)", "Bash(gh repo delete*)", "Bash(xcrun notarytool*)", "Bash(*app/build.sh --release*)",
+                     "Bash(cos app)", "Bash(bin/cos app)", "Bash(./bin/cos app)"):
             self.assertIn(rule, ask)
 
     def test_the_app_writes_the_same_deny_list(self):
@@ -188,6 +189,30 @@ class TestKeepDownloadSettings(TempHome):
             self.assertEqual(d["allow"], ["Bash(ls)"])
             self.assertEqual(set(d["deny"]), set(core.DOWNLOAD_DENY) | {"Bash(rm *)"})
             self.assertFalse(system.keep_download_settings(), "nothing missing: not written")
+
+    def test_a_file_it_cant_read_is_kept_beside_not_lost(self):
+        from cos import system
+        path = os.path.join(self.root, ".claude", "settings.local.json")
+        with open(path, "w") as f:
+            f.write('{"permissions": {"allow": ["Bash(ls)"],}}')  # a trailing comma
+        with mock.patch.object(core, "downloaded", return_value=True):
+            self.assertTrue(system.keep_download_settings())
+        aside = [n for n in os.listdir(os.path.dirname(path)) if n.startswith("settings.local.json.broken-")]
+        self.assertEqual(len(aside), 1)
+        with open(os.path.join(os.path.dirname(path), aside[0])) as f:
+            self.assertIn('"Bash(ls)"', f.read(), "the person's rules survive")
+        self.assertEqual(self.local()["permissions"]["deny"], core.DOWNLOAD_DENY)
+
+    def test_a_linked_file_is_left_alone(self):
+        from cos import system
+        target = os.path.join(self.tmp, "elsewhere.json")
+        with open(target, "w") as f:
+            f.write("{}")
+        os.symlink(target, os.path.join(self.root, ".claude", "settings.local.json"))
+        with mock.patch.object(core, "downloaded", return_value=True):
+            self.assertFalse(system.keep_download_settings())
+        with open(target) as f:
+            self.assertEqual(f.read(), "{}")
 
     def test_a_checkout_that_isnt_a_download_is_left_alone(self):
         from cos import system
