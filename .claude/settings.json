@@ -71,7 +71,12 @@
       "Bash(./bin/cos app open*)",
       "Bash(cos app open*)",
       "Bash(gh repo delete*)",
-      "Bash(gh-axi repo delete*)"
+      "Bash(gh-axi repo delete*)",
+      "Bash(gh release*)",
+      "Bash(gh-axi release*)",
+      "Bash(gh api *releases*)",
+      "Bash(gh-axi api *releases*)",
+      "Bash(xcrun notarytool*)"
     ],
     "deny": [
       "Edit(~/.claude-os/config.json)"

@@ -99,6 +99,11 @@ class TestDaemons(TempHome):
         for tool in ("ScheduleWakeup", "CronCreate", "CronDelete", "Monitor", "RemoteTrigger"):
             self.assertIn(tool, daemon.ALWAYS_DENIED)
 
+    def test_no_daemon_can_reach_github(self):
+        # `gh release create` would publish an app signed with the human's name (0015).
+        for rule in ("Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)"):
+            self.assertIn(rule, daemon.ALWAYS_DENIED)
+
     def test_the_budget_cap_is_for_api_billing(self):
         spec = daemon.definitions()["board"]
         self.assertIn("--max-budget-usd", daemon.claude_command(spec))

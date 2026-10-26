@@ -282,7 +282,8 @@ class TestInspect(TempHome):
 
     def test_what_counts_as_the_gate(self):
         for path in ("lib/json.py", "lib/sitecustomize.py", "lib/cos/__init__.py", "lib/cos/hook.py",
-                     "lib/cos/__pycache__/x.pyc", "x.pth", ".claude/settings.json", "CLAUDE.md"):
+                     "lib/cos/__pycache__/x.pyc", "x.pth", ".claude/settings.json", "CLAUDE.md",
+                     "app/build.sh", "app/Sources/ClaudeOS/AppConfig.swift"):
             self.assertTrue(hook.protected(path), path)
         for path in ("lib/cos/music.py", "ui/apps.js", "tests/test_hook.py", "docs/lessons.md", "CHANGELOG.md"):
             self.assertFalse(hook.protected(path), path)

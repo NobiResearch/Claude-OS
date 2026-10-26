@@ -31,6 +31,9 @@ _MUTATING = ["clean apply", "update apply", "daemon install", "daemon uninstall"
              "net --speed"]
 ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/cos", "./bin/cos", "cos")] + [
     "Bash(git push*)", "Bash(sudo *)", "Bash(curl *)", "Bash(osascript *)",
+    # Nothing a headless run does needs GitHub, and `gh release create` would publish an app
+    # signed with the human's name (decision 0015).
+    "Bash(gh *)", "Bash(gh-axi *)",
     # A pending wakeup keeps a headless run alive until its timeout (the first weekly board
     # meeting finished in 6 minutes and then sat for 14), and a daemon has no business
     # scheduling more work or cloud routines anyway.
