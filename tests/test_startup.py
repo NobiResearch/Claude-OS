@@ -72,6 +72,20 @@ class TestStartup(unittest.TestCase):
         self.assertFalse(by["com.example.off"]["enabled"])
         self.assertEqual(by["com.example.sync"]["uid"], UID)
 
+    def test_a_plist_that_names_nothing_to_run_is_a_leftover(self):
+        with tempfile.TemporaryDirectory() as d:
+            for label, body in (("com.example.empty", {}), ("com.example.noargs", {"ProgramArguments": []}),
+                                ("com.example.bundled", {"BundleProgram": "Contents/MacOS/helper"}),
+                                ("com.example.onpath", {"ProgramArguments": ["python3", "x.py"]})):
+                with open(os.path.join(d, label + ".plist"), "wb") as f:
+                    plistlib.dump(dict(body, Label=label, RunAtLoad=True), f)
+            items = startup.launchd_items([(d, "launch agent", "me")])
+        found = {i["name"]: startup.findings(i) for i in items}
+        for leftover in ("com.example.empty", "com.example.noargs"):
+            self.assertTrue(any("names nothing to run" in f for f in found[leftover]), leftover)
+        for fine in ("com.example.bundled", "com.example.onpath"):
+            self.assertFalse(any("names nothing to run" in f for f in found[fine]), fine)
+
     def test_scripts_are_named_not_called_unsigned(self):
         with tempfile.NamedTemporaryFile("w", suffix=".sh", delete=False) as f:
             f.write("#!/bin/sh\necho hi\n")

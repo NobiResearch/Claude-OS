@@ -93,7 +93,10 @@ def parse_plist(path, kind, uid):
     prog = d.get("Program") or (args[0] if isinstance(args, list) and args else None) or ""
     return {"name": label, "developer": "", "type": kind, "enabled": not d.get("Disabled", False),
             "allowed": True, "identifier": label, "path": prog if str(prog).startswith("/") else "",
-            "last_use": None, "uid": uid, "parent": ""}
+            "last_use": None, "uid": uid, "parent": "",
+            # launchd has nothing to start: no Program, no ProgramArguments, no BundleProgram
+            # (an app's own agent names its helper relative to the app).
+            "runs_nothing": not (prog or d.get("BundleProgram"))}
 
 
 def parse_overrides(text):
@@ -153,6 +156,8 @@ def findings(item, now=None):
     out = []
     if item["path"] and not os.path.exists(item["path"]):
         out.append("its program is missing (left behind by something you removed?)")
+    if item.get("runs_nothing"):
+        out.append("its plist names nothing to run, so it does nothing (left behind by something you removed?)")
     if item.get("authority") in ("unsigned", "ad hoc", "script") and item["enabled"]:
         out.append({"unsigned": "runs unsigned code", "ad hoc": "runs ad-hoc signed code",
                     "script": "runs a script (scripts aren't signed; fine if you know it)"}[item["authority"]])
