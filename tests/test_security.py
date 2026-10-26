@@ -107,6 +107,9 @@ class TestSecurity(TempHome):
 
 
 class TestMutationRegistry(unittest.TestCase):
+    # Merging or dropping an evolve branch only changes this repository, which is Claude's to
+    # change without asking (decision 0013). A daemon still may never run them.
+    THE_REPOSITORY = {("evolve", "merge"), ("evolve", "discard")}
 
     def test_every_mutation_asks_and_no_daemon_may_run_it(self):
         with open(os.path.join(ROOT, ".claude", "settings.json")) as f:
@@ -115,6 +118,9 @@ class TestMutationRegistry(unittest.TestCase):
             words = " ".join(key)
             self.assertTrue(any(d.startswith("Bash(cos %s" % words) for d in daemon.ALWAYS_DENIED)
                             or any(d == "Bash(cos %s*)" % key[0] for d in daemon.ALWAYS_DENIED), key)
+            if key in self.THE_REPOSITORY:
+                self.assertFalse(any(words in a for a in asks), key)
+                continue
             for prefix in ("bin/cos", "./bin/cos", "cos"):
                 self.assertTrue(any(a.startswith("Bash(%s %s" % (prefix, words)) for a in asks), (prefix, key))
 
