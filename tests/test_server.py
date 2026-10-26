@@ -1,5 +1,6 @@
 import http.client
 import json
+import os
 import threading
 import time
 import unittest
@@ -203,6 +204,96 @@ class TestServerSecurity(TempHome):
                 time.sleep(0.05)
         self.assertEqual((status, exits), (200, [server.RESTART]))
         self.assertIn("restarted to update", core.read_journal(days=1)[-1]["msg"])
+
+    def test_update_waits_for_a_running_job(self):
+        """A job's output comes through the server: restarting would cut a cleanup off halfway."""
+        from unittest import mock
+
+        class Running:
+            label, ended = "Clean up caches", None
+        self.app.managed = True
+        self.app.jobs["j"] = Running()
+        exits = []
+        with mock.patch.object(server.os, "_exit", exits.append):
+            status, _, data = self.request("POST", "/api/restart", {})
+            time.sleep(0.5)
+        self.assertEqual(status, 409)
+        self.assertIn("Clean up caches", json.loads(data)["error"])
+        self.assertEqual(exits, [])
+        Running.ended = time.time()
+        with mock.patch.object(server.os, "_exit", exits.append):
+            self.assertEqual(self.request("POST", "/api/restart", {})[0], 200)
+            deadline = time.time() + 3
+            while not exits and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(exits, [server.RESTART])
+
+    def test_nothing_starts_while_it_restarts(self):
+        """Closing the chats takes a while; a job started then would be cut off by the exit."""
+        from unittest import mock
+        self.app.managed = True
+        closing, release, exits = threading.Event(), threading.Event(), []
+
+        def slow_close():
+            closing.set()
+            release.wait(3)
+        with mock.patch.object(self.app.chats, "close_all", slow_close), \
+                mock.patch.object(server.os, "_exit", exits.append):
+            self.assertEqual(self.request("POST", "/api/restart", {})[0], 200)
+            self.assertTrue(closing.wait(3))
+            with self.assertRaises(server.Restarting):
+                self.app.job(["version"], "Late")
+            status, _, data = self.request("POST", "/api/friction", {"text": "late"})
+            self.assertEqual(status, 503)
+            self.assertIn("restarting", json.loads(data)["error"])
+            self.assertEqual(self.request("GET", "/api/friction")[0], 200, "reads still work")
+            release.set()
+            deadline = time.time() + 3
+            while not exits and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(exits, [server.RESTART])
+        self.assertEqual(self.app.jobs, {})
+
+    def test_only_plain_files_are_served(self):
+        """ui/ isn't a safety path: a symlink to /dev/zero or a FIFO in it must not hang the
+        server before it reports ready, and nothing huge is held in memory."""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "os.js").write_text("ok")
+            os.symlink("/dev/zero", os.path.join(d, "zero.js"))
+            os.symlink(os.path.join(d, "os.js"), os.path.join(d, "alias.js"))
+            os.mkfifo(os.path.join(d, "pipe.js"))
+            with open(os.path.join(d, "huge.js"), "wb") as f:
+                f.truncate(server.UI_FILE_MAX + 1)
+            os.symlink("/etc", os.path.join(d, "etc"))
+            started = time.time()
+            files = server.read_ui(d)
+        self.assertEqual(files, {"os.js": b"ok"})
+        self.assertLess(time.time() - started, 2)
+
+    def test_the_server_keeps_the_code_it_started_with(self):
+        """0011, part three: every module and desktop file is loaded at start, so a checkout
+        that moves under a running server can't mix new code into it."""
+        import pkgutil
+        import sys
+        import tempfile
+        from pathlib import Path
+        names = server.pin_code()
+        everything = [m.name for m in pkgutil.iter_modules(sys.modules["cos"].__path__)]
+        self.assertEqual(sorted(names), sorted(everything))
+        self.assertTrue(all("cos." + n in sys.modules for n in everything))
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "js").mkdir()
+            Path(d, "js", "os.js").write_text("old")
+            files = server.read_ui(d)
+            Path(d, "js", "os.js").write_text("new")
+        self.assertEqual(files, {"js/os.js": b"old"})
+        self.app.ui = {"index.html": b"<p>as started</p>", "os.js": b"// as started"}
+        status, _, body = self.request("GET", "/", token=None)
+        self.assertEqual((status, body), (200, b"<p>as started</p>"))
+        self.assertEqual(self.request("GET", "/os.js", token=None)[2], b"// as started")
+        self.assertEqual(self.request("GET", "/apps.js", token=None)[0], 404, "only what it started with")
 
     def test_a_stale_or_forged_answer_doesnt_count(self):
         from unittest import mock

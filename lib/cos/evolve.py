@@ -495,6 +495,9 @@ def auto_catch_up(source, cwd=None):
     if not auto.get("catch_up_url") or git("config", "--get", "remote.origin.url", cwd=cwd).out != auto["catch_up_url"]:
         c = catch_up(fetch=True, source=source, cwd=cwd)
         c["why"] = c["why"] or "origin isn't the repository Keep Claude OS up to date was turned on for"
+        # catch_up cached it without the why: the desktop's Update item would offer, forever,
+        # a catch-up that can't happen.
+        core.cache_put("catch-up", {k: v for k, v in c.items() if k != "target"})
         return c
     return catch_up(apply=True, fetch=True, source=source, cwd=cwd)
 
