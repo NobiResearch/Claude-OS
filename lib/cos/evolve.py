@@ -12,6 +12,7 @@ remote fall back to a local fast-forward.
 """
 
 import datetime as dt
+import json
 import os
 import re
 import shutil
@@ -149,9 +150,9 @@ def after_run(ws, summary):
         return "evolve: committed on %s but couldn't bring it back: %s" % (ws["branch"], r.err[:200])
     sha = tip(ws["branch"])
     t = test_commit(ws["branch"])
-    verdict = "tests pass" if t is not None and t.ok else "TESTS FAIL"
+    verdict = "TESTS COULDN'T RUN" if t is None else "tests pass" if t.ok else "TESTS FAIL"
     core.journal("evolve", "%s: %d commit(s), %s" % (ws["branch"], len(commits), verdict),
-                 branch=ws["branch"], commits=commits, tip=sha, tests_ok=bool(t is not None and t.ok))
+                 branch=ws["branch"], commits=commits, tip=sha, tests_ok=None if t is None else t.ok)
     return "evolved: %s (%s) · review: cos evolve review %s" % (commits[0].split(" ", 1)[-1], verdict, ws["branch"])
 
 
@@ -224,8 +225,32 @@ def _gh(*args, timeout=120):
     return core.run(["gh"] + list(args), cwd=str(core.ROOT), timeout=timeout)
 
 
-def merge_via_pr(branch, commits):
-    """Push, open a pull request, wait for CI, squash-merge: what the ruleset on main asks."""
+CI_STARTS = 120  # seconds a new pull request's checks get to show up
+
+
+def wait_for_ci(branch, wait=CI_STARTS, every=5):
+    """True once the pull request's `test` check shows up. CI runs for the pull request, not
+    the push, so for its first seconds a pull request has no checks, and `gh pr checks --watch`
+    gives up at once ("no checks reported") instead of waiting."""
+    deadline = time.time() + wait
+    while True:
+        r = _gh("pr", "view", branch, "--json", "statusCheckRollup")
+        runs = []
+        if r.ok:
+            try:
+                runs = json.loads(r.out).get("statusCheckRollup") or []
+            except (ValueError, AttributeError):
+                pass
+        if any(isinstance(c, dict) and (c.get("name") or c.get("context")) == "test" for c in runs):
+            return True
+        if time.time() >= deadline:
+            return False
+        time.sleep(every)
+
+
+def merge_via_pr(branch, commits, sha):
+    """Push, open a pull request, wait for CI, squash-merge: what the ruleset on main asks.
+    The merge is pinned to `sha`, the commit the Guardian and the tests checked."""
     r = git("push", "--quiet", "-u", "origin", branch, timeout=180)
     if not r.ok:
         core.die("push failed: %s" % r.err[:300])
@@ -237,10 +262,13 @@ def merge_via_pr(branch, commits):
     if not r.ok and "already exists" not in r.err:
         core.die("couldn't open a pull request: %s" % r.err[:300])
     print("opened %s" % (r.out.strip() or "the pull request"))
+    if not wait_for_ci(branch):
+        core.die("CI hadn't started after %d s; the pull request stays open, and `cos evolve merge %s --yes` "
+                 "picks it up again" % (CI_STARTS, branch))
     r = _gh("pr", "checks", branch, "--watch", "--interval", "15", timeout=1800)
     if not r.ok:
         core.die("CI didn't pass; the pull request stays open for a look:\n%s" % (r.out or r.err)[-1500:])
-    r = _gh("pr", "merge", branch, "--squash", "--delete-branch", timeout=180)
+    r = _gh("pr", "merge", branch, "--squash", "--delete-branch", "--match-head-commit", sha, timeout=180)
     if not r.ok:
         core.die("merge failed: %s" % r.err[:300])
     catch_up(apply=True, fetch="force", source="evolve merge")
@@ -486,14 +514,16 @@ def main(args):
         t = test_commit(args.branch)
         if t is None:
             core.die("couldn't run the branch's tests; not merging")
+        # Both ways, so a merge that dies later (CI, the push) doesn't leave an older mark.
+        core.journal("evolve", "%s: tests %s" % (args.branch, "pass" if t.ok else "fail, not merged"),
+                     branch=args.branch, tip=sha, tests_ok=t.ok)
         if not t.ok:
-            core.journal("evolve", "%s: tests fail, not merged" % args.branch, branch=args.branch, tip=sha, tests_ok=False)
             print((t.err or t.out)[-2000:])
             core.die("the branch's tests fail; not merging")
         fixed = addressed_frictions(args.branch)
         commits = ahead(args.branch)
         if github:
-            merge_via_pr(args.branch, commits)
+            merge_via_pr(args.branch, commits, sha)
         else:
             if git("rev-parse", "--abbrev-ref", "HEAD").out != main_branch():
                 core.die("check out %s first" % main_branch())

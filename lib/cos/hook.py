@@ -36,7 +36,8 @@ COMMAND = re.compile(r"[A-Za-z0-9._/ -]+")  # no quotes, $, ;, &, |, <, >, globs
 BRANCH = re.compile(r"night/[A-Za-z0-9._-]+")
 SHA = re.compile(r"[0-9a-f]{40}")
 GITHUB = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
-# A night shift can't widen its own powers: merging changes here waits for the human. That
+# A night shift can't widen its own powers: this hook never merges changes here (they get a
+# guardian review first, 0013). That
 # includes the code this hook leans on (core, cli, evolve's guard_branch), the server that
 # flips the switch and the app's Allow/Deny path, so one night's merge can't loosen the next.
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
@@ -274,7 +275,7 @@ def decide_push(branch, facts):
         return False, "couldn't list what the branch changes"
     ci = [p for p in facts["paths"] if p.startswith(NEVER_PUSHED)]
     if ci:
-        return False, "changes CI (%s): that stays local for the human" % ", ".join(ci[:3])
+        return False, "changes CI (%s): the hook never pushes that, since a branch's workflow runs once it's pushed" % ", ".join(ci[:3])
     if facts.get("problems"):
         return False, "the Guardian found %d problem(s)" % len(facts["problems"])
     return True, "%s at %s" % (branch, facts["head"][:8])
@@ -303,7 +304,8 @@ def decide_merge(number, sha, facts):
         return False, "couldn't list what #%d changes" % number
     touched = [p for p in facts["paths"] if protected(p)]
     if touched:
-        return False, "changes Claude OS's safety files (%s): that waits for the human's merge" % ", ".join(touched[:3])
+        return False, ("changes Claude OS's safety files (%s): the hook never merges that; have a guardian agent "
+                       "review it first (0013)" % ", ".join(touched[:3]))
     if facts.get("problems"):
         return False, "the Guardian found %d problem(s)" % len(facts["problems"])
     return True, "merged #%d (%s at %s)" % (number, head, sha[:8])

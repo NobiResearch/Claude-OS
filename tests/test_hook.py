@@ -156,7 +156,7 @@ class TestMerge(TempHome):
                 kw = dict(look_pr=lambda n, s, c: dict(GOOD_PR, pr=None))
             ok, why = self.decide(**kw)
             self.assertFalse(ok, name)
-        self.assertIn("waits for the human's merge", self.decide(look_pr=pr_looking(paths=["lib/cos/server.py"]))[1])
+        self.assertIn("guardian agent review it first", self.decide(look_pr=pr_looking(paths=["lib/cos/server.py"]))[1])
 
     def test_read_only_api_calls_pass_and_writes_ask(self):
         for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files"):

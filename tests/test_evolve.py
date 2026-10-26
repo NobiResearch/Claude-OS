@@ -1,6 +1,8 @@
+import json
 import os
 import subprocess
 import unittest
+from unittest import mock
 
 from helpers import TempHome
 
@@ -123,6 +125,53 @@ class TestVerdicts(TempHome):
         self.assertIn("evolve/x (its tests FAIL)", shell._evolve_line())
         self.g("branch", "-D", "evolve/x")
         self.assertIsNone(shell._evolve_line())
+
+
+class TestMergeViaPR(TempHome):
+    """CI runs for the pull request, not the push, so it shows up a few seconds after the pull
+    request opens; `gh pr checks --watch` gives up at once while there are none."""
+    SHA = "a" * 40
+
+    def setUp(self):
+        super().setUp()
+        self.calls = []
+        self.polls = 0
+        for name, fake in (("git", lambda *a, **k: core.Result(0, "", "")), ("catch_up", lambda **k: {}),
+                           ("_gh", self.gh), ("main_branch", lambda *a: "main")):
+            p = mock.patch.object(evolve, name, fake)
+            p.start()
+            self.addCleanup(p.stop)
+
+    def gh(self, *args, timeout=120):
+        self.calls.append(args)
+        if args[:2] == ("pr", "view"):
+            self.polls += 1
+            runs = [{"__typename": "CheckRun", "name": "test", "status": "QUEUED"}] if self.polls >= 3 else []
+            return core.Result(0, json.dumps({"statusCheckRollup": runs}), "")
+        return core.Result(0, "", "")
+
+    def test_it_waits_for_the_check_to_show_up(self):
+        with mock.patch.object(evolve.time, "sleep"):
+            self.assertTrue(evolve.wait_for_ci("evolve/x", wait=60, every=0))
+        self.assertEqual(self.polls, 3)
+        self.polls = -1000
+        self.assertFalse(evolve.wait_for_ci("evolve/x", wait=0), "a check that never shows up")
+
+    def test_the_merge_is_pinned_to_the_checked_commit(self):
+        with mock.patch.object(evolve.time, "sleep"):
+            evolve.merge_via_pr("evolve/x", ["abc123 a nightly change"], self.SHA)
+        verbs = [c[:2] for c in self.calls]
+        self.assertLess(verbs.index(("pr", "view")), verbs.index(("pr", "checks")), "waits before watching")
+        merge = [c for c in self.calls if c[:2] == ("pr", "merge")][0]
+        self.assertEqual(merge[merge.index("--match-head-commit") + 1], self.SHA)
+
+    def test_ci_that_never_starts_isnt_reported_as_failing(self):
+        with mock.patch.object(evolve, "wait_for_ci", return_value=False), \
+                mock.patch.object(core, "die", side_effect=SystemExit) as die:
+            with self.assertRaises(SystemExit):
+                evolve.merge_via_pr("evolve/x", ["abc123 a nightly change"], self.SHA)
+        self.assertIn("hadn't started", die.call_args[0][0])
+        self.assertFalse([c for c in self.calls if c[:2] in (("pr", "checks"), ("pr", "merge"))])
 
 
 def _can_sandbox():
