@@ -85,3 +85,14 @@ class TestEverywhere(TempHome):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestNoUsernameInOutput(TempHome):
+    """What install and doctor print gets pasted into public bug reports."""
+
+    def test_paths_print_from_the_home_folder(self):
+        home = os.path.expanduser("~")
+        self.assertEqual(system._tilde(os.path.join(home, ".claude-os")), "~/.claude-os")
+        self.assertEqual(system._tilde(home), "~")
+        self.assertEqual(system._tilde(home + "-other/x"), home + "-other/x", "only the home folder itself")
+        self.assertEqual(system._tilde("/opt/homebrew/bin"), "/opt/homebrew/bin")
