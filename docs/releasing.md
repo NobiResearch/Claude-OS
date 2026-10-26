@@ -21,9 +21,24 @@ on their own Mac; nothing here runs in CI, and publishing is a separate step on 
    It asks for the password and keeps it in the Keychain under the name `claude-os`. The password
    is never written to a file, an environment variable or the repository.
 
+## Before the first public release
+
+The full check from decision 0015, step 1, on the notarized zip: download it in a **second
+macOS user account** (so it's quarantined and nothing of yours is there), and go through the
+first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
+Location, notifications, Music automation and the Apple Music player all prompt and work, and
+Remove Claude OS… leaves nothing behind but the app.
+
 ## Each release
 
-From a clean checkout of `main`, at `origin/main`:
+1. **The version.** Raise `__version__` in `lib/cos/__init__.py` in a pull request of its own,
+   and fold `changes/` into `CHANGELOG.md` under that version. The app's version comes from
+   there, and downloaded apps compare it with the newest release's tag, so tag it `v<version>`
+   (`v0.8.0`).
+2. **The oldest app the code works with.** If the server now needs something only this app
+   does, raise `APP_NEEDED` in `lib/cos/core.py` to this version: older downloaded apps then say
+   "download Claude OS.app" instead of breaking.
+3. **Build** from a clean checkout of `main`, at `origin/main`:
 
 ```sh
 COS_RELEASE_PROFILE=~/.claude-os/ClaudeOS-Release.provisionprofile \
@@ -45,7 +60,36 @@ the evolve sandbox. It then:
 
 ## Publishing
 
-Only on the owner's yes, each time: `gh release create`, which asks before it runs. The notes say
-what you need (macOS 14+, Claude Code and a Claude plan, Apple Music for music), what first launch
-adds and how to remove it, that Claude OS is under the MIT License (binaries too), and that it
-isn't made or endorsed by Anthropic. They pass `bin/cos guard --text`.
+Only on the owner's yes, each time: `gh release create v<version> build/Claude-OS-<version>.zip
+--title "Claude OS <version>" --notes-file <notes>`, which asks before it runs. The notes pass
+`bin/cos guard --text` first.
+
+### The notes
+
+Plain words, for someone who isn't a developer. Start from this and add what's new:
+
+```markdown
+**Claude OS <version>**: an operating layer for your Mac that Claude lives in.
+
+**What you need:** macOS 14 or later, [Claude Code](https://claude.com/claude-code) with a Claude
+plan, and Apple Music for the music player.
+
+**Install:** unzip, move Claude OS.app to your Applications folder, and open it. The first launch
+shows a checklist: Apple's command line tools (Apple installs them), Claude Code (a link to
+Anthropic's page), and Claude OS itself, downloaded from this repository into
+~/Library/Application Support/Claude OS. Nothing is installed until you click. Two extras, the
+skills in Claude Code and a vitals check every 2 hours, start off. Claude OS never asks for Full
+Disk Access, Accessibility or Screen Recording.
+
+**Updates:** when a newer Claude OS.app is out, Updates says so. Download it, replace the old one
+and open it: Claude OS comes along.
+
+**Remove:** Claude OS menu › Remove Claude OS… turns off its background jobs, removes its links
+and moves its code to the Trash; your journal and memory go only if you say so. Then drag the app
+to the Trash.
+
+**What's new:** <from CHANGELOG.md>
+
+Claude OS is open source under the MIT License, the app included. It isn't made or endorsed by
+Anthropic; Claude is Anthropic's trademark.
+```
