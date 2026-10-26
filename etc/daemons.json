@@ -64,7 +64,11 @@
       "Bash(git worktree*)",
       "Bash(rm *)",
       "WebFetch",
-      "WebSearch"
+      "WebSearch",
+      "Edit(.claude/settings.json)",
+      "Edit(.claude/settings.local.json)",
+      "Write(.claude/settings.json)",
+      "Write(.claude/settings.local.json)"
     ],
     "sandbox": true
   },
