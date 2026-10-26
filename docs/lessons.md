@@ -91,6 +91,21 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 
 - **`toLocaleDateString(undefined)` follows the OS, not the browser language.** Pass
   `navigator.language` when output must match the page (e.g. English screenshots).
+- **MusicKit works in a Developer ID app, outside the App Store** (tested 26 October, decision
+  0015): Developer ID signing with the hardened runtime, a Developer ID provisioning profile
+  (all devices) for an App ID with MusicKit under App Services, and the `application-identifier`
+  and `team-identifier` entitlements. A brand-new App ID can fail for a while with "Media API
+  Token Service responded with status code: Not Found (404) … not registered as a valid client
+  identifier" until Apple has caught up, and the app caches that failure until it's relaunched.
+  *Rule:* after creating an App ID, wait a few minutes and test in a fresh launch; the log line
+  `[com.apple.amp.iTunesCloud]` names the reason (`log show --predicate 'eventMessage CONTAINS
+  "client identifier"'`).
+- **Two Claude OS apps on one Mac step on each other.** Both register `claude-os://`, and macOS
+  sends those links to the one it prefers (the installed one), not the one you're testing; both
+  write the per-launch `state/app.nonce`, so a command built for one is refused by the other;
+  and `core.ensure_app` opens `~/Applications/Claude OS.app` by name. *Rule:* run one at a time;
+  to test another build, quit the installed app, send commands with `open -a <that app>`, and
+  afterwards `lsregister -u` and trash the test build, then `lsregister -f` the installed one.
 
 ## Permissions (TCC)
 

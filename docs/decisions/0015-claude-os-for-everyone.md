@@ -66,6 +66,19 @@ profile for one registered Mac.
    - The notes say, in plain words: what you need (macOS 14+, Claude Code and a Claude plan, Apple Music for music), what first launch adds and how to remove it, that it's PolyForm Noncommercial (binaries too), and that it isn't made or endorsed by Anthropic.
    - The notes pass `cos guard --text`.
 
+## Step 1's result (26 October): passed
+
+A test build signed with the human's Developer ID, with the hardened runtime, the new App ID
+`app.claude-os.desktop` (MusicKit under App Services) and its Developer ID profile, played a
+catalog song through its own MusicKit player. The first try failed with Apple's "not registered
+as a valid client identifier" (404): the App ID was minutes old, and the app cached the failure
+until it was relaunched. The test also showed why step 4 matters: with the human's app
+installed, `cos` reached that app instead of the test build (`claude-os://`, `ensure_app`, the
+shared nonce). The test build was never notarized or uploaded; it's in the Trash, and
+`claude-os://` opens the human's app again. Still to come before a public release: the full
+check in a second macOS user account (notarized, a quarantined download, Calendar, Location,
+notifications and Music automation).
+
 ## Not now
 
 An installer that sets up Claude Code itself, an organization developer account, and the App Store,
