@@ -355,6 +355,8 @@ def pulse_catch_up():
     """Fetch and report; with Keep Claude OS up to date on, also move forward, but never
     under a running app, whose server would mix versions (0011)."""
     from . import evolve
+    if core.downloaded():
+        return None  # it follows its app, when the app starts (0015)
     if not evolve.code_in_use():
         c = evolve.auto_catch_up("pulse")
         if c:
@@ -469,6 +471,9 @@ def run(name):
     spec = definitions().get(name)
     if not spec:
         core.die("no daemon %r" % name)
+    if name == "evolve" and core.downloaded():
+        print("evolve doesn't run in a downloaded Claude OS (it follows its app's releases): cos daemon uninstall evolve")
+        return 0
     lock = _lock(name)
     if not lock:
         print("%s is already running" % name)

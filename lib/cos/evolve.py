@@ -405,7 +405,7 @@ def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False, commi
     lock = _lock(wait=15) if apply else None
     if apply and not lock:
         out = _where(cwd, fetch=False, commit=commit)
-        out["why"] = out["why"] or "another catch-up is running"
+        out["why"] = "another catch-up is running"
         return out
     try:
         out = _where(cwd, fetch, retry, commit)
@@ -507,7 +507,22 @@ def follow_app(source, cwd=None):
         return None
     if git("merge-base", "--is-ancestor", commit, "HEAD", cwd=cwd).ok:
         return None  # there already, or further on
-    return catch_up(apply=True, fetch="force", source=source, cwd=cwd, commit=commit)
+    # Fetch only for a commit this checkout hasn't seen: the app's server has 15 seconds to start.
+    known = git("cat-file", "-e", commit + "^{commit}", cwd=cwd).ok
+    return catch_up(apply=True, fetch=True if known else "force", source=source, cwd=cwd, commit=commit)
+
+
+def follow_problem():
+    """Why a downloaded copy's code is still behind its app, from the last try to reach the
+    app's commit (follow_app), or None."""
+    if not core.downloaded():
+        return None
+    cached = core.cache_get("catch-up")
+    c = cached.get("data") if isinstance(cached, dict) else None
+    commit = core.app_record().get("commit")
+    if not isinstance(c, dict) or not isinstance(commit, str) or c.get("latest") != commit[:7]:
+        return None
+    return c.get("why") if c.get("behind") and c.get("why") else None
 
 
 def auto_catch_up(source, cwd=None):

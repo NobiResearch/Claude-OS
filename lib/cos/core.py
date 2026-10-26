@@ -349,7 +349,7 @@ def same_folder(a, b):
     """The same folder, however its path is spelled (macOS keeps a path's case but ignores it)."""
     try:
         return os.path.samefile(str(a), str(b))
-    except OSError:
+    except (OSError, ValueError, TypeError):  # missing, a NUL in the path, not a path
         return False
 
 

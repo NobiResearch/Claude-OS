@@ -293,3 +293,5 @@ class TestDownloaded(TempHome):
         self.assertEqual(core.install_record()["kind"], "download")
         self.assertTrue(core.same_folder(shouting, core.ROOT))
         self.assertFalse(core.same_folder("/nonexistent", core.ROOT))
+        self.assertFalse(core.same_folder("/tmp/a\x00b", core.ROOT), "a NUL in the path")
+        self.assertFalse(core.same_folder(None, core.ROOT))

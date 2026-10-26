@@ -104,7 +104,13 @@ notifications and Music automation).
 - `cos daemon install` and `uninstall` (and `cos install`/`uninstall`) leave alone a daemon
   that runs from another Claude OS checkout.
 - `~/.claude-os` is created with mode 0700 when the app is first to make it.
-- Still to come in step 5: Remove Claude OS.
+- **Remove Claude OS…** (the app menu, only in a release, only when `install.json` names the
+  folder first launch downloads into, a real folder and not a link, and the app runs it):
+  after a yes, it stops the server, runs `cos uninstall` (this checkout's daemons, and links
+  only if they're its own), and moves the checkout to the Trash. A failure at either step
+  stops it with everything in place, so it can be tried again. Last of all, and only after
+  its own yes, ~/.claude-os goes to the Trash; the dialog says conversations stay in Claude
+  Code's own history. The app itself is dragged to the Trash by the person.
 
 ## Step 6: updates (27 October)
 
@@ -121,7 +127,11 @@ notifications and Music automation).
 - **Code newer than its app says so.** `core.APP_NEEDED` is the oldest app the code works
   with; a downloaded app older than that gets a warning signal with the download link.
 - **A download's main takes no local commits**, or the next app couldn't bring its code: `cos
-  evolve merge` refuses there, and so does `cos daemon install evolve`.
+  evolve merge` refuses there, and so do `cos daemon install evolve`, `cos daemon run evolve`
+  and `cos update apply claude-os`.
+- **A download that can't follow its app says why** (a hand edit, say): a warning signal from
+  its last try to reach the app's commit. It forces a fetch only for a commit it hasn't seen,
+  so the app's server starts fast, and pulse leaves a download to its app.
 - The Keep up to date dialog now says plainly that some changes are merged by Claude without
   a person's review.
 

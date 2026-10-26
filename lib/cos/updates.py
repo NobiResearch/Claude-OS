@@ -310,6 +310,8 @@ def still_outdated(names):
 def apply_claude_os(yes):
     """Fast-forward the live checkout to main on GitHub, through evolve.catch_up's guards."""
     from . import evolve
+    if core.downloaded():
+        core.die("a downloaded Claude OS follows its app: download the newest Claude OS.app from %s" % core.RELEASES)
     c = evolve.catch_up(fetch="force", source="update", retry=True)
     if not c["behind"]:
         print("Claude OS is up to date with GitHub (%s)." % c["head"])
