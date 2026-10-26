@@ -300,3 +300,13 @@ class TestOnlyItsOwnDaemons(TempHome):
         with open(daemon.plist_path("pulse"), "w") as f:
             f.write("not a plist")
         self.assertIsNone(daemon.elsewhere("pulse"))
+
+
+class TestEvolveLeavesItsSettingsAlone(unittest.TestCase):
+    def test_evolve_may_not_edit_the_workspaces_claude_code_settings(self):
+        # Claude Code runs a settings file's hooks outside the sandbox: a run that could edit
+        # its workspace's settings could add one.
+        dis = daemon.definitions()["evolve"]["disallowed_tools"]
+        for tool in ("Edit", "Write"):
+            for name in ("settings.json", "settings.local.json"):
+                self.assertIn("%s(.claude/%s)" % (tool, name), dis)
