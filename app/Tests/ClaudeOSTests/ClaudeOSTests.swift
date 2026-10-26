@@ -334,29 +334,42 @@ final class FirstLaunchTests: XCTestCase {
 /// Decision 0015, step 5: Remove Claude OS is offered only for the checkout this app downloaded.
 final class RemoverTests: XCTestCase {
     func testOnlyTheDownloadedCheckoutOfARelease() throws {
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent("cos-rm-\(UUID().uuidString)")
-        defer { try? FileManager.default.removeItem(at: base) }
-        try FileManager.default.createDirectory(at: base.appendingPathComponent("state"), withIntermediateDirectories: true)
-        let root = base.appendingPathComponent("Claude OS")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        try FileManager.default.createDirectory(at: base.appendingPathComponent("dev"), withIntermediateDirectories: true)
+        let fm = FileManager.default
+        let home = fm.temporaryDirectory.appendingPathComponent("cos-rm-\(UUID().uuidString)")
+        defer { try? fm.removeItem(at: home) }
+        let base = home.appendingPathComponent(".claude-os")
+        try fm.createDirectory(at: base.appendingPathComponent("state"), withIntermediateDirectories: true)
+        let root = home.appendingPathComponent(AppConfig.installFolder, isDirectory: true)
+        try fm.createDirectory(at: root.appendingPathComponent("bin"), withIntermediateDirectories: true)
+        try Data().write(to: root.appendingPathComponent("bin/cos"))
+        let dev = home.appendingPathComponent("dev")
+        try fm.createDirectory(at: dev.appendingPathComponent("bin"), withIntermediateDirectories: true)
+        try Data().write(to: dev.appendingPathComponent("bin/cos"))
         func config(release: Bool = true, root: URL = root) -> AppConfig {
             AppConfig(root: root, path: "", version: "0.8.0", release: release, commit: nil, rootProblem: nil, serveCommandOverride: nil)
         }
         func record(_ d: [String: Any]) throws {
             try JSONSerialization.data(withJSONObject: d).write(to: base.appendingPathComponent("state/install.json"))
         }
-        XCTAssertNil(Remover.downloadedRoot(config: config(), base: base), "no record")
+        func offered(_ c: AppConfig) -> URL? { Remover.downloadedRoot(config: c, base: base, home: home.path) }
+        XCTAssertNil(offered(config()), "no record")
         try record(["kind": "download", "root": root.path])
-        XCTAssertEqual(Remover.downloadedRoot(config: config(), base: base), root)
-        XCTAssertNil(Remover.downloadedRoot(config: config(release: false), base: base), "someone's own build")
-        XCTAssertNil(Remover.downloadedRoot(config: config(root: base.appendingPathComponent("dev")), base: base),
-                     "the app runs another checkout (a developer's): never that one")
-        try record(["kind": "download", "root": root.path.uppercased()])
-        if FileManager.default.fileExists(atPath: root.path.uppercased()) {
-            XCTAssertEqual(Remover.downloadedRoot(config: config(), base: base), root, "another spelling of the same folder")
-        }
+        XCTAssertEqual(offered(config())?.path, root.path)
+        XCTAssertNil(offered(config(release: false)), "someone's own build")
+        XCTAssertNil(offered(config(root: dev)), "the app runs another checkout (a developer's): never that one")
+        try record(["kind": "download", "root": dev.path])
+        XCTAssertNil(offered(config(root: dev)), "only the folder first launch downloads into")
         try record(["kind": "clone", "root": root.path])
-        XCTAssertNil(Remover.downloadedRoot(config: config(), base: base))
+        XCTAssertNil(offered(config()))
+
+        // The install folder as a link to a developer's checkout: never offered.
+        try fm.removeItem(at: root)
+        try fm.createSymbolicLink(at: root, withDestinationURL: dev)
+        try record(["kind": "download", "root": root.path])
+        XCTAssertNil(offered(config()), "a link to somewhere else")
+        try fm.removeItem(at: root)
+        try fm.createDirectory(at: root.appendingPathComponent("bin"), withIntermediateDirectories: true)
+        try fm.createSymbolicLink(at: root.appendingPathComponent("bin/cos"), withDestinationURL: dev.appendingPathComponent("bin/cos"))
+        XCTAssertNil(offered(config()), "its cos a link to somewhere else")
     }
 }

@@ -513,10 +513,15 @@ def follow_app(source, cwd=None):
 
 
 def follow_problem():
-    """Why a downloaded copy's code is still behind its app, from the last try, or None."""
+    """Why a downloaded copy's code is still behind its app, from the last try to reach the
+    app's commit (follow_app), or None."""
     if not core.downloaded():
         return None
-    c = (core.cache_get("catch-up") or {}).get("data") or {}
+    cached = core.cache_get("catch-up")
+    c = cached.get("data") if isinstance(cached, dict) else None
+    commit = core.app_record().get("commit")
+    if not isinstance(c, dict) or not isinstance(commit, str) or c.get("latest") != commit[:7]:
+        return None
     return c.get("why") if c.get("behind") and c.get("why") else None
 
 

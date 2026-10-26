@@ -465,6 +465,20 @@ class TestFollowTheApp(Repos):
         self.assertIn("Claude OS's code couldn't follow its app: it has uncommitted changes",
                       [m for _, m in status.signals(fake)])
 
+    def test_no_false_alarm_for_a_download_at_its_apps_commit(self):
+        from cos import daemon, status
+        self.app(self.released)  # the app is at the checkout's own commit
+        self.merge("cos net (#42)", "lib/cos/net.py")
+        with open(os.path.join(self.live, "README.md"), "w") as f:
+            f.write("changed by hand\n")
+        self.assertIsNone(daemon.pulse_catch_up(), "pulse leaves a download to its app")
+        evolve.catch_up(fetch=True, source="boot", cwd=self.live)  # a catch-up toward main, cached
+        self.assertIsNone(evolve.follow_problem(), "only a failure to reach the app's commit counts")
+        fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
+        self.assertFalse([m for _, m in status.signals(fake) if "couldn't follow" in m])
+        core.cache_put("catch-up", "not a dict")
+        self.assertIsNone(evolve.follow_problem())
+
     def test_update_apply_and_the_evolve_daemon_leave_a_download_alone(self):
         from cos import daemon
         with self.assertRaises(SystemExit), mock.patch("sys.stderr", io.StringIO()):
