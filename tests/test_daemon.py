@@ -305,7 +305,7 @@ class TestOnlyItsOwnDaemons(TempHome):
 class TestEvolveLeavesItsSettingsAlone(unittest.TestCase):
     def test_evolve_may_not_edit_the_workspaces_claude_code_settings(self):
         # Claude Code runs a settings file's hooks outside the sandbox: a run that could edit
-        # its workspace's settings could add one (decision 0017's known gaps).
+        # its workspace's settings could add one.
         dis = daemon.definitions()["evolve"]["disallowed_tools"]
         for tool in ("Edit", "Write"):
             for name in ("settings.json", "settings.local.json"):
