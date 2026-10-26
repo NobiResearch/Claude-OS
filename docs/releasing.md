@@ -47,5 +47,5 @@ the evolve sandbox. It then:
 
 Only on the owner's yes, each time: `gh release create`, which asks before it runs. The notes say
 what you need (macOS 14+, Claude Code and a Claude plan, Apple Music for music), what first launch
-adds and how to remove it, that Claude OS is under the PolyForm Noncommercial License 1.0.0
-(binaries too), and that it isn't made or endorsed by Anthropic. They pass `bin/cos guard --text`.
+adds and how to remove it, that Claude OS is under the MIT License (binaries too), and that it
+isn't made or endorsed by Anthropic. They pass `bin/cos guard --text`.

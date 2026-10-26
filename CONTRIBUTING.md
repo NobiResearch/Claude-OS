@@ -60,8 +60,6 @@ Opening a pull request against this repository is your call, not your Claude's.
 
 ## License of contributions
 
-Claude OS is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE). By opening a
-pull request you agree that your contribution is licensed under it, and that the maintainers
-may also license your contribution under other terms (for example if the project's license
-changes). You keep your copyright. If you can't agree to that, open an issue to talk about it
-first.
+Claude OS is licensed under the [MIT License](LICENSE). By opening a pull request you agree
+that your contribution is licensed under it too. You keep your copyright. If you can't agree to
+that, open an issue to talk about it first.
