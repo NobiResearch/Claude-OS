@@ -13,6 +13,21 @@ center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
 <sub>Screenshots come from `cos serve --demo`, a fictional Mac. No real machine is ever shown.</sub>
 
+## What it does for you
+
+- **"Do I need to clean up my Mac?"** It finds what's safe to delete (caches, old simulator
+  runtimes, forgotten downloads), says how much each frees, and cleans only what you pick.
+- **"What's outdated?"** macOS, Homebrew, npm, App Store apps and Rust in one list, with major
+  versions held back until you've looked.
+- **"Find me something chill."** It plays from your Apple Music library or the catalog, starts a
+  radio from a song, and learns what you like.
+- **"Catch me up."** A morning brief: the state of your Mac and the best of your feeds.
+- **"Is it the Wi-Fi or the internet?"** One verdict in a few seconds. Also: what starts with
+  your Mac, its security switches, today's calendar and the weather, once you turn them on.
+
+It asks before it changes anything, writes down what it did, and remembers what you tell it.
+What it learns about you stays on your Mac, in `~/.claude-os`.
+
 ## The desktop
 
 `cos app` builds and opens **Claude OS.app**: a native Mac app (menu bar item, global
@@ -58,6 +73,10 @@ $ cos
 ```
 
 ## Boot it
+
+Not a developer? A downloadable, signed Claude OS.app that sets itself up is on its way
+([decision 0015](docs/decisions/0015-claude-os-for-everyone.md)). Until it's out, this is the
+way in.
 
 Requirements: macOS, [Claude Code](https://claude.com/claude-code), git. Nothing else:
 the syscalls are Python standard library, and macOS ships Python. Building the app needs
