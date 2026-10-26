@@ -117,4 +117,5 @@ client the human is working in.
     --match-head-commit <sha>`, so what merges is what CI checked; `bin/cos hook check <PR>`
     prints it. If the PR changes safety files (`hook check` says so), have a `guardian` agent
     review the diff first and fix what it finds. Always squash; never merge through `gh api`.
-  - After a merge, `git pull --ff-only` in the live checkout.
+  - After a merge, `git -c core.hooksPath=/dev/null pull --ff-only` in the live checkout
+    (its hooks are `githooks/`, which a merged commit could change; 0011, part three).
