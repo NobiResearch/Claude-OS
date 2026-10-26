@@ -14,12 +14,14 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
-- **localhost from the sandbox**: model-written tests can still reach any service on
-  localhost, since the server tests need it. A local proxy would be a way out. Run the server
-  tests on a Unix socket inside the run's folder, then drop the localhost rule.
+- **The sandbox's one port is open to the local network**: to macOS's sandbox, "localhost"
+  includes this Mac's own addresses, so a test's server can bind its port on every interface
+  and be reached from the LAN while the run lasts. Move the test servers to a Unix socket in
+  the run's folder and drop the IP rules (red team on #69).
 - Done: the sandbox for model-written tests is deny-by-default (Apple Events, LaunchServices,
-  the home folder and the parent's environment are out of reach). The morning merge queue
-  is moot since 0013: Claude merges green pull requests as they're ready.
+  the home folder and the parent's environment are out of reach), and it reaches one
+  localhost port of its own, nothing else on the Mac. The morning merge queue is moot since
+  0013: Claude merges green pull requests as they're ready.
 
 ## Research (for `/lab`)
 
