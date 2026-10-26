@@ -128,7 +128,8 @@ final class ReleaseRootTests: XCTestCase {
             XCTAssertTrue(AppConfig.isRepository(ok), ok)
         }
         for bad in ["https://github.com/someone/Claude-OS.git", "https://example.com/NobiResearch/Claude-OS.git",
-                    "https://github.com/NobiResearch/Claude-OS-evil.git", ""] {
+                    "https://github.com/NobiResearch/Claude-OS-evil.git",
+                    "https://github.com/NobiResearch-evil/Claude-OS.git", ""] {
             XCTAssertFalse(AppConfig.isRepository(bad), bad)
         }
         XCTAssertNil(AppConfig.originURL(gitConfig: "[remote \"upstream\"]\n\turl = https://github.com/NobiResearch/Claude-OS.git\n"))
