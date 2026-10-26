@@ -48,26 +48,33 @@ def pin_code():
 
 
 UI_FILE_MAX = 5 * 1024 * 1024
+UI_TOTAL_MAX = (2000, 50 * 1024 * 1024)  # files, bytes: ui/ is ~5 files and ~150 KB
 
 
 def read_ui(folder):
     """The desktop's files, read once at start for the same reason: a page reloaded while the
     checkout moved would otherwise get new JavaScript against the old server. Regular files
-    only, and not huge ones: a symlink to /dev/zero or a FIFO in ui/ must not keep the app
-    from its server (it's read before the server reports ready)."""
-    files = {}
+    only, and a bounded amount: a symlink to /dev/zero or a FIFO in ui/, or ui/ itself made a
+    link to the home folder, must not keep the app from its server (it's read before the
+    server reports ready, and static files are served without the token)."""
+    files, size = {}, 0
+    if os.path.islink(str(folder)):
+        return files
     for dirpath, _, filenames in os.walk(str(folder)):  # doesn't descend into symlinked folders
         for name in filenames:
+            if len(files) >= UI_TOTAL_MAX[0] or size >= UI_TOTAL_MAX[1]:
+                return files
             full = os.path.join(dirpath, name)
             try:
                 # O_NOFOLLOW: not through a symlink; O_NONBLOCK: a FIFO opens without waiting.
                 fd = os.open(full, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+                with os.fdopen(fd, "rb") as f:
+                    st = os.fstat(f.fileno())
+                    if stat.S_ISREG(st.st_mode) and st.st_size <= UI_FILE_MAX:
+                        files[os.path.relpath(full, str(folder))] = body = f.read(UI_FILE_MAX)
+                        size += len(body)
             except OSError:
-                continue
-            with os.fdopen(fd, "rb") as f:
-                st = os.fstat(f.fileno())
-                if stat.S_ISREG(st.st_mode) and st.st_size <= UI_FILE_MAX:
-                    files[os.path.relpath(full, str(folder))] = f.read(UI_FILE_MAX)
+                continue  # an I/O error (or a file iCloud hasn't brought down) is one file less
     return files
 
 

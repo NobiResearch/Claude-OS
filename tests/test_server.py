@@ -272,6 +272,24 @@ class TestServerSecurity(TempHome):
         self.assertEqual(files, {"os.js": b"ok"})
         self.assertLess(time.time() - started, 2)
 
+    def test_the_desktop_folder_is_read_within_bounds(self):
+        """ui/ made a link to the home folder, or holding far more than a desktop does, is
+        never read in full before the server reports ready."""
+        import tempfile
+        from unittest import mock
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            real = Path(d, "real")
+            real.mkdir()
+            for i in range(5):
+                Path(real, "f%d.js" % i).write_text("x" * 10)
+            os.symlink(str(real), os.path.join(d, "ui"))
+            self.assertEqual(server.read_ui(os.path.join(d, "ui")), {}, "ui/ as a link is read as empty")
+            with mock.patch.object(server, "UI_TOTAL_MAX", (3, 10 ** 9)):
+                self.assertEqual(len(server.read_ui(str(real))), 3)
+            with mock.patch.object(server, "UI_TOTAL_MAX", (10 ** 6, 25)):
+                self.assertEqual(len(server.read_ui(str(real))), 3, "stops once 25 bytes are in")
+
     def test_the_server_keeps_the_code_it_started_with(self):
         """0011, part three: every module and desktop file is loaded at start, so a checkout
         that moves under a running server can't mix new code into it."""
