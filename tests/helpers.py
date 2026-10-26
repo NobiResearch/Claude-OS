@@ -1,6 +1,9 @@
 """Test helpers: every test runs against a throwaway CLAUDE_OS_HOME."""
+import http.client
 import os
 import shutil
+import socket
+import socketserver
 import sys
 import tempfile
 import unittest
@@ -9,13 +12,30 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 
 REAL_HOME = os.path.expanduser("~")
+# Read before any TempHome clears it: inside the evolve sandbox, tests have no network at all.
+IN_SANDBOX = bool(os.environ.get("COS_SANDBOXED"))
 
 
-def test_port():
-    """The localhost port a test's own server binds: any (0) normally; inside the evolve
-    sandbox, the one port it may use (core.run_sandboxed), so model-written tests reach
-    nothing else on localhost. One server at a time, closed before the next binds."""
-    return int(os.environ.get("COS_TEST_PORT") or 0)
+class UnixHTTPServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    """The tests' HTTP servers listen on a Unix socket in the test's own temp folder: the
+    evolve sandbox gives model-written tests no network, only sockets in their own folder
+    (core.run_sandboxed). The server's handler doesn't care which socket it's on."""
+    daemon_threads = True
+
+    def get_request(self):
+        request, _ = self.socket.accept()
+        return request, ("local", 0)  # BaseHTTPRequestHandler wants an address pair
+
+
+class UnixHTTPConnection(http.client.HTTPConnection):
+    def __init__(self, path, timeout=10):
+        super().__init__("localhost", timeout=timeout)
+        self.socket_path = path
+
+    def connect(self):
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(self.timeout)
+        self.sock.connect(self.socket_path)
 
 
 class TempHome(unittest.TestCase):

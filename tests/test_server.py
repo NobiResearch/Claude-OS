@@ -1,12 +1,10 @@
-import http.client
 import json
 import os
 import threading
 import time
 import unittest
-from http.server import ThreadingHTTPServer
 
-from helpers import TempHome, test_port
+from helpers import TempHome, UnixHTTPConnection, UnixHTTPServer
 
 from cos import chat, server
 
@@ -54,9 +52,9 @@ class TestServerSecurity(TempHome):
     def setUp(self):
         super().setUp()
         self.app = server.App("test-token")
-        self.httpd = ThreadingHTTPServer(("127.0.0.1", test_port()), server.make_handler(self.app))
-        self.httpd.daemon_threads = True
-        self.app.port = self.httpd.server_address[1]
+        self.socket = os.path.join(self.tmp, "http.sock")
+        self.httpd = UnixHTTPServer(self.socket, server.make_handler(self.app))
+        self.app.port = 7357  # what the Host header has to name
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
     def tearDown(self):
@@ -65,7 +63,7 @@ class TestServerSecurity(TempHome):
         super().tearDown()
 
     def request(self, method, path, body=None, token="test-token", host=None):
-        conn = http.client.HTTPConnection("127.0.0.1", self.app.port, timeout=10)
+        conn = UnixHTTPConnection(self.socket)
         headers = {"Host": host or "127.0.0.1:%d" % self.app.port}
         if token:
             headers["X-COS-Token"] = token
@@ -379,12 +377,13 @@ class TestDemoMode(TempHome):
     def test_demo_never_reads_or_changes_the_real_machine(self):
         from cos import demo
         app = server.App("t", demo=True)
-        httpd = ThreadingHTTPServer(("127.0.0.1", test_port()), server.make_handler(app))
-        app.port = httpd.server_address[1]
+        sock = os.path.join(self.tmp, "demo.sock")
+        httpd = UnixHTTPServer(sock, server.make_handler(app))
+        app.port = 7357
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
             def call(method, path, body=None):
-                conn = http.client.HTTPConnection("127.0.0.1", app.port, timeout=10)
+                conn = UnixHTTPConnection(sock)
                 conn.request(method, path, body=json.dumps(body) if body is not None else None,
                              headers={"Host": "127.0.0.1:%d" % app.port, "X-COS-Token": "t", "Content-Type": "application/json"})
                 res = conn.getresponse()

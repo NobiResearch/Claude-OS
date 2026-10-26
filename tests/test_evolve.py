@@ -321,9 +321,10 @@ class TestSandbox(TempHome):
         self.assertTrue(r.ok, "git works inside: %s" % r.err)
 
     @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
-    def test_one_localhost_port_its_own(self):
-        """Something else listening on localhost (a dev server, a database, a browser bridge)
-        is out of reach; the port the sandbox hands out works, for the tests' own servers."""
+    def test_no_network_only_its_own_sockets(self):
+        """Something listening on localhost (a dev server, a database, a browser bridge) is out
+        of reach, and nothing can listen where the local network could connect in; a Unix
+        socket in its own temp folder works, for the tests' servers."""
         import socket
         work = os.path.join(self.tmp, "work")
         os.makedirs(work)
@@ -332,18 +333,21 @@ class TestSandbox(TempHome):
         outside.listen(1)
         self.addCleanup(outside.close)
         probe = ("import os, socket\n"
-                 "def reach(port):\n"
+                 "def attempt(f):\n"
                  "    try:\n"
-                 "        socket.create_connection(('127.0.0.1', port), timeout=2).close(); return 'reached'\n"
+                 "        f(); return 'ok'\n"
                  "    except OSError as e: return type(e).__name__\n"
-                 "own = int(os.environ['COS_TEST_PORT'])\n"
-                 "s = socket.socket(); s.bind(('127.0.0.1', own)); s.listen(1)\n"
-                 "print(reach(%d), reach(own))\n" % outside.getsockname()[1])
+                 "print(attempt(lambda: socket.create_connection(('127.0.0.1', %d), timeout=2).close()))\n"
+                 "print(attempt(lambda: socket.socket().bind(('0.0.0.0', 0))))\n"
+                 "path = os.path.join(os.environ['TMPDIR'], 's')\n"
+                 "u = socket.socket(socket.AF_UNIX); u.bind(path); u.listen(1)\n"
+                 "print(attempt(lambda: socket.socket(socket.AF_UNIX).connect(path)))\n" % outside.getsockname()[1])
         r = core.run_sandboxed(["python3", "-c", probe], cwd=work)
         self.assertTrue(r.ok, r.err)
-        elsewhere, own = r.out.split()
-        self.assertNotEqual(elsewhere, "reached", "a port that isn't its own is out of reach")
-        self.assertEqual(own, "reached")
+        localhost, listen, own = r.out.split()
+        self.assertNotEqual(localhost, "ok", "localhost is out of reach")
+        self.assertNotEqual(listen, "ok", "nothing listens where the local network could connect")
+        self.assertEqual(own, "ok", "its own Unix socket works")
 
 
 if __name__ == "__main__":
