@@ -1,5 +1,6 @@
 import http.client
 import json
+import os
 import threading
 import time
 import unittest
@@ -226,6 +227,50 @@ class TestServerSecurity(TempHome):
             while not exits and time.time() < deadline:
                 time.sleep(0.05)
         self.assertEqual(exits, [server.RESTART])
+
+    def test_nothing_starts_while_it_restarts(self):
+        """Closing the chats takes a while; a job started then would be cut off by the exit."""
+        from unittest import mock
+        self.app.managed = True
+        closing, release, exits = threading.Event(), threading.Event(), []
+
+        def slow_close():
+            closing.set()
+            release.wait(3)
+        with mock.patch.object(self.app.chats, "close_all", slow_close), \
+                mock.patch.object(server.os, "_exit", exits.append):
+            self.assertEqual(self.request("POST", "/api/restart", {})[0], 200)
+            self.assertTrue(closing.wait(3))
+            with self.assertRaises(server.Restarting):
+                self.app.job(["version"], "Late")
+            status, _, data = self.request("POST", "/api/friction", {"text": "late"})
+            self.assertEqual(status, 503)
+            self.assertIn("restarting", json.loads(data)["error"])
+            self.assertEqual(self.request("GET", "/api/friction")[0], 200, "reads still work")
+            release.set()
+            deadline = time.time() + 3
+            while not exits and time.time() < deadline:
+                time.sleep(0.05)
+        self.assertEqual(exits, [server.RESTART])
+        self.assertEqual(self.app.jobs, {})
+
+    def test_only_plain_files_are_served(self):
+        """ui/ isn't a safety path: a symlink to /dev/zero or a FIFO in it must not hang the
+        server before it reports ready, and nothing huge is held in memory."""
+        import tempfile
+        from pathlib import Path
+        with tempfile.TemporaryDirectory() as d:
+            Path(d, "os.js").write_text("ok")
+            os.symlink("/dev/zero", os.path.join(d, "zero.js"))
+            os.symlink(os.path.join(d, "os.js"), os.path.join(d, "alias.js"))
+            os.mkfifo(os.path.join(d, "pipe.js"))
+            with open(os.path.join(d, "huge.js"), "wb") as f:
+                f.truncate(server.UI_FILE_MAX + 1)
+            os.symlink("/etc", os.path.join(d, "etc"))
+            started = time.time()
+            files = server.read_ui(d)
+        self.assertEqual(files, {"os.js": b"ok"})
+        self.assertLess(time.time() - started, 2)
 
     def test_the_server_keeps_the_code_it_started_with(self):
         """0011, part three: every module and desktop file is loaded at start, so a checkout

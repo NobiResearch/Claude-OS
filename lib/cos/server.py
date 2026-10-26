@@ -15,6 +15,7 @@ import mimetypes
 import os
 import re
 import secrets
+import stat
 import subprocess
 import sys
 import threading
@@ -41,24 +42,40 @@ def pin_code():
         try:
             importlib.import_module("." + m.name, __package__)
             names.append(m.name)
-        except Exception:
-            pass  # it would fail just the same if a route imported it later
+        except (Exception, SystemExit):
+            pass  # it would fail just the same if a route imported it later; never stop the app's server
     return names
+
+
+UI_FILE_MAX = 5 * 1024 * 1024
 
 
 def read_ui(folder):
     """The desktop's files, read once at start for the same reason: a page reloaded while the
-    checkout moved would otherwise get new JavaScript against the old server."""
+    checkout moved would otherwise get new JavaScript against the old server. Regular files
+    only, and not huge ones: a symlink to /dev/zero or a FIFO in ui/ must not keep the app
+    from its server (it's read before the server reports ready)."""
     files = {}
-    for dirpath, _, filenames in os.walk(str(folder)):
+    for dirpath, _, filenames in os.walk(str(folder)):  # doesn't descend into symlinked folders
         for name in filenames:
             full = os.path.join(dirpath, name)
             try:
-                with open(full, "rb") as f:
-                    files[os.path.relpath(full, str(folder))] = f.read()
+                # O_NOFOLLOW: not through a symlink; O_NONBLOCK: a FIFO opens without waiting.
+                fd = os.open(full, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
             except OSError:
-                pass
+                continue
+            with os.fdopen(fd, "rb") as f:
+                st = os.fstat(f.fileno())
+                if stat.S_ISREG(st.st_mode) and st.st_size <= UI_FILE_MAX:
+                    files[os.path.relpath(full, str(folder))] = f.read(UI_FILE_MAX)
     return files
+
+
+class Restarting(Exception):
+    """Raised by App.job while the server is on its way out (see r_restart)."""
+
+
+RESTARTING = "Claude OS is restarting to update; try again in a moment"
 COS = str(core.ROOT / "bin" / "cos")
 RESTART = 75  # the exit status that tells Claude OS.app a restart was planned (EX_TEMPFAIL)
 
@@ -241,6 +258,9 @@ class App:
         else:
             self.chats = chat.Registry()
         self.jobs = {}
+        # Set, under the lock, once a restart is certain: no job may start after that (r_restart).
+        self.restart_lock = threading.Lock()
+        self.restarting = False
         self.port = None
         # The commit this server's code came from: once the checkout moves, it's out of date
         # (serve() pins its modules and desktop files to this commit; 0011, part three).
@@ -250,8 +270,11 @@ class App:
 
 
     def job(self, argv, label):
-        j = Job(argv, label)
-        self.jobs[j.id] = j
+        with self.restart_lock:
+            if self.restarting:
+                raise Restarting()
+            j = Job(argv, label)
+            self.jobs[j.id] = j
         core.journal("approval", "approved in the app: cos %s" % " ".join(argv), via="app")
         return j.summary()
 
@@ -327,6 +350,8 @@ def make_handler(app):
                 return self._error(400, "bad json")
             if app.demo and self._demo(method, path, body):
                 return
+            if app.restarting and method == "POST":
+                return self._error(503, RESTARTING)
             try:
                 route = ROUTES.get((method, path))
                 if route:
@@ -339,6 +364,8 @@ def make_handler(app):
                     j = app.jobs.get(m.group(1))
                     return self._json(j.summary()) if j else self._error(404, "no such job")
                 return self._error(404, "no such endpoint")
+            except Restarting:
+                return self._error(503, RESTARTING)
             except Exception as e:  # keep the server alive; tell the UI what broke
                 return self._error(500, "%s: %s" % (type(e).__name__, e))
 
@@ -458,8 +485,10 @@ def make_handler(app):
 
         def later():
             time.sleep(0.3)
-            if any(j.ended is None for j in list(app.jobs.values())):
-                return  # one started in the meantime: the Update item stays for later
+            with app.restart_lock:
+                if any(j.ended is None for j in list(app.jobs.values())):
+                    return  # one started in the meantime: the Update item stays for later
+                app.restarting = True  # from here on, no job and no POST starts (App.job, dispatch)
             app.chats.close_all()
             core.journal("action", "Claude OS's server restarted to update", via="app")
             os._exit(RESTART)

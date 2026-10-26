@@ -109,13 +109,16 @@ their modules lazily, so it ran new modules beside old ones until the human clic
 
 **Decided, now:**
 - `cos serve` imports every Claude OS module before it serves (`server.pin_code`, ~50 ms) and
-  reads `ui/` into memory (`server.read_ui`): the server stays one version, whatever moves the
-  checkout. Jobs and new chats run the code on disk, as friction #16 wants.
-- Update refuses while a job runs (409, "… is still running; Update when it's done"), and a job
-  started in the moment before the exit cancels it.
+  reads `ui/` into memory (`server.read_ui`, regular files only, up to 5 MB each): the server
+  stays one version, whatever moves the checkout. Jobs and new chats run the code on disk, as
+  friction #16 wants. Nothing in either can keep the app from its server.
+- Update refuses while a job runs (409, "… is still running; Update when it's done"). Once a
+  restart is certain, `app.restarting` is set under a lock: no job starts and every POST
+  answers 503 while the chats close.
 - `auto_catch_up` caches its why, so a catch-up that can't happen isn't offered.
 - Pulling the live checkout by hand runs with hooks off (`git -c core.hooksPath=/dev/null pull
-  --ff-only`): its hooksPath is `githooks/`, and a merged commit could add a hook.
+  --ff-only`): its hooksPath is `githooks/`, and a merged commit could add a hook. Claude does
+  so now; the line in CLAUDE.md waits for the human (a safety file Claude doesn't edit).
 
 **Deferred** until the human asks for it: the server restarting itself when idle. When it
 comes: only the app's server with the switch on, zero chat sessions (never reaped for it), no
