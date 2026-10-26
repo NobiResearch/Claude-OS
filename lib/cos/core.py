@@ -415,7 +415,7 @@ def config_set(dotted, value):
 
 # ---------------------------------------------------------------- network
 
-USER_AGENT = "ClaudeOS/0.1 (+https://github.com/markusskov/Claude-OS)"
+USER_AGENT = "ClaudeOS/0.1 (+https://github.com/NobiResearch/Claude-OS)"
 _SSL = None
 
 

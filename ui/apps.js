@@ -1060,7 +1060,7 @@
             h("div", { class: "about-mark" }, "◆"),
             h("div", null, h("div", { class: "about-name" }, "Claude OS"), h("div", { class: "muted small" }, "An operating layer for your Mac, designed by Claude."),
               h("div", { class: "row gap pad-t" },
-                h("a", { class: "btn ghost small", href: "https://github.com/markusskov/Claude-OS", target: "_blank", rel: "noopener" }, "Source on GitHub"),
+                h("a", { class: "btn ghost small", href: "https://github.com/NobiResearch/Claude-OS", target: "_blank", rel: "noopener" }, "Source on GitHub"),
                 btn("Lessons learned", async () => { const d = await api("/api/doc?name=lessons"); clear(root).appendChild(h("div", null, btn("← Back", draw, "ghost small"), h("div", { class: "md", html: MD.render(d.text) }))); }, "ghost small")))));
           root.appendChild(h("div", { class: "muted small pad-t" }, "Shortcuts: ⌘K command palette · ⌃⌥Space summons Claude OS from anywhere."));
         });

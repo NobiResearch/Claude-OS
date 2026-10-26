@@ -29,7 +29,7 @@ struct AppConfig {
     var cosScript: URL { root.appendingPathComponent("bin/cos") }
 
     /// The repository a release runs code from, and nothing else.
-    static let repository = "github.com/markusskov/Claude-OS"
+    static let repository = "github.com/NobiResearch/Claude-OS"
     /// Where a release's first launch puts Claude OS when there's no checkout yet.
     static let installFolder = "Library/Application Support/Claude OS"
 

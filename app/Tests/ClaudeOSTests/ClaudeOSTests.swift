@@ -112,7 +112,7 @@ final class NotificationTargetTests: XCTestCase {
 /// Decision 0015, step 4: a release finds its code without baked paths, and runs only a
 /// checkout of this repository.
 final class ReleaseRootTests: XCTestCase {
-    let config = "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = https://github.com/markusskov/Claude-OS.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
+    let config = "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = https://github.com/NobiResearch/Claude-OS.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
 
     func testCandidatesInOrderNeverTheEnvironmentOrTheCurrentFolder() {
         XCTAssertEqual(AppConfig.releaseCandidates(home: "/Users/x", linkedRoot: "/Users/x/src/Claude-OS"),
@@ -122,16 +122,17 @@ final class ReleaseRootTests: XCTestCase {
     }
 
     func testOnlyThisRepositorysOrigin() {
-        XCTAssertEqual(AppConfig.originURL(gitConfig: config), "https://github.com/markusskov/Claude-OS.git")
-        for ok in ["https://github.com/markusskov/Claude-OS.git", "https://github.com/markusskov/Claude-OS",
-                   "git@github.com:markusskov/Claude-OS.git", "ssh://git@github.com/markusskov/Claude-OS.git"] {
+        XCTAssertEqual(AppConfig.originURL(gitConfig: config), "https://github.com/NobiResearch/Claude-OS.git")
+        for ok in ["https://github.com/NobiResearch/Claude-OS.git", "https://github.com/NobiResearch/Claude-OS",
+                   "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git"] {
             XCTAssertTrue(AppConfig.isRepository(ok), ok)
         }
-        for bad in ["https://github.com/someone/Claude-OS.git", "https://example.com/markusskov/Claude-OS.git",
-                    "https://github.com/markusskov/Claude-OS-evil.git", ""] {
+        for bad in ["https://github.com/someone/Claude-OS.git", "https://example.com/NobiResearch/Claude-OS.git",
+                    "https://github.com/NobiResearch/Claude-OS-evil.git",
+                    "https://github.com/NobiResearch-evil/Claude-OS.git", ""] {
             XCTAssertFalse(AppConfig.isRepository(bad), bad)
         }
-        XCTAssertNil(AppConfig.originURL(gitConfig: "[remote \"upstream\"]\n\turl = https://github.com/markusskov/Claude-OS.git\n"))
+        XCTAssertNil(AppConfig.originURL(gitConfig: "[remote \"upstream\"]\n\turl = https://github.com/NobiResearch/Claude-OS.git\n"))
     }
 
     func testAFolderIsClaudeOSOnlyWithItsFilesAndOrigin() {
@@ -139,7 +140,7 @@ final class ReleaseRootTests: XCTestCase {
         XCTAssertTrue(AppConfig.isClaudeOS("/r", fileExists: files.contains, read: { $0 == "/r/.git/config" ? self.config : nil }))
         XCTAssertFalse(AppConfig.isClaudeOS("/r", fileExists: { _ in false }, read: { _ in self.config }))
         XCTAssertFalse(AppConfig.isClaudeOS("/r", fileExists: files.contains, read: { _ in nil }), "no .git/config")
-        let fork = config.replacingOccurrences(of: "markusskov", with: "someone")
+        let fork = config.replacingOccurrences(of: "NobiResearch", with: "someone")
         XCTAssertFalse(AppConfig.isClaudeOS("/r", fileExists: files.contains, read: { _ in fork }))
     }
 

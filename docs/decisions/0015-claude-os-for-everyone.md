@@ -46,11 +46,11 @@ profile for one registered Mac.
    - It signs with `--options runtime --timestamp` and notarizes with a Keychain profile only.
    - It refuses under `CLAUDE_OS_DAEMON`, `COS_SANDBOXED` or `CI`, on a dirty tree, or off `origin/main`, and fails rather than falling back to ad hoc.
    - Before embedding the profile and signing, it scans Info.plist, the binary (`strings`, `nm`) and the resources with the Guardian's patterns, and any hit stops it. (The profile and the signature carry the team's name by design, so they're checked by parsing, not by the scan.)
-4. **The app finds its code without baked paths.** The order is: Info.plist (dev builds), `CLAUDE_OS_ROOT` (dev builds only), the `cos` link, then `~/Library/Application Support/Claude OS`. A release build checks what it found before running it (`bin/cos`, `lib/cos`, and an origin of `github.com/markusskov/Claude-OS`). PATH is a fixed list. The app records where it is in `~/.claude-os/state/app.json` for `cos` to read. First-launch setup code that lands outside `app/` (a new `lib/cos/` module, say) joins `hook.PROTECTED` too.
+4. **The app finds its code without baked paths.** The order is: Info.plist (dev builds), `CLAUDE_OS_ROOT` (dev builds only), the `cos` link, then `~/Library/Application Support/Claude OS`. A release build checks what it found before running it (`bin/cos`, `lib/cos`, and an origin of `github.com/NobiResearch/Claude-OS`). PATH is a fixed list. The app records where it is in `~/.claude-os/state/app.json` for `cos` to read. First-launch setup code that lands outside `app/` (a new `lib/cos/` module, say) joins `hook.PROTECTED` too.
 5. **First launch: one native checklist, nothing before a click.**
    - Command line tools: checked with `xcode-select -p`, which never prompts, before any `git` or `python3` shim runs. `xcode-select --install` only on a click.
    - Claude Code: a link to Anthropic's page or the command to paste. Never a script piped to a shell.
-   - The clone: `github.com/markusskov/Claude-OS` at the release commit, with catch-up's git hardening, into an empty `~/Library/Application Support/Claude OS`.
+   - The clone: `github.com/NobiResearch/Claude-OS` at the release commit, with catch-up's git hardening, into an empty `~/Library/Application Support/Claude OS`.
    - Existing installs: adopt one or stop. Never re-point another checkout's daemons, links or hooks.
    - Opt-ins: `cos install`'s extras (skills in `~/.claude/skills`, the pulse daemon) are opt-ins that start off.
    - Downloaded copies get a `settings.local.json` that denies `gh` and `git push`. The night shift is hidden unless origin is the person's own repository.
