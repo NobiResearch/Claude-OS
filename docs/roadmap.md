@@ -14,11 +14,12 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
-- **Deny-by-default sandbox for model-written tests**: today it's allow-default minus
-  writes, the network and private folders; move to an explicit allowlist (board, Guardian).
-- **Merge the morning queue with one approval** (0006, second amendment; Steward): one
-  `cos` command that merges the night's waiting pull requests in order, rebasing each onto
-  the new main and settling CHANGELOG-only conflicts, and stops at the first real conflict.
+- **localhost from the sandbox**: model-written tests can still reach any service on
+  localhost, since the server tests need it. A local proxy would be a way out. Run the server
+  tests on a Unix socket inside the run's folder, then drop the localhost rule.
+- Done: the sandbox for model-written tests is deny-by-default (Apple Events, LaunchServices,
+  the home folder and the parent's environment are out of reach). The morning merge queue
+  is moot since 0013: Claude merges green pull requests as they're ready.
 
 ## Research (for `/lab`)
 

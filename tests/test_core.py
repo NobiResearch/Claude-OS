@@ -1,10 +1,16 @@
 import os
 import sys
 import time
+import unittest
 
 from helpers import TempHome
 
 from cos import core
+
+
+def _can_list_processes():
+    """The evolve sandbox can't list other processes (sysmond is out of reach)."""
+    return core.run(["pgrep", "-x", "launchd"], timeout=5).rc == 0
 
 
 class TestCore(TempHome):
@@ -20,6 +26,7 @@ class TestCore(TempHome):
         self.assertTrue(r.ok)
         self.assertEqual(r.out, "hi")
 
+    @unittest.skipUnless(_can_list_processes(), "needs a process list (not inside the evolve sandbox)")
     def test_app_running_sees_its_own_ancestors(self):
         # The app's chat runs inside the app; macOS pgrep skips ancestors unless told not to.
         name = "cosparent%d" % os.getpid()

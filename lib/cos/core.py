@@ -161,34 +161,71 @@ def _drain(p):
         return "", ""
 
 
+# Deny by default: what model-written code may touch is listed, not what it mayn't. It reads
+# the system, the toolchains (Python, Xcode's git, Homebrew) and its own two folders, writes
+# only those, and talks only to localhost (the server tests need it). No Apple Events, no
+# LaunchServices (`open` a URL), no pasteboard, no DNS, nothing of the human's home folder.
+# bsd.sb brings the system's own plumbing: logging, preferences, user lookups.
 SANDBOX_PROFILE = """(version 1)
-(allow default)
-(deny network-outbound (remote ip))
+(deny default)
+(import "bsd.sb")
+(allow process-fork)
+(allow process-exec)
+(allow signal (target same-sandbox))
+(allow sysctl-read)
+(allow file-read-metadata)
+(allow file-read*
+  (literal "/") (subpath "/System") (subpath "/usr") (subpath "/bin") (subpath "/sbin") (subpath "/dev")
+  (subpath "/private/etc") (subpath "/private/var/db/timezone") (subpath "/private/var/db/dyld")
+  (subpath "/private/var/select")
+  (subpath "/Library/Frameworks/Python.framework") (subpath "/Library/Developer/CommandLineTools")
+  (subpath "/Applications/Xcode.app") (literal "/Library/Preferences/com.apple.dt.Xcode.plist")
+  (subpath "/opt/homebrew")
+  (subpath %(cwd)s) (subpath %(tmp)s) (regex %(xcrun)s))
+(allow file-write*
+  (subpath %(cwd)s) (subpath %(tmp)s) (regex %(xcrun)s)
+  (literal "/dev/null") (literal "/dev/zero") (literal "/dev/tty") (regex #"^/dev/fd/"))
+(allow file-ioctl (literal "/dev/null") (literal "/dev/tty"))
+(allow network-bind network-inbound (local ip "localhost:*"))
 (allow network-outbound (remote ip "localhost:*"))
-(deny file-write*)
-(allow file-write* (subpath %(cwd)s) (subpath "/private/tmp") (subpath "/private/var/folders") (subpath "/dev"))
 (deny file-read* %(private)s)
-(allow file-read* (subpath %(cwd)s))
 """
 
-# Never readable by model-written code: credentials and the human's private state.
+# Never readable by model-written code, even if its folder were inside the home folder:
+# credentials and the human's private state.
 PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".aws", ".gnupg", ".config/gh", ".netrc", ".npmrc",
                 "Library/Keychains", "Library/Application Support/com.apple.TCC")
+# The PATH entries the sandbox can run from; the rest of the human's PATH stays outside.
+SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/Python.framework/",
+               "/Library/Developer/CommandLineTools/", "/Applications/Xcode.app/")
+
+
+def _sbpl_regex(literal_prefix):
+    """An SBPL regex matching paths that start with this literal text."""
+    return '#"^%s"' % "".join("\\" + c if c in '.^$*+?()[]{}|\\"' else c for c in literal_prefix)
 
 
 def run_sandboxed(cmd, cwd, timeout=600):
-    """Run untrusted code (e.g. tests an evolve run wrote): no network, writes only inside
-    cwd and temp dirs, and a throwaway HOME so nothing can touch the real one."""
+    """Run untrusted code (e.g. tests an evolve run wrote) under the deny-by-default profile,
+    with a throwaway HOME and only the environment set here: nothing the human's shell
+    exports (tokens, keys) reaches it."""
     import tempfile
     real = os.path.realpath(cwd)
     home_dir = os.path.realpath(os.path.expanduser("~"))
     private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
-    profile = SANDBOX_PROFILE % {"cwd": json.dumps(real), "private": private}
+    # Xcode's git shim (xcrun) keeps a cache in the per-user temp folder, outside $TMPDIR.
+    user_tmp = os.path.realpath(run(["getconf", "DARWIN_USER_TEMP_DIR"], timeout=5).out.strip() or "/nonexistent")
+    path = ":".join(p for p in os.environ.get("PATH", "").split(":") if p.startswith(SANDBOX_BIN)) or "/usr/bin:/bin"
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-") as tmp:
+        tmp = os.path.realpath(tmp)
+        profile = SANDBOX_PROFILE % {"cwd": json.dumps(real), "tmp": json.dumps(tmp), "private": private,
+                                     "xcrun": _sbpl_regex(user_tmp + "/xcrun_db")}
         # CLAUDE_OS_DAEMON makes `cos` refuse every mutating command inside, too.
-        env = {"HOME": tmp, "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1",
+        env = {"PATH": path, "HOME": tmp, "TMPDIR": tmp + "/", "LANG": "en_US.UTF-8",
+               "CLAUDE_OS_HOME": os.path.join(tmp, "state"), "COS_SANDBOXED": "1",
                "CLAUDE_OS_DAEMON": "sandboxed-tests"}
-        return run(["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real, env=env)
+        argv = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in sorted(env.items())]
+        return run(argv + ["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real)
 
 
 def osascript(script, timeout=10):
