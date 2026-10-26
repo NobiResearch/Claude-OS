@@ -300,6 +300,26 @@ class TestSandbox(TempHome):
             r = core.run_sandboxed(["ls", secret], cwd=work)
             self.assertNotEqual(r.rc, 0, "private folders aren't readable from the sandbox")
 
+    @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
+    def test_deny_by_default(self):
+        """What it may touch is listed: a file next to its folder, the environment the tests
+        were started with and other apps are all out of reach, while Python and git work."""
+        work = os.path.join(self.tmp, "work")
+        os.makedirs(work)
+        beside = os.path.join(self.tmp, "beside.txt")
+        open(beside, "w").write("not yours\n")
+        r = core.run_sandboxed(["cat", beside], cwd=work)
+        self.assertNotEqual(r.rc, 0, "only its own folders are readable")
+        with mock.patch.dict(os.environ, {"COS_PROBE_TOKEN": "a secret"}):
+            r = core.run_sandboxed(["python3", "-c", "import os; print(sorted(os.environ))"], cwd=work)
+        self.assertTrue(r.ok, r.err)
+        self.assertNotIn("COS_PROBE_TOKEN", r.out, "nothing the human's shell exports gets in")
+        self.assertIn("COS_SANDBOXED", r.out)
+        r = core.run_sandboxed(["lsappinfo", "info", "-only", "name", "Finder"], cwd=work)
+        self.assertNotIn("Finder", r.out, "LaunchServices (and so `open <url>`) is out of reach")
+        r = core.run_sandboxed(["git", "--version"], cwd=work)
+        self.assertTrue(r.ok, "git works inside: %s" % r.err)
+
 
 if __name__ == "__main__":
     unittest.main()
