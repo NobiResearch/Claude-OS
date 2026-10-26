@@ -394,10 +394,12 @@ def cos_calls(command):
     if not re.search(r"(^|[^\w-])cos\b", text):
         return []
     text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
+    # A cos call anywhere in the text, inside `$( )`, backticks or quotes too.
+    runs_cos = any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
     try:
         cooked, raw = _tokens(text, True), _tokens(text, False)
     except ValueError:
-        return None if re.search(r"(^|[\s;&|(])(\S*/)?cos\b", text) else []
+        return None if runs_cos else []
     if len(cooked) != len(raw):
         return None
     calls = []
@@ -412,7 +414,7 @@ def cos_calls(command):
             if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
                 plain.append(r)
         calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
-    if calls and ("`" in text or "$(" in text or "<(" in text):
+    if runs_cos and ("`" in text or "$(" in text or "<(" in text):
         return None
     return calls
 

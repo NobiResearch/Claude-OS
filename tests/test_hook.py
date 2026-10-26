@@ -334,7 +334,9 @@ class TestPretool(TempHome):
             self.assertIsNotNone(self.decide(cmd), repr(cmd))
 
     def test_what_cant_be_read_for_sure_asks(self):
-        for cmd in ("cos clean apply `x`", "cos clean apply $(echo x)", "cos clean apply 'x"):
+        for cmd in ("cos clean apply `x`", "cos clean apply $(echo x)", "cos clean apply 'x",
+                    'mdfind "$(cos  clean apply x --yes)"', "mdfind `cos  clean apply x --yes`",
+                    'git log "$(bin/cos  update apply brew --yes)"', 'echo don\\\'t "$(cos  clean apply x --yes)"'):
             self.assertIn("can't read", self.decide(cmd), cmd)
 
     def test_reading_and_everything_else_has_no_opinion(self):
