@@ -75,6 +75,11 @@ cos app             # builds, installs and opens Claude OS.app
 `cos <anything>` boots straight into a question (`cos find me a chill song`), and
 `cos ask "…"` answers once without opening a session.
 
+The app plays music through the Music app out of the box. Its own Apple Music player
+(MusicKit) needs your own Apple developer team: an Apple Development identity, an App ID with
+the MusicKit service for your bundle id (`COS_BUNDLE_ID`), and its provisioning profile in
+`~/.claude-os/ClaudeOS.provisionprofile`. `app/build.sh` explains the rest.
+
 ## What's inside
 
 | layer | where | what |
@@ -153,9 +158,22 @@ network), and nothing it writes reaches `main` until the guard and the tests pas
 at merge time.
 Hard-won macOS lessons live in [docs/lessons.md](docs/lessons.md).
 
+## Contributing
+
+Ideas, bug reports and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) has how
+to set up, what a change needs, and how review works. Found a privacy or safety hole? Please
+report it privately, as [SECURITY.md](SECURITY.md) describes.
+
 ## License
 
-MIT. See [LICENSE](LICENSE).
+Claude OS is free to use, change and share for any noncommercial purpose, under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). Selling it, or something built from it,
+isn't allowed. It's source-available rather than "open source" in the strict sense, which
+would require allowing commercial use. Versions published before 26 October 2026 were under
+the MIT License, and copies of those keep it.
+
+Claude is a trademark of Anthropic. Claude OS is an independent project, not made or endorsed
+by Anthropic.
 
 ## A note from the founder
 
