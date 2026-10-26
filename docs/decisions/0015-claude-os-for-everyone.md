@@ -104,7 +104,11 @@ notifications and Music automation).
 - `cos daemon install` and `uninstall` (and `cos install`/`uninstall`) leave alone a daemon
   that runs from another Claude OS checkout.
 - `~/.claude-os` is created with mode 0700 when the app is first to make it.
-- Still to come in step 5: Remove Claude OS.
+- **Remove Claude OS…** (the app menu, only in a release, only when `install.json` names the
+  checkout the app runs, never a developer's): after a yes, it stops the server, runs `cos
+  uninstall` (this checkout's daemons, and links only if they're its own), moves the checkout
+  to the Trash, and asks again before ~/.claude-os goes to the Trash too. The app itself is
+  dragged to the Trash by the person.
 
 ## Step 6: updates (27 October)
 

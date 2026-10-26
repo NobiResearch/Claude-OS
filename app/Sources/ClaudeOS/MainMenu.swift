@@ -3,7 +3,8 @@ import AppKit
 /// The standard main menu. The Edit menu matters: without it, ⌘C/⌘V/⌘Z do nothing in the
 /// web view's text fields.
 enum MainMenu {
-    static func build(appName: String, target: AppDelegate) -> NSMenu {
+    /// `removable`: a downloaded copy gets "Remove Claude OS…" (decision 0015).
+    static func build(appName: String, target: AppDelegate, removable: Bool = false) -> NSMenu {
         let main = NSMenu()
 
         // App
@@ -20,6 +21,11 @@ enum MainMenu {
                         keyEquivalent: "h").keyEquivalentModifierMask = [.command, .option]
         appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
+        if removable {
+            appMenu.addItem(withTitle: "Remove Claude OS…", action: #selector(AppDelegate.removeClaudeOS(_:)), keyEquivalent: "")
+                .target = target
+            appMenu.addItem(.separator())
+        }
         appMenu.addItem(withTitle: "Quit \(appName)", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
 
         // Edit (nil-targeted: the first responder, i.e. the web view, handles these)

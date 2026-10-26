@@ -330,3 +330,27 @@ final class FirstLaunchTests: XCTestCase {
         try png.write(to: URL(fileURLWithPath: dir).appendingPathComponent("first-launch.png"))
     }
 }
+
+/// Decision 0015, step 5: Remove Claude OS is offered only for the checkout this app downloaded.
+final class RemoverTests: XCTestCase {
+    func testOnlyTheDownloadedCheckoutOfARelease() throws {
+        let base = FileManager.default.temporaryDirectory.appendingPathComponent("cos-rm-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: base) }
+        try FileManager.default.createDirectory(at: base.appendingPathComponent("state"), withIntermediateDirectories: true)
+        let root = base.appendingPathComponent("Claude OS")
+        func config(release: Bool = true, root: URL = root) -> AppConfig {
+            AppConfig(root: root, path: "", version: "0.8.0", release: release, commit: nil, rootProblem: nil, serveCommandOverride: nil)
+        }
+        func record(_ d: [String: Any]) throws {
+            try JSONSerialization.data(withJSONObject: d).write(to: base.appendingPathComponent("state/install.json"))
+        }
+        XCTAssertNil(Remover.downloadedRoot(config: config(), base: base), "no record")
+        try record(["kind": "download", "root": root.path])
+        XCTAssertEqual(Remover.downloadedRoot(config: config(), base: base), root)
+        XCTAssertNil(Remover.downloadedRoot(config: config(release: false), base: base), "someone's own build")
+        XCTAssertNil(Remover.downloadedRoot(config: config(root: base.appendingPathComponent("dev")), base: base),
+                     "the app runs another checkout (a developer's): never that one")
+        try record(["kind": "clone", "root": root.path])
+        XCTAssertNil(Remover.downloadedRoot(config: config(), base: base))
+    }
+}

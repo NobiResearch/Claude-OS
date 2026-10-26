@@ -49,7 +49,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         startDesktop()
     }
 
+    @objc func removeClaudeOS(_ sender: Any?) {
+        activate()
+        Remover.run(config: config) { [weak self] in self?.server?.stop() }
+    }
+
     private func startDesktop() {
+        NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self, removable: Remover.downloadedRoot(config: config) != nil)
         windowController = MainWindowController(config: config)
         statusController = StatusItemController(
             onOpen: { [weak self] in self?.openMainWindow(nil) },
