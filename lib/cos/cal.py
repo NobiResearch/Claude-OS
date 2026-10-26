@@ -25,7 +25,7 @@ def connected(s=None):
 def _ask_app(command, wait):
     before = (state() or {}).get("ts", 0)
     url = core.app_url("calendar/%s" % command) if command == "connect" else "claude-os://calendar/%s" % command
-    r = core.run(["open", "-g", url], timeout=15)
+    r = core.open_app_url(url, timeout=15)
     if not r.ok:
         return None
     deadline = time.time() + wait

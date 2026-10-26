@@ -98,6 +98,10 @@ final class ServerController {
         stdoutBuffer = Data()
         stderrTail = Data()
 
+        if let problem = config.rootProblem {
+            completion(.failure(.launch(problem)))  // a release with no checkout of Claude OS yet
+            return
+        }
         let p = Process()
         if let cmd = config.serveCommandOverride {
             p.executableURL = URL(fileURLWithPath: "/bin/sh")
