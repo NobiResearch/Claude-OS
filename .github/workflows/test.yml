@@ -1,6 +1,8 @@
 name: test
+# Branches get their run from the pull request; a push to them as well ran every check twice.
 on:
   push:
+    branches: [main]
   pull_request:
 # Read-only token, whatever the repository default is: nothing a branch's tests run can
 # merge or push (decision 0006).
@@ -10,7 +12,10 @@ jobs:
   test:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      # v5 and later run on Node 24; nothing after this step needs the token.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - name: Unit tests (system Python)
         run: /usr/bin/python3 -m unittest discover -s tests -v
       - name: Guard (no private data in the tree)
