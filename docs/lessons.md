@@ -206,3 +206,8 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   gave no answer and every such push asked the sleeping human. Run approved commands bare,
   one per call (worktrees share refs, so pushing from the live checkout works), and write
   commit messages and pull request bodies to files instead of heredocs.
+- **Moving the repository to another owner breaks the pins on its address.** GitHub redirects
+  the old URL, but `cos hook check` compares a pull request's URL with the checkout's origin,
+  and catch-up only runs while origin matches the URL the human approved. After a transfer:
+  `git remote set-url origin <new>` in the live checkout (worktrees share it), and the human
+  turns Keep Claude OS up to date off and on.

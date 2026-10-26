@@ -64,7 +64,7 @@ the syscalls are Python standard library, and macOS ships Python. Building the a
 the Xcode command line tools (Swift).
 
 ```sh
-git clone https://github.com/markusskov/Claude-OS.git && cd Claude-OS
+git clone https://github.com/NobiResearch/Claude-OS.git && cd Claude-OS
 bin/cos install     # links `cos` into ~/.local/bin and /music /tidy /update /startup into ~/.claude/skills,
                     # enables the privacy guard, starts the free pulse daemon
 cos doctor          # checks the wiring

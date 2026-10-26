@@ -7,7 +7,7 @@ so please report one privately.
 
 Use GitHub's private vulnerability reporting: the repository's **Security** tab, then
 **Report a vulnerability**
-([direct link](https://github.com/markusskov/Claude-OS/security/advisories/new)). Please don't
+([direct link](https://github.com/NobiResearch/Claude-OS/security/advisories/new)). Please don't
 open a public issue or pull request for it. Say what you found, how to reproduce it, and what
 it lets someone do. Leave your own private data out of the report.
 
