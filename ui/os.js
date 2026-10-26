@@ -13,6 +13,13 @@
   } else {
     try { token = sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) {}
   }
+  // The app loads `/#token=…` again after the server restarts (menu bar: Update) and for
+  // View › Reload. The server keeps its port, so only the fragment differs, and WebKit treats
+  // that as a jump within this page instead of loading it: the page kept the old server's
+  // token and every call failed ("missing or wrong token"). Start over with the new one.
+  window.addEventListener("hashchange", () => {
+    if (/token=[\w-]+/.test(location.hash)) location.reload();
+  });
 
   async function api(path, opts) {
     opts = opts || {};
