@@ -705,7 +705,9 @@ def make_handler(app):
             br = b.get("branch") or ""
             if not re.match(r"^evolve/[\w.-]+$", br):
                 return h._error(400, "not an evolve branch")
-            h._json(app.job(["evolve", action, br, "--yes"], "%s %s" % (action.capitalize(), br)))
+            # The Merge dialog names a branch's safety files; the human's OK is their review (0013).
+            reviewed = ["--reviewed"] if action == "merge" and b.get("reviewed") is True else []
+            h._json(app.job(["evolve", action, br, "--yes"] + reviewed, "%s %s" % (action.capitalize(), br)))
         return route
 
     def r_daemons(h, q, b):
