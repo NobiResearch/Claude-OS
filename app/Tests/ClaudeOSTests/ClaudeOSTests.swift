@@ -220,9 +220,18 @@ final class FirstLaunchTests: XCTestCase {
     func testACancelledDownloadNeverStarts() {
         let job = FirstLaunch.Download()
         job.cancel()
-        let r = FirstLaunch.run("/bin/sleep", ["5"], environment: [:], started: job.started)
+        let r = FirstLaunch.run("/bin/sleep", ["5"], environment: [:], launch: job.launch)
         XCTAssertEqual(r.status, -1)
         XCTAssertTrue(job.cancelled)
+    }
+
+    func testCancellingStopsTheRunningStep() {
+        let job = FirstLaunch.Download()
+        DispatchQueue.global().asyncAfter(deadline: .now() + 0.5) { job.cancel() }
+        let started = Date()
+        let r = FirstLaunch.run("/bin/sleep", ["30"], environment: [:], timeout: 60, launch: job.launch)
+        XCTAssertNotEqual(r.status, 0)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 10, "stopped, not run to the end")
     }
 
     func testWhereTheAppRunsFrom() {

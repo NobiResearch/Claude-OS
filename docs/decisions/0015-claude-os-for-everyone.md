@@ -92,10 +92,11 @@ notifications and Music automation).
   on it tracking GitHub's, checks the result is Claude OS at that commit, turns on the
   Guardian's hooks (`githooks/`), gives origin a push address that goes nowhere, writes
   `.claude/settings.local.json` (no `gh`, `gh-axi` or `git … push`), and only then moves it
-  into place. A folder that's already there and isn't empty (or is a link) is never touched; an
-  empty one is removed with rmdir, so anything that appears meanwhile stops it. Quitting
-  mid-download stops git and removes the half copy; leftovers from a crash are removed at the
-  next first launch, only if their origin is this repository.
+  into place. A folder that's already there and isn't empty (or is a link) is never touched;
+  an empty one is removed with rmdir, so anything that appears meanwhile stops it. Quitting
+  mid-download stops git and waits up to 10 seconds for the half copy to go; leftovers from a
+  crash are removed at the next first launch, only if their origin is this repository.
+- Someone who points a download at their own fork also clears `remote.origin.pushurl`.
 - The opt-ins (the skills everywhere, pulse) are unticked boxes, applied through `cos` when the
   human opens Claude OS.
 - `~/.claude-os/state/install.json` records the download. With it, and origin still this

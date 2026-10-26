@@ -55,11 +55,12 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
     var busy: Bool { working }
 
-    /// Quitting mid-download: stop git, let the download clean up after itself, then `done`.
-    func cancel(then done: @escaping () -> Void) {
-        guard let job = job, let downloading = downloading else { return done() }
-        job.cancel()
-        downloading.notify(queue: .main, execute: done)
+    /// Quitting mid-download: stop git and give the download up to 10 seconds to remove its
+    /// half copy. (Waiting here, not in a main-queue callback: while a quit waits, AppKit runs
+    /// no main-queue blocks.) Whatever's left, the next first launch removes.
+    func stopDownload() {
+        job?.cancel()
+        _ = downloading?.wait(timeout: .now() + 10)
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool { !working }

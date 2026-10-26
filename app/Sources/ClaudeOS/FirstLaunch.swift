@@ -112,11 +112,14 @@ enum FirstLaunch {
 
         var cancelled: Bool { lock.lock(); defer { lock.unlock() }; return stopped }
 
-        /// false once cancelled: the caller doesn't start it.
-        func started(_ p: Process) -> Bool {
+        /// Starts `p` unless the download was cancelled: under the lock, so a cancel either
+        /// comes first (nothing starts) or finds it running (it's stopped).
+        func launch(_ p: Process) throws -> Bool {
             lock.lock(); defer { lock.unlock() }
+            guard !stopped else { return false }
+            try p.run()
             process = p
-            return !stopped
+            return true
         }
 
         func cancel() {
@@ -154,7 +157,7 @@ enum FirstLaunch {
         let env = gitEnvironment(home: home)
         let steps = cloneSteps(commit: commit, into: staging.path)
         for (i, args) in steps.enumerated() {
-            let r = run(git, args, environment: env, timeout: i == 0 ? 600 : 60, started: job.started)
+            let r = run(git, args, environment: env, timeout: i == 0 ? 600 : 60, launch: job.launch)
             if job.cancelled { return "Stopped." }
             if r.status != 0 {
                 if i == 1 { return "This app's version (\(commit.prefix(7))) isn't on GitHub's main. Download the latest Claude OS.app." }
@@ -210,7 +213,7 @@ enum FirstLaunch {
     /// Runs a program with exactly this environment, never through a shell. A timeout
     /// terminates it.
     static func run(_ path: String, _ args: [String], environment: [String: String], timeout: TimeInterval = 30,
-                    started: (Process) -> Bool = { _ in true }) -> Result {
+                    launch: (Process) throws -> Bool = { try $0.run(); return true }) -> Result {
         let p = Process()
         p.executableURL = URL(fileURLWithPath: path)
         p.arguments = args
@@ -219,8 +222,11 @@ enum FirstLaunch {
         let out = Pipe(), err = Pipe()
         p.standardOutput = out
         p.standardError = err
-        guard started(p) else { return Result(status: -1, output: "", error: "cancelled") }
-        do { try p.run() } catch { return Result(status: -1, output: "", error: error.localizedDescription) }
+        do {
+            guard try launch(p) else { return Result(status: -1, output: "", error: "cancelled") }
+        } catch {
+            return Result(status: -1, output: "", error: error.localizedDescription)
+        }
         // Drain both pipes while it runs, so a chatty process can't fill one and stall.
         let outData = Drained(out), errData = Drained(err)
         let deadline = Date().addingTimeInterval(timeout)
