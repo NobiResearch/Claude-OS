@@ -283,8 +283,9 @@ def config_cmd(args):
         value = json.loads(args.value)
     except ValueError:
         value = args.value
-    if args.key.startswith("autonomy.") and value:
-        # Night shift and Keep Claude OS up to date: only the app's own dialog turns them on.
+    if args.key.split(".")[0] == "autonomy" and (value or args.key not in ("autonomy.night_shift", "autonomy.catch_up")):
+        # Night shift and Keep Claude OS up to date: only the app's own dialog turns them on (or
+        # pins the repository); here they can only be turned off, one at a time.
         core.die("turn that on in Claude OS.app: Settings › Permissions asks in its own dialog", 2)
     core.config_set(args.key, value)
     print("%s = %s" % (args.key, json.dumps(value)))
@@ -447,13 +448,22 @@ def main(argv=None):
         print("Claude OS %s" % __version__)
         return 0
     if c == "serve":
-        if not args.demo and not os.environ.get("COS_CAUGHT_UP"):
-            # Before any of the server is loaded: catch up, then start again on the new code.
-            from . import evolve
-            c_ = evolve.auto_catch_up("app start")
+        from . import evolve
+        app_server = args.exit_on_stdin_eof and not args.demo and not os.environ.get("CLAUDE_OS_APP")
+        if app_server and not os.environ.get("COS_CAUGHT_UP"):
+            # Claude OS.app's own server, before any of the server is loaded: catch up, then
+            # start again on the new code. Never under another running server, and never
+            # anything that keeps the app from getting its server.
+            try:
+                c_ = None if evolve.serving() else evolve.auto_catch_up("app start")
+            except Exception:
+                c_ = None
             if c_ and c_["updated"]:
                 os.environ["COS_CAUGHT_UP"] = "1"
                 os.execv(sys.executable, [sys.executable, str(core.ROOT / "bin" / "cos")] + argv)
+        evolve.wait_for_moves()
+        args.serving = evolve.hold_serving()  # held for the server's life: boot and pulse see it
+        args.head = evolve.git("rev-parse", "HEAD").out  # what's about to be loaded
         from . import server
         return server.main(args)
     if c == "app":

@@ -268,7 +268,7 @@ def still_outdated(names):
 def apply_claude_os(yes):
     """Fast-forward the live checkout to main on GitHub, through evolve.catch_up's guards."""
     from . import evolve
-    c = evolve.catch_up(fetch="force", source="update")
+    c = evolve.catch_up(fetch="force", source="update", retry=True)
     if not c["behind"]:
         print("Claude OS is up to date with GitHub (%s)." % c["head"])
         return 0
@@ -278,7 +278,7 @@ def apply_claude_os(yes):
         render_claude_os(check_claude_os())
         print("\nWould fast-forward this checkout to %s. (add --yes to do it)" % c["latest"])
         return 2
-    c = evolve.catch_up(apply=True, fetch=False, source="update")
+    c = evolve.catch_up(apply=True, fetch=False, source="update", retry=True)
     if not c["updated"]:
         core.die("Claude OS stays at %s: %s." % (c["head"], c["why"]))
     print("✓ Claude OS is at %s now:" % c["head"])

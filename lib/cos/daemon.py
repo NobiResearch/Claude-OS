@@ -310,7 +310,7 @@ def pulse_catch_up():
     """Fetch and report; with Keep Claude OS up to date on, also move forward, but never
     under a running app, whose server would mix versions (0011)."""
     from . import evolve
-    if not core.app_running("ClaudeOS"):
+    if not evolve.code_in_use():
         c = evolve.auto_catch_up("pulse")
         if c:
             return c

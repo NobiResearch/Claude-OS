@@ -132,11 +132,12 @@ def confirm_natively(what, wait=120):
 
 def code_state(app):
     """For the menu bar's Update item: is a restart of the server worth it?"""
-    on_disk = core.run(["git", "-C", str(core.ROOT), "rev-parse", "--short", "HEAD"], timeout=5).out
+    on_disk = core.run(["git", "-C", str(core.ROOT), "rev-parse", "HEAD"], timeout=5).out
     cached = (core.cache_get("catch-up") or {}).get("data") or {}
-    auto = bool(core.config()["autonomy"].get("catch_up"))
+    autonomy = core.config().get("autonomy")
+    auto = isinstance(autonomy, dict) and autonomy.get("catch_up") is True
     waiting = cached.get("behind", 0) if auto and not cached.get("why") else 0
-    return {"running": app.head, "on_disk": on_disk, "auto": auto, "waiting": waiting,
+    return {"running": app.head[:7], "on_disk": on_disk[:7], "auto": auto, "waiting": waiting,
             "subjects": cached.get("subjects", [])[:5] if waiting else [],
             "restart": bool(app.managed and app.head and on_disk and (on_disk != app.head or waiting))}
 
@@ -200,7 +201,7 @@ def split_run(text):
 # ---------------------------------------------------------------- the handler
 
 class App:
-    def __init__(self, token, demo=False):
+    def __init__(self, token, demo=False, head=None):
         self.token = token
         self.demo = demo
         if demo:
@@ -212,7 +213,7 @@ class App:
         self.port = None
         # The commit this server's code came from: once the checkout moves, it's out of date
         # (any lib/cos module it loads from now on would be newer than the ones it has; 0011).
-        self.head = core.run(["git", "-C", str(core.ROOT), "rev-parse", "--short", "HEAD"], timeout=5).out
+        self.head = head or core.run(["git", "-C", str(core.ROOT), "rev-parse", "HEAD"], timeout=5).out
         self.managed = False  # started by Claude OS.app, which restarts it (see r_restart)
 
 
@@ -814,8 +815,8 @@ def bind(port, handler):
     return ThreadingHTTPServer(("127.0.0.1", port), handler)
 
 
-def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=False):
-    app = App(token or secrets.token_urlsafe(24), demo=demo)
+def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=False, head=None):
+    app = App(token or secrets.token_urlsafe(24), demo=demo, head=head)
     httpd = bind(port, make_handler(app))
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
@@ -843,4 +844,5 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=
 
 
 def main(args):
-    return serve(port=args.port, open_browser=args.open, exit_on_stdin_eof=args.exit_on_stdin_eof, demo=args.demo)
+    return serve(port=args.port, open_browser=args.open, exit_on_stdin_eof=args.exit_on_stdin_eof, demo=args.demo,
+                 head=getattr(args, "head", None))

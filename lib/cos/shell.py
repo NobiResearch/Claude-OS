@@ -30,10 +30,12 @@ def _music_now(max_age=20):
 
 def _caught_up_line():
     """Once, after Claude OS moved itself forward (0011): what came in."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return None  # it's for the human, so a background job's banner doesn't use it up
     done = core.cache_get("caught-up")
     if not done:
         return None
-    core.home("cache", "caught-up.json").unlink()
+    core.home("cache", "caught-up.json").unlink(missing_ok=True)  # two sessions may boot at once
     d = done["data"]
     n = len(d["subjects"])
     line = "  ↑ Claude OS caught up with main (%s, %s): %s%s — this session read the old CLAUDE.md; " \
@@ -52,7 +54,7 @@ def _catch_up_line():
         return None
     from . import evolve
     try:
-        terminal = not os.environ.get("CLAUDE_OS_APP") and not core.app_running("ClaudeOS")
+        terminal = not os.environ.get("CLAUDE_OS_APP") and not evolve.code_in_use()
         c = (terminal and evolve.auto_catch_up("boot")) or evolve.catch_up(fetch=True, source="boot")
     except Exception:
         return None
