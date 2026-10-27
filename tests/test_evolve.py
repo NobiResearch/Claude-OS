@@ -368,8 +368,9 @@ class TestSandbox(TempHome):
                          "a link out of /Applications stays out")
         self.assertEqual(core._other_xcode(os.path.join(beta, "usr"), apps), ())
         self.assertEqual(core._other_xcode("", apps), ())
-        self.assertEqual(core._other_xcode("/Applications/Xcode.app/Contents/Developer"), (),
-                         "Xcode.app is always in")
+        always = app("Xcode.app", "com.apple.dt.Xcode")
+        with mock.patch.object(core, "SANDBOX_BIN", core.SANDBOX_BIN + (os.path.join(apps, "Xcode.app") + "/",)):
+            self.assertEqual(core._other_xcode(always, apps), (), "Xcode.app is always in")
         xcode = (os.path.join(apps, "Xcode-beta.app"),)
         self.assertEqual(core._sandbox_path("/usr/bin:/bin", beta, xcode), "%s/usr/bin:/usr/bin:/bin" % beta)
         self.assertEqual(core._sandbox_path("/usr/bin:/bin", beta), "/usr/bin:/bin")
