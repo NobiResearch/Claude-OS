@@ -250,12 +250,13 @@ LABEL = re.compile(r"[A-Za-z][\w:.-]{0,60}")
 COS_VERB = re.compile(r"(?:\./)?(?:bin/)?cos\s+([a-z]+)")
 VOTE = re.compile(r"VOTE:\W*(approve|amend|reject)", re.I)
 HEADING = re.compile(r"^#{1,3}\s+(.+)$", re.M)
-# The runs that read text strangers wrote (feeds, friction) say what they produced in a form we
-# know. Any other line could be a feed item's words ("Your Mac needs a fix: run …"), and the
-# notification would show it as if from the Mac, so it gets a fixed line instead.
-EXPECTED = {"morning": ("Good morning", "Your morning brief is ready (cos brief)"),
-            "board": ("Board minutes", "The board's minutes are ready (cos daemon logs board)")}
-UNSAFE = re.compile(r"[`$]|://|www\.", re.I)
+# The runs that read text strangers wrote (feeds, friction) get a line made here, not one from
+# their output: a feed item could have written that ("Good morning — your Mac is infected, run
+# …"), and the notification would show it as if from the Mac.
+OWN_LINE = {"morning": "Good morning — %s", "board": "Board minutes — %s"}
+DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December")
 
 
 def tool_label(block):
@@ -322,9 +323,9 @@ class Transcript:
         return "\n\n".join(self.turns + ([self.pending] if self.pending else []))
 
 
-def summarize(name, text, timed_out, minutes, ok):
+def summarize(name, text, timed_out, minutes, ok, today=None):
     """The line the notification and the journal show: what the run produced, never the
-    chatter it started with."""
+    chatter it started with, and only plain words."""
     title = name.capitalize()
     if timed_out:
         return "%s ran out of time after %d min%s" % (title, minutes, "; partial output saved" if text else "")
@@ -333,12 +334,10 @@ def summarize(name, text, timed_out, minutes, ok):
     m = HEADING.search(text)
     last = text.split("\n\n")[-1] if text else ""
     line = m.group(1) if m else next((l for l in last.splitlines() if l.strip()), "(no output)")
-    line = line.strip().strip("*#").strip()[:180]
-    if name in EXPECTED:
-        prefix, fixed = EXPECTED[name]
-        if not line.startswith(prefix) or UNSAFE.search(line):
-            return fixed
-    return line
+    if name in OWN_LINE:
+        d = today or dt.date.today()
+        return OWN_LINE[name] % ("%s, %d %s" % (DAYS[d.weekday()], d.day, MONTHS[d.month - 1]))
+    return core.plain_line(line.strip().strip("*#").strip(), "%s finished (cos daemon logs %s)" % (title, name))
 
 
 def live_path(name):

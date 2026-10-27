@@ -153,7 +153,8 @@ def after_run(ws, summary):
     verdict = "TESTS COULDN'T RUN" if t is None else "tests pass" if t.ok else "TESTS FAIL"
     core.journal("evolve", "%s: %d commit(s), %s" % (ws["branch"], len(commits), verdict),
                  branch=ws["branch"], commits=commits, tip=sha, tests_ok=None if t is None else t.ok)
-    return "evolved: %s (%s) · review: cos evolve review %s" % (commits[0].split(" ", 1)[-1], verdict, ws["branch"])
+    subject = core.plain_line(commits[0].split(" ", 1)[-1], "a change")  # model-written
+    return "evolved: %s (%s) · review: cos evolve review %s" % (subject, verdict, ws["branch"])
 
 
 def branches():
