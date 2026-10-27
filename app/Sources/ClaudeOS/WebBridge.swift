@@ -7,7 +7,7 @@ import WebKit
 ///
 ///   await window.webkit.messageHandlers.cos.postMessage({type: "locate"})
 ///     → {"lat": 48.86, "lon": 2.35, "accuracy_m": 65}  (rounded to ~1 km)
-///     → {"error": "Claude OS isn't allowed to use your location. …"}
+///     → {"error": "Ovenbird isn't allowed to use your location. …"}
 final class WebBridge: NSObject, WKScriptMessageHandlerWithReply {
     static let name = "cos"
 
@@ -20,14 +20,14 @@ final class WebBridge: NSObject, WKScriptMessageHandlerWithReply {
                                replyHandler: @escaping (Any?, String?) -> Void) {
         guard isFromDesktop(message) else {
             log("refused a bridge message from outside the desktop")
-            replyHandler(["error": "Only the Claude OS desktop can ask for this."], nil)
+            replyHandler(["error": "Only the Ovenbird desktop can ask for this."], nil)
             return
         }
         switch (message.body as? [String: Any])?["type"] as? String {
         case "locate":
             locator.locate { replyHandler($0, nil) }
         default:
-            replyHandler(["error": "Claude OS doesn't know that request."], nil)
+            replyHandler(["error": "Ovenbird doesn't know that request."], nil)
         }
     }
 

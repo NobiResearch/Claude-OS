@@ -1,4 +1,4 @@
-# Claude OS curated feeds. One feed per line: <url>  # <name>
+# Ovenbird curated feeds. One feed per line: <url>  # <name>
 # Personal feeds go in ~/.claude-os/feeds.txt (private); mute these with `cos feeds mute <url>`.
 # Curation rule: high signal, low volume, written by people who think carefully.
 

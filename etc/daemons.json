@@ -24,7 +24,7 @@
     ]
   },
   "evolve": {
-    "description": "03:30 daily: one small, tested improvement to Claude OS, committed on a local evolve/* branch in its own sandboxed clone. Never pushes, never touches your checkout.",
+    "description": "03:30 daily: one small, tested improvement to Ovenbird, committed on a local evolve/* branch in its own sandboxed clone. Never pushes, never touches your checkout.",
     "schedule": {
       "hour": 3,
       "minute": 30

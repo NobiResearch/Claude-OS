@@ -1,12 +1,12 @@
 ---
 name: board
-description: Convene the Claude OS board (Architect, Guardian, Steward, Skeptic) to decide on a proposal, a design choice, or an evolve branch. Use for any non-trivial change to Claude OS, when the human asks "what does the board think", or weekly ("/board weekly").
+description: Convene the Ovenbird board (Architect, Guardian, Steward, Skeptic) to decide on a proposal, a design choice, or an evolve branch. Use for any non-trivial change to Ovenbird, when the human asks "what does the board think", or weekly ("/board weekly").
 argument-hint: "<proposal> | weekly"
 ---
 
 # The Board
 
-Four seats, one chair (you). The board exists so Claude OS grows deliberately instead of
+Four seats, one chair (you). The board exists so Ovenbird grows deliberately instead of
 just growing. You chair: you frame the question, you don't vote, you write the decision.
 
 | seat | agent | asks |
@@ -25,7 +25,7 @@ just growing. You chair: you frame the question, you don't vote, you write the d
 3. **Decide.** Tally the votes. Majority approve → approved; any Guardian `reject` is a veto
    until its condition is met; amendments that two or more seats ask for become conditions.
 4. **Record.** Print the minutes: question, each seat's vote and top reason, decision,
-   conditions. If the decision changes how Claude OS is built, write
+   conditions. If the decision changes how Ovenbird is built, write
    `docs/decisions/NNNN-<slug>.md` (next number; see existing ones) — and keep personal data
    out of it; the repo is public.
 

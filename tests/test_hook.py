@@ -322,7 +322,7 @@ class TestPretool(TempHome):
 
     def test_odd_spellings_still_ask(self):
         for cmd in ("cos  clean apply x --yes", "cos 'clean' apply x", "./bin/cos clean apply x --yes",
-                    '"/somewhere/Claude OS/bin/cos" clean apply x', "echo hi; cos clean apply x --yes",
+                    '"/somewhere/Ovenbird/bin/cos" clean apply x', "echo hi; cos clean apply x --yes",
                     "cos status\ncos security on firewall --yes", "cd x && bin/cos update apply brew --yes",
                     "FOO=1 cos clean apply x --yes", "cos startup --full", "cos net --speed", "cos app",
                     "cos daemon install pulse", "cos config autonomy.catch_up false",

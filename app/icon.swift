@@ -1,4 +1,4 @@
-// Draws the Claude OS app icon and writes every PNG an .iconset needs.
+// Draws the Ovenbird app icon and writes every PNG an .iconset needs.
 //   swift app/icon.swift <out.iconset>
 //   iconutil -c icns <out.iconset> -o AppIcon.icns
 //

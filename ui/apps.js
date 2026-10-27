@@ -1,4 +1,4 @@
-// Claude OS apps. Each app renders into a window body using COS helpers.
+// Ovenbird apps. Each app renders into a window body using COS helpers.
 "use strict";
 
 (function () {
@@ -56,7 +56,7 @@
 
   // ------------------------------------------------------------ Claude
   const SUGGESTIONS = ["Do I need to clean up my Mac?", "Find me a chill song on Apple Music", "Catch me up on what's new",
-    "What's outdated on my Mac?", "What should Claude OS learn next?"];
+    "What's outdated on my Mac?", "What should Ovenbird learn next?"];
 
   function toolLabel(name, input) {
     input = input || {};
@@ -93,7 +93,7 @@
         clear(log).appendChild(h("div", { class: "chat-welcome" },
           h("div", { class: "chat-welcome-mark" }, "◆"),
           h("div", { class: "chat-welcome-title" }, "What can I do for you?"),
-          h("div", { class: "chat-welcome-sub" }, "I can see and run this Mac through Claude OS. Anything that changes something asks you first."),
+          h("div", { class: "chat-welcome-sub" }, "I can see and run this Mac through Ovenbird. Anything that changes something asks you first."),
           h("div", { class: "chips" }, SUGGESTIONS.map((s) => h("button", { class: "chip", onclick: () => ask(s) }, s)))));
       }
       welcome();
@@ -499,27 +499,27 @@
                 : btn("Upgrade selected", () => { const n = selected(); if (n.length) apply(key, n, "Upgrade " + n.length + " package" + (n.length > 1 ? "s" : "")); }, "primary small"),
               h("span", { class: "muted small" }, "Majors and downgrades are unticked: they can break things."))));
         });
-        // Claude OS itself (decision 0011): what's merged on GitHub and not on this Mac yet.
+        // Ovenbird itself (decision 0011): what's merged on GitHub and not on this Mac yet.
         const co = src["claude-os"];
         if (co) {
           const it = (co.items || [])[0];
-          root.appendChild(card("Claude OS" + (it ? " · " + it.changes.length : ""),
+          root.appendChild(card("Ovenbird" + (it ? " · " + it.changes.length : ""),
             !it ? h("div", { class: "muted" }, "Up to date with GitHub.")
               : h("div", null,
                 h("div", { class: "upd-list" }, it.changes.slice(0, 8).map((c) => h("div", { class: "upd" }, h("span", null, c)))),
                 it.changes.length > 8 ? h("div", { class: "muted small" }, "… and " + (it.changes.length - 8) + " more") : null,
-                (it.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Claude OS's own safety checks: " + it.protected.slice(0, 4).join(", ")) : null,
+                (it.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Ovenbird's own safety checks: " + it.protected.slice(0, 4).join(", ")) : null,
                 co.error ? h("div", { class: "muted small" }, "Not updated: " + co.error + ".") : null,
                 h("div", { class: "row gap" },
-                  btn("Ask Claude to update", () => COS.ask("Bring Claude OS up to date with what's merged on GitHub."), "primary small"),
+                  btn("Ask Claude to update", () => COS.ask("Bring Ovenbird up to date with what's merged on GitHub."), "primary small"),
                   h("span", { class: "muted small" }, "It asks you first; then Update in the menu bar restarts onto it.")))));
         }
-        // A downloaded Claude OS.app (decision 0015): it never replaces itself, so it says when there's a newer one.
+        // A downloaded Ovenbird.app (decision 0015): it never replaces itself, so it says when there's a newer one.
         const newer = ((src.app || {}).items || [])[0];
-        if (newer) root.appendChild(card("Claude OS.app " + newer.latest,
-          h("div", { class: "muted" }, "A newer Claude OS.app is out (this one is " + newer.installed + "). Download it, replace this one in Applications, and open it: Claude OS comes along."),
+        if (newer) root.appendChild(card("Ovenbird.app " + newer.latest,
+          h("div", { class: "muted" }, "A newer Ovenbird.app is out (this one is " + newer.installed + "). Download it, replace this one in Applications, and open it: Ovenbird comes along."),
           h("div", { class: "row gap" }, h("a", { class: "btn primary small", href: newer.url, target: "_blank", rel: "noopener" }, "Download"))));
-        if ((data.missing_tools || []).includes("mas")) root.appendChild(h("div", { class: "muted small pad-t" }, "Tip: `brew install mas` lets Claude OS see App Store updates too."));
+        if ((data.missing_tools || []).includes("mas")) root.appendChild(h("div", { class: "muted small pad-t" }, "Tip: `brew install mas` lets Ovenbird see App Store updates too."));
       }
       load(false);
     },
@@ -699,7 +699,7 @@
       const shown = (COS.state.status || {}).downloaded ? EVOLUTION_TABS.filter((t) => t !== "Branches") : EVOLUTION_TABS;
       w.showTab = tabs(w, shown, {
         Friction(pane) {
-          const input = h("input", { class: "search", placeholder: "What got in your way? (Claude OS will work on it)" });
+          const input = h("input", { class: "search", placeholder: "What got in your way? (Ovenbird will work on it)" });
           const add = async () => {
             const text = input.value.trim();
             if (!text) return;
@@ -742,7 +742,7 @@
                 root.appendChild(card(b.branch,
                   h("div", { class: "list" }, b.commits.map((c) => h("div", { class: "mono small" }, c))),
                   b.tests_ok === false ? h("div", { class: "warn-text small" }, "Its tests fail in the sandbox, so Merge will refuse it.") : null,
-                  (b.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Claude OS's own safety checks: " + b.protected.slice(0, 4).join(", ")) : null,
+                  (b.protected || []).length ? h("div", { class: "warn-text small" }, "Changes Ovenbird's own safety checks: " + b.protected.slice(0, 4).join(", ")) : null,
                   h("div", { class: "row gap" },
                     btn("Review", async () => {
                       if (!diff.hidden) { diff.hidden = true; return; }
@@ -753,7 +753,7 @@
                     btn("Merge", async () => {
                       const gate = (b.protected || []).length;
                       const body = "Runs the Guardian and the tests again, then pushes it to GitHub, opens a pull request and squash-merges it once CI passes. Without GitHub, it fast-forwards main." +
-                        (gate ? " It changes Claude OS's own safety checks (" + b.protected.slice(0, 4).join(", ") + "). Look at it with Review first: merging it counts as your review." : "");
+                        (gate ? " It changes Ovenbird's own safety checks (" + b.protected.slice(0, 4).join(", ") + "). Look at it with Review first: merging it counts as your review." : "");
                       if (!(await COS.confirm({ title: "Merge " + b.branch + "?", body, ok: "Merge" }))) return;
                       const panel = jobPanel(); root.prepend(panel.el);
                       await job("/api/evolve/merge", { branch: b.branch, reviewed: gate > 0, tip: b.tip || undefined }, panel.update); draw();
@@ -871,7 +871,7 @@
           clear(listEl);
           if (!rows.length) {
             listEl.appendChild(kind ? empty("Nothing here yet.")
-              : empty("Nothing here yet.", "Claude OS writes down here what it does: every change, every yes or no you give it, every background job."));
+              : empty("Nothing here yet.", "Ovenbird writes down here what it does: every change, every yes or no you give it, every background job."));
             return;
           }
           let day = "";
@@ -928,43 +928,43 @@
 
       function permissions(s) {
         const box = h("div");
-        // Apple Music in Claude OS (decision 0003, amended): MusicKit, "Media & Apple Music".
+        // Apple Music in Ovenbird (decision 0003, amended): MusicKit, "Media & Apple Music".
         const m = s.music;
         const musicToggle = h("input", { type: "checkbox", class: "switch" });
         musicToggle.checked = m.apple_music;
         musicToggle.addEventListener("change", async () => {
-          if (musicToggle.checked) toast("macOS may ask to let Claude OS use Apple Music", "accent");
+          if (musicToggle.checked) toast("macOS may ask to let Ovenbird use Apple Music", "accent");
           const r = await api("/api/settings/music", { body: { apple_music: musicToggle.checked } });
           if (r.error) toast(r.error, "bad");
-          if (!musicToggle.checked) toast("Off. To fully revoke it, untick Claude OS in the Media & Apple Music list that just opened.");
+          if (!musicToggle.checked) toast("Off. To fully revoke it, untick Ovenbird in the Media & Apple Music list that just opened.");
           draw();
         });
         const musicState = !m.apple_music ? "Off: catalog songs open in the Music app for you to press play."
           : m.error ? m.error
-          : m.authorization === "authorized" ? "On ✓ Any Apple Music song plays right here in Claude OS."
-          : "Waiting for macOS: allow Claude OS under Privacy & Security › Media & Apple Music.";
+          : m.authorization === "authorized" ? "On ✓ Any Apple Music song plays right here in Ovenbird."
+          : "Waiting for macOS: allow Ovenbird under Privacy & Security › Media & Apple Music.";
         box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
-            h("div", { class: "daemon-name" }, "Apple Music in Claude OS", pill("note", "permission")),
-            h("div", { class: "small" }, "Play any song from Apple Music, not just your library. Claude OS becomes a small player using your subscription. macOS calls this Media & Apple Music. Turn off anytime."),
+            h("div", { class: "daemon-name" }, "Apple Music in Ovenbird", pill("note", "permission")),
+            h("div", { class: "small" }, "Play any song from Apple Music, not just your library. Ovenbird becomes a small player using your subscription. macOS calls this Media & Apple Music. Turn off anytime."),
             h("div", { class: "muted small" }, musicState)),
           musicToggle));
-        // Notifications from Claude OS itself (decision 0004): permission only on this click.
+        // Notifications from Ovenbird itself (decision 0004): permission only on this click.
         const n = s.notify || {};
         const notifyToggle = h("input", { type: "checkbox", class: "switch" });
         notifyToggle.checked = n.native;
         notifyToggle.addEventListener("change", async () => {
-          if (notifyToggle.checked) toast("macOS will ask to let Claude OS send notifications", "accent");
+          if (notifyToggle.checked) toast("macOS will ask to let Ovenbird send notifications", "accent");
           await api("/api/settings/notify", { body: { native: notifyToggle.checked } });
           draw();
         });
         box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
-            h("div", { class: "daemon-name" }, "Notifications from Claude OS", n.native && n.authorization === "authorized" ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "Alerts and your morning brief arrive with Claude OS's own name and icon, and clicking one opens the desktop. Otherwise they come from Script Editor."),
+            h("div", { class: "daemon-name" }, "Notifications from Ovenbird", n.native && n.authorization === "authorized" ? pill("ok", "on") : pill("note", "off")),
+            h("div", { class: "small" }, "Alerts and your morning brief arrive with Ovenbird's own name and icon, and clicking one opens the desktop. Otherwise they come from Script Editor."),
             h("div", { class: "muted small" }, !n.native ? "Off."
               : n.authorization === "authorized" ? "On ✓"
-              : n.authorization === "denied" ? "macOS says no: allow Claude OS under System Settings › Notifications."
+              : n.authorization === "denied" ? "macOS says no: allow Ovenbird under System Settings › Notifications."
               : "Waiting for macOS to ask you.")),
           notifyToggle));
 
@@ -973,7 +973,7 @@
         const nightToggle = h("input", { type: "checkbox", class: "switch" });
         nightToggle.checked = !!s.night_shift;
         nightToggle.addEventListener("change", async () => {
-          // Turning it on is confirmed in Claude OS.app's own dialog, which page code can't click.
+          // Turning it on is confirmed in Ovenbird.app's own dialog, which page code can't click.
           if (nightToggle.checked) toast("Confirm in the dialog that just opened…");
           const r = await api("/api/settings/night", { body: { on: nightToggle.checked } });
           if (nightToggle.checked && !r.night_shift) toast(r.error || "Night shift stays off.", r.error ? "bad" : "");
@@ -982,16 +982,16 @@
         if (!s.downloaded || s.night_shift) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Night shift", s.night_shift ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "Let Claude push its own night/… branches, open pull requests and merge the ones that pass while you're away. Never a force push; every commit is checked for private data, and pull requests that change Claude OS's own safety checks wait for your merge."),
+            h("div", { class: "small" }, "Let Claude push its own night/… branches, open pull requests and merge the ones that pass while you're away. Never a force push; every commit is checked for private data, and pull requests that change Ovenbird's own safety checks wait for your merge."),
             h("div", { class: "muted small" }, s.night_shift ? "On: each push and merge is in your journal and tomorrow's brief." : "Off: every push and merge asks you first.")),
           nightToggle));
 
-        // Keep Claude OS up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
+        // Keep Ovenbird up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
         // A downloaded copy follows its app's releases instead (0015), so it has no such switch.
         const upToggle = h("input", { type: "checkbox", class: "switch" });
         upToggle.checked = !!s.catch_up;
         upToggle.addEventListener("change", async () => {
-          // Like Night shift, turning it on is confirmed in Claude OS.app's own dialog.
+          // Like Night shift, turning it on is confirmed in Ovenbird.app's own dialog.
           if (upToggle.checked) toast("Confirm in the dialog that just opened…");
           const r = await api("/api/settings/catch-up", { body: { on: upToggle.checked } });
           if (upToggle.checked && !r.catch_up) toast(r.error || "It stays off.", r.error ? "bad" : "");
@@ -999,8 +999,8 @@
         });
         if (!s.downloaded || s.catch_up) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
-            h("div", { class: "daemon-name" }, "Keep Claude OS up to date", s.catch_up ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "When you merge a pull request on GitHub, Claude OS brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),
+            h("div", { class: "daemon-name" }, "Keep Ovenbird up to date", s.catch_up ? pill("ok", "on") : pill("note", "off")),
+            h("div", { class: "small" }, "When you merge a pull request on GitHub, Ovenbird brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),
             h("div", { class: "muted small" }, s.catch_up ? "On: while the app is open, Update in the menu bar restarts it onto what you merged." : "Off: the boot banner says what's merged, and `cos update apply claude-os --yes` brings it in.")),
           upToggle));
 
@@ -1009,13 +1009,13 @@
         box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Calendar & Reminders", calOn ? pill("ok", "connected") : pill("note", "off")),
-            h("div", { class: "small" }, "Show today's events and due reminders on Today and in your brief. Claude OS only reads them; it never changes your calendar."),
-            h("div", { class: "muted small" }, calOn ? "Connected" + (s.calendars != null ? " · " + s.calendars + " calendar" + (s.calendars === 1 ? "" : "s") : "") + ". To disconnect, untick Claude OS under Privacy & Security › Calendars and Reminders."
-              : s.calendar === "denied" ? "macOS says no: allow Claude OS under Privacy & Security › Calendars."
+            h("div", { class: "small" }, "Show today's events and due reminders on Today and in your brief. Ovenbird only reads them; it never changes your calendar."),
+            h("div", { class: "muted small" }, calOn ? "Connected" + (s.calendars != null ? " · " + s.calendars + " calendar" + (s.calendars === 1 ? "" : "s") : "") + ". To disconnect, untick Ovenbird under Privacy & Security › Calendars and Reminders."
+              : s.calendar === "denied" ? "macOS says no: allow Ovenbird under Privacy & Security › Calendars."
               : "Off until you connect it.")),
           calOn ? null : btn("Connect", async (e) => {
             e.target.disabled = true;
-            toast("macOS will ask to let Claude OS see your calendar and reminders", "accent");
+            toast("macOS will ask to let Ovenbird see your calendar and reminders", "accent");
             try { const v = await api("/api/agenda/connect", { body: {} }); toast(v.connected ? "Calendar connected" : "Calendar not connected", v.connected ? "ok" : "bad"); }
             catch (err) { toast(err.message, "bad"); }
             draw(); COS.refreshAgenda && COS.refreshAgenda();
@@ -1078,11 +1078,11 @@
           root.appendChild(h("div", { class: "section-title" }, "About"));
           root.appendChild(h("div", { class: "about" },
             h("div", { class: "about-mark" }, "◆"),
-            h("div", null, h("div", { class: "about-name" }, "Claude OS"), h("div", { class: "muted small" }, "An operating layer for your Mac, designed by Claude."),
+            h("div", null, h("div", { class: "about-name" }, "Ovenbird"), h("div", { class: "muted small" }, "An operating layer for your Mac, designed by Claude."),
               h("div", { class: "row gap pad-t" },
-                h("a", { class: "btn ghost small", href: "https://github.com/NobiResearch/Claude-OS", target: "_blank", rel: "noopener" }, "Source on GitHub"),
+                h("a", { class: "btn ghost small", href: "https://github.com/NobiResearch/Ovenbird", target: "_blank", rel: "noopener" }, "Source on GitHub"),
                 btn("Lessons learned", async () => { const d = await api("/api/doc?name=lessons"); clear(root).appendChild(h("div", null, btn("← Back", draw, "ghost small"), h("div", { class: "md", html: MD.render(d.text) }))); }, "ghost small")))));
-          root.appendChild(h("div", { class: "muted small pad-t" }, "Shortcuts: ⌘K command palette · ⌃⌥Space summons Claude OS from anywhere."));
+          root.appendChild(h("div", { class: "muted small pad-t" }, "Shortcuts: ⌘K command palette · ⌃⌥Space summons Ovenbird from anywhere."));
         });
       }
       draw();
@@ -1138,7 +1138,7 @@
     refreshBrief();
     setInterval(refreshBrief, 15 * 60 * 1000);
     // One click to a radio from a song you've been playing (the board, 26 Oct): no chat and
-    // no Allow card. Shown only when Apple Music in Claude OS is on and there's a song to start from.
+    // no Allow card. Shown only when Apple Music in Ovenbird is on and there's a song to start from.
     const radioChip = h("button", { class: "chip glass", hidden: true });
     const refreshRadio = async () => {
       try {
@@ -1171,7 +1171,7 @@
     // The first week on a new Mac (the board, 26 Oct): what to try, once, until it's dismissed.
     const openLink = (label, id) => h("a", { href: "#", onclick: (e) => { e.preventDefault(); COS.open(id); } }, label);
     const welcome = h("div", { class: "today-welcome glass", hidden: true },
-      h("div", { class: "welcome-title" }, "Welcome to Claude OS"),
+      h("div", { class: "welcome-title" }, "Welcome to Ovenbird"),
       h("div", { class: "welcome-text" }, "Claude lives on this Mac now, and it asks before it changes anything."),
       h("ul", { class: "welcome-list" },
         h("li", null, openLink("Vitals", "vitals"), " shows how your Mac is doing, ", openLink("Storage", "storage"),

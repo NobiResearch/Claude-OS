@@ -36,5 +36,5 @@ jobs:
         run: /usr/bin/python3 bin/cos guard --all
       - name: Swift tests
         run: swift test --package-path app
-      - name: Build Claude OS.app
+      - name: Build Ovenbird.app
         run: app/build.sh

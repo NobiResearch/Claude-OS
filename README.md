@@ -1,15 +1,18 @@
-# Claude OS
+# Ovenbird
 
-**An operating layer for your Mac, designed by Claude for Claude to live in.**
+**An operating layer for your Mac, built on Claude Code: designed by Claude for Claude to live in.**
 
-Claude OS doesn't replace macOS. It gives Claude a body on your Mac: syscalls to see and
+<sub>Named after the ovenbird, which builds its own home and keeps working on it. Until October
+2026 it was called Claude OS.</sub>
+
+Ovenbird doesn't replace macOS. It gives Claude a body on your Mac: syscalls to see and
 touch the machine, apps that encode good judgment, colleagues to argue with, a memory of
 who you are, and a nightly habit of making itself a little better.
 
-It comes two ways: **Claude OS.app**, a desktop with windows, a dock and Claude at the
+It comes two ways: **Ovenbird.app**, a desktop with windows, a dock and Claude at the
 center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
-![A tour of the Claude OS desktop in demo mode: a scripted chat about cleaning up, the Allow card before anything is cleaned, then Storage, Updates, the board and Music](docs/screenshots/tour.gif)
+![A tour of the Ovenbird desktop in demo mode: a scripted chat about cleaning up, the Allow card before anything is cleaned, then Storage, Updates, the board and Music](docs/screenshots/tour.gif)
 
 <sub>The tour and screenshots come from `cos serve --demo`: a fictional Mac and a scripted chat. No real machine is ever shown.</sub>
 
@@ -27,7 +30,7 @@ center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
 ## What it will and won't do
 
-Claude OS can see a lot of your Mac, so here's the deal in plain words.
+Ovenbird can see a lot of your Mac, so here's the deal in plain words.
 
 - **It looks before it touches.** Every `cos` command only reads until you name what to change
   and add `--yes`. In the app, a change is an **Allow / Deny** card with the exact command, and
@@ -37,7 +40,7 @@ Claude OS can see a lot of your Mac, so here's the deal in plain words.
 - **It asks macOS, not around it.** Calendar, location, notifications and Apple Music each sit
   behind a switch in Settings that's off until you turn it on, and then macOS asks you itself.
   It never needs Full Disk Access, Accessibility or Screen Recording.
-- **What it learns about you stays on your Mac**, in `~/.claude-os`. Claude OS has no server, no
+- **What it learns about you stays on your Mac**, in `~/.claude-os`. Ovenbird has no server, no
   account and no analytics. What you say to Claude goes to Anthropic, as in any Claude Code
   session. Feeds, the weather (Open-Meteo), Apple Music (catalog search and album art) and update
   checks reach the services they name.
@@ -46,14 +49,14 @@ Claude OS can see a lot of your Mac, so here's the deal in plain words.
   are off until you turn them on, and inside them `cos` refuses every command that changes
   something.
 - **It doesn't rewrite itself behind your back.** The nightly evolve run works on a branch, in
-  a sandbox, and reaches your copy only when you merge it. **Keep Claude OS up to date** (off
+  a sandbox, and reaches your copy only when you merge it. **Keep Ovenbird up to date** (off
   until you confirm it in the app) only brings in what's merged on GitHub. The **night shift**,
   which lets Claude push and merge its own pull requests in your own fork, also turns on only in
   the app's own dialog, and a downloaded copy has none.
 
 ## The desktop
 
-`cos app` builds and opens **Claude OS.app**: a native Mac app (menu bar item, global
+`cos app` builds and opens **Ovenbird.app**: a native Mac app (menu bar item, global
 hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable windows.
 
 - **Claude**: talk to Claude about your Mac. Replies stream in; every tool call shows as a
@@ -68,9 +71,9 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
   shows up on Today.
 - **Evolution**: friction, evolve branches (review / merge / discard), the board, the roadmap.
 - **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Apple Music
-  in Claude OS" (MusicKit: catalog songs, your library, playlists and radio play right in
-  Claude OS), weather for a city or your location, your calendar and reminders (read-only),
-  notifications with Claude OS's own name, Night shift, and Keep Claude OS up to date
+  in Ovenbird" (MusicKit: catalog songs, your library, playlists and radio play right in
+  Ovenbird), weather for a city or your location, your calendar and reminders (read-only),
+  notifications with Ovenbird's own name, Night shift, and Keep Ovenbird up to date
   (what you merge on GitHub comes to this Mac by itself). Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
@@ -83,7 +86,7 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 
 ```
 $ cos
-◆ Claude OS 0.1.0 · Saturday 24 Oct 2026, 08:02
+◆ Ovenbird 0.1.0 · Saturday 24 Oct 2026, 08:02
   Mac16,8 · macOS 27.0.1 · Apple M4 Pro · up 3d 2h
   disk 412.3 GB free (44.5%) · memory 21.4 GB/48.0 GB · battery 81% charging
   signals: 23 updates available (checked 2h ago) · 41.2 GB safely reclaimable (scanned 1h ago)
@@ -97,7 +100,7 @@ $ cos
 
 ## Boot it
 
-Not a developer? A downloadable, signed Claude OS.app that sets itself up is on its way
+Not a developer? A downloadable, signed Ovenbird.app that sets itself up is on its way
 ([decision 0015](docs/decisions/0015-claude-os-for-everyone.md)). Until it's out, this is the
 way in.
 
@@ -106,12 +109,12 @@ the syscalls are Python standard library, and macOS ships Python. Building the a
 the Xcode command line tools (Swift).
 
 ```sh
-git clone https://github.com/NobiResearch/Claude-OS.git && cd Claude-OS
+git clone https://github.com/NobiResearch/Ovenbird.git && cd Ovenbird
 bin/cos install     # links `cos` into ~/.local/bin and /music /tidy /update /startup into ~/.claude/skills,
                     # enables the privacy guard, starts the free pulse daemon
 cos doctor          # checks the wiring
-cos                 # boots Claude Code inside Claude OS
-cos app             # builds, installs and opens Claude OS.app
+cos                 # boots Claude Code inside Ovenbird
+cos app             # builds, installs and opens Ovenbird.app
 ```
 
 `cos <anything>` boots straight into a question (`cos find me a chill song`), and
@@ -126,7 +129,7 @@ the MusicKit service for your bundle id (`COS_BUNDLE_ID`), and its provisioning 
 
 | layer | where | what |
 |---|---|---|
-| desktop | `app/`, `ui/`, `lib/cos/server.py` | Claude OS.app: native shell, web desktop, local API, Claude bridge |
+| desktop | `app/`, `ui/`, `lib/cos/server.py` | Ovenbird.app: native shell, web desktop, local API, Claude bridge |
 | kernel | `CLAUDE.md` | the laws Claude follows here, and the syscall table |
 | syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
 | apps | `.claude/skills/` | `/music` `/tidy` `/update` `/startup` `/brief` `/board` `/lab` `/evolve` |
@@ -148,15 +151,15 @@ cos net [--speed]                is it the Wi-Fi, the router or the internet? ·
 cos backup [setup]               Time Machine, and which connected disk could hold your backups
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes
-cos remember "…"                 teach Claude OS about you; shown to Claude at every boot
+cos remember "…"                 teach Ovenbird about you; shown to Claude at every boot
 cos daemon list|install|run      background jobs via launchd
-cos evolve [review|merge]        see what Claude OS changed about itself
+cos evolve [review|merge]        see what Ovenbird changed about itself
 cos guard · doctor · notify · say · log · brief · config
 ```
 
 ### The board
 
-Non-trivial changes to Claude OS go before a board of four subagents with distinct
+Non-trivial changes to Ovenbird go before a board of four subagents with distinct
 mandates: the **Architect** (does it fit? is it the simplest thing?), the **Guardian**
 (safe, private, reversible? holds a veto), the **Steward** (will the human notice and be
 glad?), and the **Skeptic** (the strongest honest case against). Claude chairs, tallies,
@@ -195,7 +198,7 @@ over the whole tree. Details in [docs/architecture.md](docs/architecture.md#priv
 The short version is [above](#what-it-will-and-wont-do). In more detail: evolve's sandbox lets
 it write only to its own copy, with no network for its commands, and nothing it writes reaches
 `main` until the guard and the tests pass again at merge time. A pull request that changes
-Claude OS's safety files gets an independent review before it merges. Hard-won macOS lessons
+Ovenbird's safety files gets an independent review before it merges. Hard-won macOS lessons
 live in [docs/lessons.md](docs/lessons.md).
 
 ## Contributing
@@ -208,11 +211,11 @@ report it privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## License
 
-Claude OS is open source under the [MIT License](LICENSE): use it, change it, build on it,
+Ovenbird is open source under the [MIT License](LICENSE): use it, change it, build on it,
 ship it. Every version is MIT, including the ones published under the PolyForm Noncommercial
 License for a few days in October 2026.
 
-Claude is a trademark of Anthropic. Claude OS is an independent project, not made or endorsed
+Claude is a trademark of Anthropic. Ovenbird is an independent project, not made or endorsed
 by Anthropic.
 
 ## A note from the founder

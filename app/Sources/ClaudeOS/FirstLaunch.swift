@@ -1,6 +1,6 @@
 import Foundation
 
-/// A downloaded Claude OS.app's first launch (decision 0015, step 5): what this Mac still needs
+/// A downloaded Ovenbird.app's first launch (decision 0015, step 5): what this Mac still needs
 /// before the desktop can start, found without prompting for anything, and the one download it
 /// makes after a click. Nothing here runs `git` or `python3` before the command line tools are
 /// known to be installed: on a Mac without them, /usr/bin/git and /usr/bin/python3 are shims
@@ -134,7 +134,7 @@ enum FirstLaunch {
     static func removeLeftovers(beside target: URL) {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
-        for name in (try? fm.contentsOfDirectory(atPath: parent.path)) ?? [] where name.hasPrefix(".Claude OS download ") {
+        for name in (try? fm.contentsOfDirectory(atPath: parent.path)) ?? [] where name.hasPrefix(".Ovenbird download ") {
             let dir = parent.appendingPathComponent(name)
             guard let config = try? String(contentsOf: dir.appendingPathComponent(".git/config"), encoding: .utf8),
                   AppConfig.originURL(gitConfig: config).map(AppConfig.isRepository) == true else { continue }
@@ -142,12 +142,12 @@ enum FirstLaunch {
         }
     }
 
-    /// Downloads Claude OS into `target`: into a folder beside it first, so `target` only ever
+    /// Downloads Ovenbird into `target`: into a folder beside it first, so `target` only ever
     /// holds a complete, checked copy. Runs off the main thread; returns why it failed, or nil.
     static func download(commit: String, git: String, target: URL, home: String, job: Download = Download()) -> String? {
         let fm = FileManager.default
         let parent = target.deletingLastPathComponent()
-        let staging = parent.appendingPathComponent(".Claude OS download \(UUID().uuidString)")
+        let staging = parent.appendingPathComponent(".Ovenbird download \(UUID().uuidString)")
         defer { try? fm.removeItem(at: staging) }  // ours, made a moment ago; gone once it's moved
         do {
             try fm.createDirectory(at: parent, withIntermediateDirectories: true)
@@ -160,15 +160,15 @@ enum FirstLaunch {
             let r = run(git, args, environment: env, timeout: i == 0 ? 600 : 60, launch: job.launch)
             if job.cancelled { return "Stopped." }
             if r.status != 0 {
-                if i == 1 { return "This app's version (\(commit.prefix(7))) isn't on GitHub's main. Download the latest Claude OS.app." }
+                if i == 1 { return "This app's version (\(commit.prefix(7))) isn't on GitHub's main. Download the latest Ovenbird.app." }
                 let said = (r.error.isEmpty ? r.output : r.error).trimmingCharacters(in: .whitespacesAndNewlines)
-                return i == 0 ? "Couldn't download Claude OS from GitHub. Are you online?\n\n\(said.suffix(400))"
+                return i == 0 ? "Couldn't download Ovenbird from GitHub. Are you online?\n\n\(said.suffix(400))"
                               : "git couldn't set up the download: \(said.suffix(400))"
             }
         }
         let head = run(git, safeGit + ["-C", staging.path, "rev-parse", "HEAD"], environment: env)
         guard head.output.trimmingCharacters(in: .whitespacesAndNewlines) == commit, folder(staging.path) == .claudeOS else {
-            return "The download isn't the Claude OS this app expects; nothing was installed."
+            return "The download isn't the Ovenbird this app expects; nothing was installed."
         }
         if job.cancelled { return "Stopped." }
         do {
@@ -183,7 +183,7 @@ enum FirstLaunch {
             }
             try fm.moveItem(at: staging, to: target)
         } catch {
-            return "Couldn't put Claude OS in \(target.path): \(error.localizedDescription)"
+            return "Couldn't put Ovenbird in \(target.path): \(error.localizedDescription)"
         }
         return nil
     }

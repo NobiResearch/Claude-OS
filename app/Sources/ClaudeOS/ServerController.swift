@@ -99,7 +99,7 @@ final class ServerController {
         stderrTail = Data()
 
         if let problem = config.rootProblem {
-            completion(.failure(.launch(problem)))  // a release with no checkout of Claude OS yet
+            completion(.failure(.launch(problem)))  // a release with no checkout of Ovenbird yet
             return
         }
         let p = Process()

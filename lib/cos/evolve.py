@@ -197,7 +197,7 @@ TESTS_SAID = {True:" · tests pass", False: " · its tests FAIL in the sandbox (
 
 
 def safety_files(branch):
-    """The files of Claude OS's gate the branch changes (what `cos hook check` guards), or
+    """The files of Ovenbird's gate the branch changes (what `cos hook check` guards), or
     None if git can't say. Such a branch gets a guardian review before it merges (0013)."""
     from . import hook
     # Against GitHub's main when there is one: that's what the pull request is judged
@@ -282,7 +282,7 @@ def merge_via_pr(branch, commits, sha):
     if not r.ok:
         core.die("push failed: %s" % r.err[:300])
     title = commits[0].split(" ", 1)[-1] if commits else branch
-    body = ("A change from Claude OS's nightly evolve loop (`%s`).\n\n%s\n\nThe Guardian and the tests "
+    body = ("A change from Ovenbird's nightly evolve loop (`%s`).\n\n%s\n\nThe Guardian and the tests "
             "passed locally before this pull request was opened.\n\n🤖 Generated with "
             "[Claude Code](https://claude.com/claude-code)") % (branch, "\n".join("- " + c for c in commits))
     r = _gh("pr", "create", "--base", main_branch(), "--head", branch, "--title", title, "--body", body)
@@ -314,7 +314,7 @@ FETCH_EVERY = 600
 
 
 def _origin_problem(cwd):
-    """Why origin can't be taken for Claude OS on GitHub, or None."""
+    """Why origin can't be taken for Ovenbird on GitHub, or None."""
     from . import hook
     if not hook.GITHUB.match(git("config", "--get", "remote.origin.url", cwd=cwd).out or ""):
         return "origin isn't a GitHub repository"
@@ -339,7 +339,7 @@ def _stranger(target, cwd):
 
 
 def _lock(wait):
-    """One process moves the checkout at a time, and one about to load Claude OS's code waits
+    """One process moves the checkout at a time, and one about to load Ovenbird's code waits
     for a move in progress. -> an open file holding the lock, or None after `wait` seconds."""
     import fcntl
     f = open(str(core.home("state", "catch-up.lock")), "w")
@@ -364,7 +364,7 @@ def wait_for_moves(wait=15):
 
 def hold_serving():
     """Every `cos serve` holds this shared lock while it runs, so a catch-up can tell that a
-    server has Claude OS's code loaded (the app's, or one in a browser). Keep the file open."""
+    server has Ovenbird's code loaded (the app's, or one in a browser). Keep the file open."""
     import fcntl
     f = open(str(core.home("state", "serve.lock")), "a")
     fcntl.flock(f, fcntl.LOCK_SH)
@@ -411,7 +411,7 @@ def catch_up(apply=False, fetch=True, source="cli", cwd=None, retry=False, commi
     try:
         out = _where(cwd, fetch, retry, commit)
         if apply and out["behind"] and not out["why"] and (os.environ.get("CLAUDE_OS_DAEMON") or os.environ.get("COS_SANDBOXED")):
-            out["why"] = "a background job never moves Claude OS's own code"
+            out["why"] = "a background job never moves Ovenbird's own code"
         if apply and out["behind"] and not out["why"]:
             _fast_forward(out, cwd, source)
         core.cache_put("catch-up", {k: v for k, v in out.items() if k != "target"})
@@ -486,7 +486,7 @@ def _fast_forward(out, cwd, source):
     except OSError:
         pass
     out.update(updated=True, head=git("rev-parse", "--short", "HEAD", cwd=cwd).out, ahead=0)
-    core.journal("action", "Claude OS caught up with main: %d change%s" % (
+    core.journal("action", "Ovenbird caught up with main: %d change%s" % (
                      out["behind"], "" if out["behind"] == 1 else "s"),
                  source=source, old=old, new=git("rev-parse", "HEAD", cwd=cwd).out,
                  subjects=out["subjects"][:20], protected=out["protected"], undo="git reset --keep %s" % old)
@@ -497,7 +497,7 @@ def _fast_forward(out, cwd, source):
 
 def follow_app(source, cwd=None):
     """A downloaded copy's code follows its app (decision 0015, step 6): opening a newer
-    Claude OS.app moves the checkout forward to the commit that app was built from, before
+    Ovenbird.app moves the checkout forward to the commit that app was built from, before
     the server loads anything, with catch-up's guards. Never back: an app older than its code
     hears about it instead (core.app_outdated). -> catch_up's dict, or None when there's
     nothing to follow."""
@@ -529,7 +529,7 @@ def follow_problem():
 
 
 def auto_catch_up(source, cwd=None):
-    """With "Keep Claude OS up to date" on (0011, part two), fast-forward. Callers only call
+    """With "Keep Ovenbird up to date" on (0011, part two), fast-forward. Callers only call
     it where no old code is loaded: the app's server before it imports anything, a terminal
     session's boot and pulse while no server has the code loaded (code_in_use). A downloaded
     copy never follows main: it follows its app (follow_app).
@@ -541,7 +541,7 @@ def auto_catch_up(source, cwd=None):
         return None
     if not auto.get("catch_up_url") or git("config", "--get", "remote.origin.url", cwd=cwd).out != auto["catch_up_url"]:
         c = catch_up(fetch=True, source=source, cwd=cwd)
-        c["why"] = c["why"] or "origin isn't the repository Keep Claude OS up to date was turned on for"
+        c["why"] = c["why"] or "origin isn't the repository Keep Ovenbird up to date was turned on for"
         # catch_up cached it without the why: the desktop's Update item would offer, forever,
         # a catch-up that can't happen.
         core.cache_put("catch-up", {k: v for k, v in c.items() if k != "target"})
@@ -564,7 +564,7 @@ def main(args):
             for c_ in r["commits"][:5]:
                 print("    %s" % c_)
             if r["protected"]:
-                print("    changes Claude OS's safety files: %s (a guardian review first, 0013)" % ", ".join(r["protected"][:4]))
+                print("    changes Ovenbird's safety files: %s (a guardian review first, 0013)" % ", ".join(r["protected"][:4]))
         from . import hook
         night = hook.waiting()
         if night:  # quiet when there are none, or GitHub can't be asked
@@ -579,14 +579,14 @@ def main(args):
     if c == "merge":
         _check_branch(args.branch)
         if core.downloaded():
-            core.die("a downloaded Claude OS follows its app's releases, so its main takes no local commits "
+            core.die("a downloaded Ovenbird follows its app's releases, so its main takes no local commits "
                      "(they'd stop the next app from bringing its code). Share the idea as an issue on %s instead."
                      % core.REPOSITORY)
         github = _github()
         touched = safety_files(args.branch)
         if touched is None:
             core.die("couldn't list what %s changes; not merging" % args.branch)
-        review = ("%s changes Claude OS's safety files (%s). Decision 0013: a guardian agent reviews it "
+        review = ("%s changes Ovenbird's safety files (%s). Decision 0013: a guardian agent reviews it "
                   "first, then merge with --reviewed." % (args.branch, ", ".join(touched[:4]))) if touched else ""
         if not args.yes:
             how = "push it, open a pull request, wait for CI and squash-merge" if github else "fast-forward %s" % main_branch()

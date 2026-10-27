@@ -1,4 +1,4 @@
-// Claude OS desktop: API client, window manager, dock, menu bar, palette, boot.
+// Ovenbird desktop: API client, window manager, dock, menu bar, palette, boot.
 "use strict";
 
 (function () {
@@ -395,14 +395,14 @@
       up.hidden = !(co && co.restart);
       if (co && co.restart) {
         up.title = co.waiting ? co.waiting + " merged on GitHub:\n" + co.subjects.join("\n")
-          : "Claude OS's code changed since this window started";
+          : "Ovenbird's code changed since this window started";
       }
       document.body.classList.remove("offline");
     } catch (e) {
       document.body.classList.add("offline");
       const sig = document.getElementById("mb-signals");
       sig.className = "mb-item signals offline";
-      sig.title = "Can't reach the Claude OS server: " + e.message;
+      sig.title = "Can't reach the Ovenbird server: " + e.message;
     }
   }
 
@@ -410,9 +410,9 @@
   async function updateNow() {
     const co = (state.status || {}).claude_os || {};
     const ok = await confirmDialog({
-      title: "Restart to update Claude OS?",
-      body: (co.waiting ? "Brings in what you merged on GitHub, then restarts Claude OS's server. "
-        : "Restarts Claude OS's server on the code that's on disk now. ")
+      title: "Restart to update Ovenbird?",
+      body: (co.waiting ? "Brings in what you merged on GitHub, then restarts Ovenbird's server. "
+        : "Restarts Ovenbird's server on the code that's on disk now. ")
         + "Music keeps playing; a reply that's still being written stops.",
       ok: "Restart",
     });
@@ -493,10 +493,10 @@
     let booted = false;
     try { booted = sessionStorage.getItem("cos-booted") === "1"; } catch (e) {}
     if (!token) {
-      overlay.querySelector(".boot-log").textContent = "No session token. Open Claude OS from the app, or run `cos serve --open`.";
+      overlay.querySelector(".boot-log").textContent = "No session token. Open Ovenbird from the app, or run `cos serve --open`.";
       return;
     }
-    try { lines = (await api("/api/boot")).lines; } catch (e) { lines = ["◆ Claude OS", "  couldn't reach the server: " + e.message]; }
+    try { lines = (await api("/api/boot")).lines; } catch (e) { lines = ["◆ Ovenbird", "  couldn't reach the server: " + e.message]; }
     if (!booted) {
       const log = overlay.querySelector(".boot-log");
       for (const line of lines.slice(0, 9)) {

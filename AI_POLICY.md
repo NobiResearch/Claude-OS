@@ -1,6 +1,6 @@
 # AI policy
 
-AI tools are welcome here. Claude writes most of Claude OS, and its owner answers for what
+AI tools are welcome here. Claude writes most of Ovenbird, and its owner answers for what
 merges. The tests and the Guardian's privacy check run on every change, and a change to the
 safety files gets an independent safety review
 ([decision 0013](docs/decisions/0013-the-repository-is-claudes.md)). We ask the same of you:

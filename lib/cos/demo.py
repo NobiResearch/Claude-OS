@@ -117,7 +117,7 @@ DAEMONS = [
     {"name": "morning", "installed": True, "loaded": True, "schedule": "daily 08:00", "llm": True, "last_run": "2026-10-24T08:00:41",
      "last_ok": True, "description": "08:00 daily: Claude writes your morning brief and sends a notification."},
     {"name": "evolve", "installed": True, "loaded": True, "schedule": "daily 03:30", "llm": True, "last_run": "2026-10-24T03:30:12",
-     "last_ok": True, "description": "03:30 daily: one small, tested improvement to Claude OS on a local evolve/* branch."},
+     "last_ok": True, "description": "03:30 daily: one small, tested improvement to Ovenbird on a local evolve/* branch."},
     {"name": "board", "installed": False, "loaded": False, "schedule": "Sun 10:00", "llm": True, "last_run": None,
      "last_ok": None, "description": "Sundays 10:00: the board reviews the week and sets next week's priorities."},
 ]
@@ -130,11 +130,11 @@ BRIEF = {"file": "demo.md", "ts": NOW - 3 * 3600, "text": """# Good morning — 
 - **The quiet comeback of the airship** — cargo routes where runways don't reach. https://example.com/
 - **On keeping a notebook for twenty years** — exactly your kind of slow read. https://example.com/
 
-## Claude OS
+## Ovenbird
 One evolve branch waiting: *brief: link to articles instead of comment threads*.
 """}
 
-BOOT = ["◆ Claude OS (demo) · a fictional Mac, for screenshots",
+BOOT = ["◆ Ovenbird (demo) · a fictional Mac, for screenshots",
         "  Mac16,8 · macOS 27.0.1 · Apple M4 Pro · up 3d 2h",
         "  disk 412 GB free (41.4%) · memory 21.4 GB/48.0 GB · battery 81% charging",
         "  signals: 8 updates available · 41.2 GB safely reclaimable",

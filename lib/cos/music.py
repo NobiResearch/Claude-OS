@@ -1,6 +1,6 @@
-"""cos music — Apple Music, through Claude OS's own player plus the Music app.
+"""cos music — Apple Music, through Ovenbird's own player plus the Music app.
 
-With "Apple Music in Claude OS" on (decisions 0003/0004), songs, library songs and playlists
+With "Apple Music in Ovenbird" on (decisions 0003/0004), songs, library songs and playlists
 play in the app's MusicKit player, and pause, next, shuffle and love go there while it has a
 song. Otherwise the Music app is driven by AppleScript: reliable for the library, while
 catalog-only songs open on their page in Music (and we say so honestly if it doesn't play).
@@ -54,11 +54,11 @@ return out
 
 
 def _own_now(st):
-    """Claude OS's player state, shaped like now()."""
+    """Ovenbird's player state, shaped like now()."""
     state = st.get("status") if st.get("status") in ("playing", "paused") else "playing"
     return {"running": True, "state": state, "track": st.get("track"), "artist": st.get("artist"),
             "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
-            "volume": None, "shuffle": bool(st.get("shuffle")), "repeat": "off", "player": "Claude OS",
+            "volume": None, "shuffle": bool(st.get("shuffle")), "repeat": "off", "player": "Ovenbird",
             "playlist": st.get("playlist"), "radio": st.get("radio"), "station": st.get("station"),
             "artwork": st.get("artwork") or None}
 
@@ -68,7 +68,7 @@ def now():
     if own and own["status"] == "playing":
         return _own_now(own)
     app = _music_app_now()
-    # Paused in Claude OS is still the song on screen, unless Music is playing something else.
+    # Paused in Ovenbird is still the song on screen, unless Music is playing something else.
     if own and app.get("state") != "playing":
         return _own_now(own)
     return app
@@ -106,7 +106,7 @@ def render_now(n):
         return
     pos = "%d:%02d / %d:%02d" % (n["position"] // 60, n["position"] % 60, n["duration"] // 60, n["duration"] % 60)
     print("%s %s — %s" % ("▶" if n["state"] == "playing" else "❚❚", n["track"], n["artist"] or "?"))
-    where = "in Claude OS" if n.get("player") == "Claude OS" else "vol %d" % (n.get("volume") or 0)
+    where = "in Ovenbird" if n.get("player") == "Ovenbird" else "vol %d" % (n.get("volume") or 0)
     print("  %s · %s · %s%s" % (n["album"] or "", pos, where, " · shuffle" if n.get("shuffle") else ""))
 
 
@@ -173,7 +173,7 @@ def play_playlist(name, shuffle=None):
         return {"ok": False, "error": "no playlist matching %r" % name,
                 "playlists": [p["name"] for p in lists]}
     if player_enabled():
-        # One player (0004): the playlist plays in Claude OS, so pause, next and love work.
+        # One player (0004): the playlist plays in Ovenbird, so pause, next and love work.
         extra = {"name": match["name"]}
         if shuffle is not None:
             extra["shuffle"] = "1" if shuffle else "0"
@@ -275,9 +275,9 @@ def play_catalog(item):
     return {"ok": True, "now": n, "matched": bool(n.get("track"))}
 
 
-# ---------------------------------------------------------------- Claude OS player (0003, amended)
+# ---------------------------------------------------------------- Ovenbird player (0003, amended)
 #
-# Catalog songs AppleScript can't reach play in Claude OS.app itself, through MusicKit's
+# Catalog songs AppleScript can't reach play in Ovenbird.app itself, through MusicKit's
 # ApplicationMusicPlayer and the narrow "Media & Apple Music" permission. `cos` drives it
 # with claude-os://music/... URLs (handled by the app, see app/Sources/ClaudeOS/Player.swift)
 # and reads what it's doing from ~/.claude-os/state/player.json.
@@ -301,7 +301,7 @@ PLAYER_COMMANDS = ("authorize", "play", "play-library", "play-playlist", "radio"
 
 
 def player_command(command, catalog_id=None, wait=12, extra=None):
-    """Send a command to Claude OS's player and wait until it answers *this* request.
+    """Send a command to Ovenbird's player and wait until it answers *this* request.
 
     Each command carries a request id that the app echoes in player.json, so the app's
     2-second state ticks (or an earlier song) can't be mistaken for the answer; and the
@@ -314,13 +314,13 @@ def player_command(command, catalog_id=None, wait=12, extra=None):
         return {"ok": False, "error": "bad catalog id"}
     starts_playback = command in ("authorize", "play", "play-library", "play-playlist", "radio")
     if not (core.ensure_app() if starts_playback else core.app_running("ClaudeOS")):
-        return {"ok": False, "error": "Claude OS isn't running"}
+        return {"ok": False, "error": "Ovenbird isn't running"}
     rid = uuid.uuid4().hex[:12]
     params = {"rid": rid, "id": catalog_id}
     params.update(extra or {})
     r = core.open_app_url(core.app_url("music/%s" % command, **params), timeout=15)
     if not r.ok:
-        return {"ok": False, "error": "couldn't reach Claude OS: %s" % r.err[:200]}
+        return {"ok": False, "error": "couldn't reach Ovenbird: %s" % r.err[:200]}
     playing = lambda s: s.get("status") == "playing"
     done = {"play": playing, "play-library": playing, "play-playlist": playing, "radio": playing,
             "love": lambda s: s.get("loved"),
@@ -333,11 +333,11 @@ def player_command(command, catalog_id=None, wait=12, extra=None):
         if state and state.get("rid") == rid and (done is None or done(state) or state.get("error")):
             break
     if not state or state.get("rid") != rid:
-        return {"ok": False, "error": "Claude OS didn't answer in time"}
+        return {"ok": False, "error": "Ovenbird didn't answer in time"}
     if state.get("error"):
         return {"ok": False, "error": state["error"], "state": state}
     if done and not done(state):
-        return {"ok": False, "error": "Claude OS answered but didn't confirm", "state": state}
+        return {"ok": False, "error": "Ovenbird answered but didn't confirm", "state": state}
     return {"ok": True, "state": state}
 
 
@@ -354,20 +354,20 @@ def play_with_player(item):
     return {"ok": True, "matched": True, "catalog_id": str(catalog_id), "now": {
         "running": True, "state": "playing", "track": st.get("track"), "artist": st.get("artist"),
         "album": st.get("album"), "duration": st.get("duration", 0), "position": st.get("position", 0),
-        "player": "Claude OS"}}
+        "player": "Ovenbird"}}
 
 
 def radio(query=None, mine=False):
     """A song, then similar music (decision 0005): Apple Music's station for it, played in
-    Claude OS's player. Seeded from the catalog: the best pick for `query`, the song playing
+    Ovenbird's player. Seeded from the catalog: the best pick for `query`, the song playing
     now, or with `mine` the song station_seed picks from what you've been playing."""
     if not player_enabled():
-        return {"ok": False, "error": "radio plays in Claude OS's own player: turn on Apple Music in "
+        return {"ok": False, "error": "radio plays in Ovenbird's own player: turn on Apple Music in "
                                       "Settings › Permissions (cos music setup)"}
     if mine:
         s = station_seed()
         if not s:
-            return {"ok": False, "error": "nothing to start your radio from yet: play a song in Claude OS a "
+            return {"ok": False, "error": "nothing to start your radio from yet: play a song in Ovenbird a "
                                           "couple of times, or start a radio from one"}
         seed, item = s["catalog_id"], {"name": s["label"]}
     elif query:
@@ -380,7 +380,7 @@ def radio(query=None, mine=False):
     else:
         own = own_player_active()
         if not own:
-            return {"ok": False, "error": "nothing is playing in Claude OS to start a radio from: "
+            return {"ok": False, "error": "nothing is playing in Ovenbird to start a radio from: "
                                           "say what to start with (cos music radio \"<song> <artist>\")"}
         seed = own.get("id")
         item = {"name": own.get("track"), "artist": own.get("artist")}
@@ -445,7 +445,7 @@ def _id_from_url(url):
 
 # ---------------------------------------------------------------- shortcut route
 
-SHORTCUT = "Claude OS Play"
+SHORTCUT = "Ovenbird Play"
 SETUP_STEPS = """\
 Catalog playback through Shortcuts (one-time, no new permissions):
 
@@ -469,7 +469,7 @@ def shortcut_installed():
 
 
 def play_via_shortcut(query, expect=None):
-    """Hand the request to the human's "Claude OS Play" shortcut, then verify."""
+    """Hand the request to the human's "Ovenbird Play" shortcut, then verify."""
     import tempfile
     before = now()
     with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as f:
@@ -578,7 +578,7 @@ def report(res, query=None):
 
 
 def own_player_active():
-    """Claude OS's player has a song, playing or paused: transport goes there, not to Music.
+    """Ovenbird's player has a song, playing or paused: transport goes there, not to Music.
     While it plays, the app rewrites player.json every 2 seconds; paused, it goes quiet, so a
     paused song counts for as long as the app that paused it is running: written since this
     launch (each launch rewrites app.nonce), not left over from one before."""
@@ -607,11 +607,11 @@ def transport(cmd):
             return 1
         st = res["state"]
         if cmd in ("next", "prev") and st.get("track"):
-            print("▶ %s — %s (Claude OS player)" % (st["track"], st.get("artist") or ""))
+            print("▶ %s — %s (Ovenbird player)" % (st["track"], st.get("artist") or ""))
         elif asked == "next":
-            print("stopped (nothing was queued after it in Claude OS)")
+            print("stopped (nothing was queued after it in Ovenbird)")
         else:
-            print("%s (Claude OS player)" % cmd)
+            print("%s (Ovenbird player)" % cmd)
         return 0
     scripts = {"pause": "pause", "resume": "play", "toggle": "playpause", "next": "next track",
                "prev": "back track", "stop": "stop"}
@@ -639,7 +639,7 @@ def volume(level):
 
 
 def like():
-    # Love what's actually playing: Claude OS's own player first, the Music app otherwise.
+    # Love what's actually playing: Ovenbird's own player first, the Music app otherwise.
     own = own_player_active()
     if own:
         res = player_command("love", wait=10)
@@ -649,7 +649,7 @@ def like():
         st = res["state"]  # what the player rated, not what was on a moment ago
         name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
         journal_event("like", "liked %s" % name, catalog_id=st.get("id") or own.get("id"), label=name,
-                      liked=True, track=name, player="Claude OS")
+                      liked=True, track=name, player="Ovenbird")
         print("♥ %s" % name)
         return 0
     if not core.app_running("Music") or now().get("state") not in ("playing", "paused"):
@@ -668,7 +668,7 @@ def like():
 def unlike():
     own = own_player_active()
     if not own:
-        print("✗ unlike works on what's playing in Claude OS")
+        print("✗ unlike works on what's playing in Ovenbird")
         return 1
     res = player_command("unlove", wait=10)
     if not res.get("ok"):
@@ -677,7 +677,7 @@ def unlike():
     st = res["state"]
     name = "%s — %s" % (st.get("track") or own["track"], st.get("artist") or own.get("artist") or "?")
     journal_event("unlike", "unliked %s" % name, catalog_id=st.get("id") or own.get("id"), label=name,
-                  track=name, player="Claude OS")
+                  track=name, player="Ovenbird")
     print("♡ %s" % name)
     return 0
 
@@ -750,7 +750,7 @@ def main(args):
     if c == "shuffle":
         if own_player_active():
             res = player_command("shuffle", wait=4, extra={"on": "1" if args.state == "on" else "0"})
-            print(("shuffle %s (Claude OS player)" % args.state) if res.get("ok") else "✗ %s" % res.get("error"))
+            print(("shuffle %s (Ovenbird player)" % args.state) if res.get("ok") else "✗ %s" % res.get("error"))
             return 0 if res.get("ok") else 1
         _tell("set shuffle enabled to %s" % ("true" if args.state == "on" else "false"))
         print("shuffle %s" % args.state)
@@ -763,11 +763,11 @@ def main(args):
         return history(args.days)
     if c == "setup":
         st = player_state() or {}
-        print("Apple Music in Claude OS: %s" % ("on" if player_enabled() else "off"))
+        print("Apple Music in Ovenbird: %s" % ("on" if player_enabled() else "off"))
         print("  Media & Apple Music access: %s" % st.get("authorization", "not asked yet"))
         if st.get("error"):
             print("  last error: %s" % st["error"])
-        print("  turn it on in Claude OS › Settings › Permissions")
+        print("  turn it on in Ovenbird › Settings › Permissions")
         if not os.path.exists(os.path.expanduser("~/.claude-os/ClaudeOS.provisionprofile")):
             print("  one-time developer setup (MusicKit needs it):")
             print("    1. developer.apple.com › Identifiers: App ID %s with the MusicKit service" % "local.claude-os.desktop")

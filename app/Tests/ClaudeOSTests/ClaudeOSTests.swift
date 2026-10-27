@@ -112,27 +112,30 @@ final class NotificationTargetTests: XCTestCase {
 /// Decision 0015, step 4: a release finds its code without baked paths, and runs only a
 /// checkout of this repository.
 final class ReleaseRootTests: XCTestCase {
-    let config = "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = https://github.com/NobiResearch/Claude-OS.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
+    let config = "[core]\n\tbare = false\n[remote \"origin\"]\n\turl = https://github.com/NobiResearch/Ovenbird.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n"
 
     func testCandidatesInOrderNeverTheEnvironmentOrTheCurrentFolder() {
-        XCTAssertEqual(AppConfig.releaseCandidates(home: "/Users/x", linkedRoot: "/Users/x/src/Claude-OS"),
-                       ["/Users/x/src/Claude-OS", "/Users/x/Library/Application Support/Claude OS"])
+        XCTAssertEqual(AppConfig.releaseCandidates(home: "/Users/x", linkedRoot: "/Users/x/src/Ovenbird"),
+                       ["/Users/x/src/Ovenbird", "/Users/x/Library/Application Support/Ovenbird"])
         XCTAssertEqual(AppConfig.releaseCandidates(home: "/Users/x", linkedRoot: nil),
-                       ["/Users/x/Library/Application Support/Claude OS"])
+                       ["/Users/x/Library/Application Support/Ovenbird"])
     }
 
     func testOnlyThisRepositorysOrigin() {
-        XCTAssertEqual(AppConfig.originURL(gitConfig: config), "https://github.com/NobiResearch/Claude-OS.git")
-        for ok in ["https://github.com/NobiResearch/Claude-OS.git", "https://github.com/NobiResearch/Claude-OS",
-                   "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git"] {
+        XCTAssertEqual(AppConfig.originURL(gitConfig: config), "https://github.com/NobiResearch/Ovenbird.git")
+        for ok in ["https://github.com/NobiResearch/Ovenbird.git", "https://github.com/NobiResearch/Ovenbird",
+                   "git@github.com:NobiResearch/Ovenbird.git", "ssh://git@github.com/NobiResearch/Ovenbird.git",
+                   // its former name (decision 0019): a copy cloned from it is still this repository
+                   "https://github.com/NobiResearch/Claude-OS.git", "git@github.com:nobiresearch/claude-os.git"] {
             XCTAssertTrue(AppConfig.isRepository(ok), ok)
         }
-        for bad in ["https://github.com/someone/Claude-OS.git", "https://example.com/NobiResearch/Claude-OS.git",
+        for bad in ["https://github.com/someone/Ovenbird.git", "https://example.com/NobiResearch/Ovenbird.git",
+                    "https://github.com/NobiResearch/Ovenbird-evil.git", "https://github.com/someone/Claude-OS.git",
                     "https://github.com/NobiResearch/Claude-OS-evil.git",
-                    "https://github.com/NobiResearch-evil/Claude-OS.git", ""] {
+                    "https://github.com/NobiResearch-evil/Ovenbird.git", ""] {
             XCTAssertFalse(AppConfig.isRepository(bad), bad)
         }
-        XCTAssertNil(AppConfig.originURL(gitConfig: "[remote \"upstream\"]\n\turl = https://github.com/NobiResearch/Claude-OS.git\n"))
+        XCTAssertNil(AppConfig.originURL(gitConfig: "[remote \"upstream\"]\n\turl = https://github.com/NobiResearch/Ovenbird.git\n"))
     }
 
     func testAFolderIsClaudeOSOnlyWithItsFilesAndOrigin() {
@@ -208,11 +211,11 @@ final class FirstLaunchTests: XCTestCase {
             }
             return dir
         }
-        let ours = try staging(".Claude OS download 1", origin: "https://github.com/NobiResearch/Claude-OS.git")
-        let strange = try staging(".Claude OS download 2", origin: "https://github.com/someone/else.git")
-        let unknown = try staging(".Claude OS download 3", origin: nil)
-        let other = try staging("Something", origin: "https://github.com/NobiResearch/Claude-OS.git")
-        FirstLaunch.removeLeftovers(beside: parent.appendingPathComponent("Claude OS"))
+        let ours = try staging(".Ovenbird download 1", origin: "https://github.com/NobiResearch/Ovenbird.git")
+        let strange = try staging(".Ovenbird download 2", origin: "https://github.com/someone/else.git")
+        let unknown = try staging(".Ovenbird download 3", origin: nil)
+        let other = try staging("Something", origin: "https://github.com/NobiResearch/Ovenbird.git")
+        FirstLaunch.removeLeftovers(beside: parent.appendingPathComponent("Ovenbird"))
         XCTAssertFalse(fm.fileExists(atPath: ours.path))
         for kept in [strange, unknown, other] { XCTAssertTrue(fm.fileExists(atPath: kept.path), kept.lastPathComponent) }
     }
@@ -235,11 +238,11 @@ final class FirstLaunchTests: XCTestCase {
     }
 
     func testWhereTheAppRunsFrom() {
-        XCTAssertTrue(FirstLaunch.translocated("/private/var/folders/xy/T/AppTranslocation/1234/d/Claude OS.app"))
-        XCTAssertFalse(FirstLaunch.translocated("/Applications/Claude OS.app"))
-        XCTAssertTrue(FirstLaunch.inApplications("/Applications/Claude OS.app", home: "/Users/x"))
-        XCTAssertTrue(FirstLaunch.inApplications("/Users/x/Applications/Claude OS.app", home: "/Users/x"))
-        XCTAssertFalse(FirstLaunch.inApplications("/Users/x/Downloads/Claude OS.app", home: "/Users/x"))
+        XCTAssertTrue(FirstLaunch.translocated("/private/var/folders/xy/T/AppTranslocation/1234/d/Ovenbird.app"))
+        XCTAssertFalse(FirstLaunch.translocated("/Applications/Ovenbird.app"))
+        XCTAssertTrue(FirstLaunch.inApplications("/Applications/Ovenbird.app", home: "/Users/x"))
+        XCTAssertTrue(FirstLaunch.inApplications("/Users/x/Applications/Ovenbird.app", home: "/Users/x"))
+        XCTAssertFalse(FirstLaunch.inApplications("/Users/x/Downloads/Ovenbird.app", home: "/Users/x"))
     }
 
     func testOnlyAFullCommitIsUsed() {
@@ -259,7 +262,7 @@ final class FirstLaunchTests: XCTestCase {
         for flag in ["core.hooksPath=/dev/null", "credential.helper=", "protocol.allow=never", "protocol.https.allow=always"] {
             XCTAssertTrue(FirstLaunch.safeGit.contains(flag), flag)
         }
-        XCTAssertTrue(steps[0].contains("https://github.com/NobiResearch/Claude-OS.git"))
+        XCTAssertTrue(steps[0].contains("https://github.com/NobiResearch/Ovenbird.git"))
         XCTAssertTrue(steps[0].contains("--no-recurse-submodules"))
         XCTAssertEqual(Array(steps[1].suffix(4)), ["merge-base", "--is-ancestor", commit, "origin/main"])
         XCTAssertEqual(Array(steps[2].suffix(4)), ["--quiet", "-B", "main", commit])
@@ -284,7 +287,7 @@ final class FirstLaunchTests: XCTestCase {
               let dir = FirstLaunch.developerDir() else { throw XCTSkip("needs COS_NETWORK_TESTS=1 and COS_TEST_COMMIT") }
         let parent = FileManager.default.temporaryDirectory.appendingPathComponent("cos-download-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: parent) }
-        let target = parent.appendingPathComponent("Claude OS")
+        let target = parent.appendingPathComponent("Ovenbird")
         XCTAssertNil(FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: NSHomeDirectory()))
         XCTAssertEqual(FirstLaunch.folder(target.path), .claudeOS)
         XCTAssertTrue(FileManager.default.fileExists(atPath: target.appendingPathComponent(".claude/settings.local.json").path))
@@ -301,7 +304,7 @@ final class FirstLaunchTests: XCTestCase {
         let push = FirstLaunch.run(dir + "/usr/bin/git", ["-C", target.path, "push", "--dry-run", "origin", "main"], environment: env2)
         XCTAssertNotEqual(push.status, 0, "a downloaded copy can't push to origin")
         let leftovers = try FileManager.default.contentsOfDirectory(atPath: parent.path)
-        XCTAssertEqual(leftovers, ["Claude OS"], "the staging folder is gone")
+        XCTAssertEqual(leftovers, ["Ovenbird"], "the staging folder is gone")
         XCTAssertNotNil(FirstLaunch.download(commit: commit, git: dir + "/usr/bin/git", target: target, home: NSHomeDirectory()),
                         "a folder that's already there is never replaced")
         let bogus = String(repeating: "0", count: 40)
@@ -331,7 +334,7 @@ final class FirstLaunchTests: XCTestCase {
     }
 }
 
-/// Decision 0015, step 5: Remove Claude OS is offered only for the checkout this app downloaded.
+/// Decision 0015, step 5: Remove Ovenbird is offered only for the checkout this app downloaded.
 final class RemoverTests: XCTestCase {
     func testOnlyTheDownloadedCheckoutOfARelease() throws {
         let fm = FileManager.default

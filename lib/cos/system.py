@@ -1,4 +1,4 @@
-"""cos install / uninstall / doctor — putting Claude OS on (and off) this Mac."""
+"""cos install / uninstall / doctor — putting Ovenbird on (and off) this Mac."""
 
 import os
 import sys
@@ -46,7 +46,7 @@ def link_skills():
     for name in EVERYWHERE:
         path = os.path.join(skills_dir(), name)
         if os.path.lexists(path) and not _our_skill(path, name):
-            steps.append("✗ ~/.claude/skills/%s exists and isn't Claude OS's; left it alone" % name)
+            steps.append("✗ ~/.claude/skills/%s exists and isn't Ovenbird's; left it alone" % name)
             continue
         if os.path.lexists(path):
             os.remove(path)
@@ -69,7 +69,7 @@ def unlink_skills():
 
 def keep_download_settings():
     """A downloaded copy's deny rules live in its gitignored .claude/settings.local.json, which
-    `git clean -X` would delete: put back what's missing whenever Claude OS starts (decision
+    `git clean -X` would delete: put back what's missing whenever Ovenbird starts (decision
     0015). Rules the person added stay. -> True when it wrote the file."""
     if not core.downloaded():
         return False
@@ -103,7 +103,7 @@ def install(args):
     steps = []
     os.makedirs(BIN_DIR, exist_ok=True)
     if os.path.lexists(LINK) and not _ours(LINK):
-        steps.append("✗ %s exists and isn't Claude OS; left it alone" % _tilde(LINK))
+        steps.append("✗ %s exists and isn't Ovenbird; left it alone" % _tilde(LINK))
     else:
         if os.path.lexists(LINK):
             os.remove(LINK)
@@ -119,16 +119,16 @@ def install(args):
         r = daemon.install("pulse")
         steps.append("✓ pulse daemon running (every 2h, no LLM)" if daemon.is_loaded("pulse") and not daemon.elsewhere("pulse")
                      else "✗ pulse not installed: %s" % (r.err or "launchd didn't load it"))
-    core.journal("action", "installed Claude OS %s" % __version__)
+    core.journal("action", "installed Ovenbird %s" % __version__)
     print("\n".join(steps))
-    print("\nNext: run `cos` to boot into Claude OS.")
+    print("\nNext: run `cos` to boot into Ovenbird.")
     print("\n".join(daemon_note(daemon.status(where=True), skipped=args.no_daemons)))
     return 0
 
 
 def running(rows):
-    """The daemons that run, and where the ones another Claude OS on this Mac runs come from:
-    "pulse, morning (from ~/code/Claude-OS)". A clone beside a downloaded app (0015) would
+    """The daemons that run, and where the ones another Ovenbird on this Mac runs come from:
+    "pulse, morning (from ~/code/Ovenbird)". A clone beside a downloaded app (0015) would
     otherwise take that copy's daemons for its own."""
     here = [r["name"] for r in rows if r["loaded"] and not r.get("elsewhere")]
     there = {}
@@ -156,7 +156,7 @@ def uninstall(args):
     from . import daemon
     kept = [name for name in daemon.definitions() if not daemon.uninstall(name).ok]
     if kept:
-        print("Left on: %s (they run from another Claude OS on this Mac)." % ", ".join(kept))
+        print("Left on: %s (they run from another Ovenbird on this Mac)." % ", ".join(kept))
     if _ours(LINK):
         os.remove(LINK)
     skills = unlink_skills()

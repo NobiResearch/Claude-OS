@@ -1,7 +1,7 @@
 ## What and why
 
 <!-- In your own words, under 200 words (AI_POLICY.md): what this changes for someone using
-Claude OS, and why. Link an issue if there is one. -->
+Ovenbird, and why. Link an issue if there is one. -->
 
 **Written with:** <!-- the tool and model, or "none" -->
 

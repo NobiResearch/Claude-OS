@@ -4,7 +4,7 @@ description: Answer "do I need to clean up my Mac?" and reclaim disk space on th
 argument-hint: "[--deep]"
 ---
 
-> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Claude OS folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
+> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Ovenbird folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
 
 # Tidy
 

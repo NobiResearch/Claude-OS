@@ -1,6 +1,6 @@
 # Architecture
 
-Claude OS doesn't replace macOS. It's a layer that makes the Mac legible and operable by
+Ovenbird doesn't replace macOS. It's a layer that makes the Mac legible and operable by
 Claude, and makes Claude useful to the person who owns the Mac. The kernel is Claude Code;
 everything here is what that kernel boots into.
 
@@ -36,7 +36,7 @@ everything here is what that kernel boots into.
 ## The desktop
 
 ```
- Claude OS.app (app/, AppKit)          cos serve (lib/cos/server.py, 127.0.0.1 only)
+ Ovenbird.app (app/, AppKit)          cos serve (lib/cos/server.py, 127.0.0.1 only)
  ┌───────────────────────────┐  READY  ┌─────────────────────────────────────────────┐
  │ window: WKWebView ────────┼── http ─▶ ui/  (menu bar, dock, windows, apps)       │
  │ status item, ⌃⌥Space      │  token  │ /api/*  → syscalls (reads) and jobs (cos … --yes)│
@@ -47,7 +47,7 @@ everything here is what that kernel boots into.
 
 `claude-os://` links that change something (play, rate, permission prompts) carry the
 launch's nonce from `~/.claude-os/state/app.nonce` (0600); the app refuses them otherwise,
-so a web page or feed link can't make Claude OS act. The app launches `cos serve --exit-on-stdin-eof`; the server generates a token and prints it
+so a web page or feed link can't make Ovenbird act. The app launches `cos serve --exit-on-stdin-eof`; the server generates a token and prints it
 only on its READY line, to the pipe the app owns, so other processes can't read it from
 `ps` or the environment. The web desktop sends it as a header on every API call. A human
 click on Reclaim/Upgrade/Merge is the approval: the server runs the same `cos … --yes`
@@ -71,12 +71,12 @@ Mac?", how to pick a song for a mood, how to triage updates. Skills call syscall
 don't reimplement them.
 
 **Colleagues** (`.claude/agents/`). The board (four seats with distinct mandates, the
-Guardian holding a veto) decides how Claude OS changes. The lab's scouts research questions
+Guardian holding a veto) decides how Ovenbird changes. The lab's scouts research questions
 in parallel.
 
 **Daemons** (`etc/daemons.json` → launchd). `pulse` is plain Python and keeps caches warm
 so boot and the status line stay instant; it also fetches main and notes what's merged on
-GitHub but not on this Mac (decision 0011); with Keep Claude OS up to date on, it also
+GitHub but not on this Mac (decision 0011); with Keep Ovenbird up to date on, it also
 fast-forwards while the app is closed. Boot's one network call is that same fetch, at
 most every 10 minutes. The LLM daemons (`morning`,
 `evolve`, `board`) run headless Claude Code with an allowlist, a deny-list no definition

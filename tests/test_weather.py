@@ -106,7 +106,7 @@ class TestClaudeOSPlayer(TempHome):
         res = music.play_playlist("deep work", shuffle=True)
         self.assertTrue(res["ok"])
         self.assertEqual(sent, [("play-playlist", {"name": "Deep Work", "shuffle": "1"})])
-        self.assertEqual((res["now"]["player"], res["now"]["playlist"], told), ("Claude OS", "Deep Work", []))
+        self.assertEqual((res["now"]["player"], res["now"]["playlist"], told), ("Ovenbird", "Deep Work", []))
 
     def test_playlist_falls_back_to_music_when_our_player_fails(self):
         from cos import music
@@ -209,12 +209,12 @@ class TestClaudeOSPlayer(TempHome):
         core.save_json(core.home("state", "player.json"), {"ts": time.time(), "status": "playing",
                                                             "track": "Weightless", "artist": "Marconi Union"})
         n = music.now()
-        self.assertEqual((n["track"], n["player"]), ("Weightless", "Claude OS"))
+        self.assertEqual((n["track"], n["player"]), ("Weightless", "Ovenbird"))
         import io
         from contextlib import redirect_stdout
         with redirect_stdout(io.StringIO()) as out:
             music.render_now(n)
-        self.assertIn("in Claude OS", out.getvalue())
+        self.assertIn("in Ovenbird", out.getvalue())
         core.save_json(core.home("state", "player.json"), {"ts": time.time() - 3600, "status": "playing", "track": "Old"})
         self.assertNotEqual(music.now().get("track"), "Old", "stale player state is ignored")
 
@@ -229,7 +229,7 @@ class TestClaudeOSPlayer(TempHome):
         with mock.patch.object(music.core, "app_running", lambda name: name == "ClaudeOS"), \
                 mock.patch.object(music, "_music_app_now", lambda: dict(music_app)):
             n = music.now()
-            self.assertEqual((n["track"], n["state"], n["player"]), ("A Moment Apart", "paused", "Claude OS"))
+            self.assertEqual((n["track"], n["state"], n["player"]), ("A Moment Apart", "paused", "Ovenbird"))
             self.assertEqual(music.own_player_active()["track"], "A Moment Apart", "play resumes it, not Music")
         with mock.patch.object(music.core, "app_running", lambda name: name == "ClaudeOS"), \
                 mock.patch.object(music, "_music_app_now", lambda: dict(music_app, state="playing")):

@@ -1,4 +1,4 @@
-"""cos boot / statusline — what Claude (and you) see when Claude OS starts.
+"""cos boot / statusline — what Claude (and you) see when Ovenbird starts.
 
 `boot` runs as Claude Code's SessionStart hook: its output becomes part of
 Claude's context, so it must be fast and dense. Its one network call is a git fetch of
@@ -29,7 +29,7 @@ def _music_now(max_age=20):
 
 
 def _caught_up_line():
-    """Once, after Claude OS moved itself forward (0011): what came in."""
+    """Once, after Ovenbird moved itself forward (0011): what came in."""
     if os.environ.get("CLAUDE_OS_DAEMON"):
         return None  # it's for the human, so a background job's banner doesn't use it up
     done = core.cache_get("caught-up")
@@ -38,7 +38,7 @@ def _caught_up_line():
     core.home("cache", "caught-up.json").unlink(missing_ok=True)  # two sessions may boot at once
     d = done["data"]
     n = len(d["subjects"])
-    line = "  ↑ Claude OS caught up with main (%s, %s): %s%s — this session read the old CLAUDE.md; " \
+    line = "  ↑ Ovenbird caught up with main (%s, %s): %s%s — this session read the old CLAUDE.md; " \
            "read it again for new commands" % (d["source"], core.ago(done["ts"]), " · ".join(d["subjects"][:3]),
                                                " (+%d more)" % (n - 3) if n > 3 else "")
     if d["protected"]:
@@ -48,8 +48,8 @@ def _caught_up_line():
 
 def _catch_up_line():
     """What's merged on GitHub and not on this Mac, so a session never works from stale
-    Claude OS without knowing (friction #16). A terminal session catches up first when Keep
-    Claude OS up to date is on and the app isn't running (its server would mix versions)."""
+    Ovenbird without knowing (friction #16). A terminal session catches up first when Keep
+    Ovenbird up to date is on and the app isn't running (its server would mix versions)."""
     if os.environ.get("CLAUDE_OS_DAEMON") or core.downloaded():
         return None  # a downloaded copy follows its app, not main (0015)
     from . import evolve
@@ -63,12 +63,12 @@ def _catch_up_line():
     if not c["behind"]:
         return None
     n, shown = len(c["subjects"]), c["subjects"][:3]
-    line = "  ↓ Claude OS: %d change%s merged on GitHub, not on this Mac: %s%s" % (
+    line = "  ↓ Ovenbird: %d change%s merged on GitHub, not on this Mac: %s%s" % (
         n, "" if n == 1 else "s", " · ".join(shown), " (+%d more)" % (n - 3) if n > 3 else "")
     if c["why"]:
         line += " — not updated: %s" % c["why"]
     elif core.config()["autonomy"].get("catch_up"):
-        line += " — it comes in when Claude OS.app restarts (menu bar: Update)"
+        line += " — it comes in when Ovenbird.app restarts (menu bar: Update)"
     else:
         line += " — update: cos update apply claude-os --yes"
     if c["protected"]:
@@ -110,7 +110,7 @@ def boot():
     s = status.collect(include_slow=False)
     sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
     now = dt.datetime.now()
-    lines = ["◆ Claude OS %s · %s" % (__version__, now.strftime("%A %d %b %Y, %H:%M"))]
+    lines = ["◆ Ovenbird %s · %s" % (__version__, now.strftime("%A %d %b %Y, %H:%M"))]
     lines.append("  %s · macOS %s · %s · up %s" % (sy["model"], sy["macos"], sy["chip"], status.fmt_uptime(s["uptime"])))
     vit = "  disk %s free (%s%%) · memory %s/%s" % (core.human_bytes(d["free"]), d["free_pct"],
                                                     core.human_bytes(m["used"]), core.human_bytes(m["total"]))
@@ -141,7 +141,7 @@ def boot():
     else:
         lines.append("  memory: empty — learn preferences as you go (cos remember \"...\")")
     if os.environ.get("CLAUDE_OS_APP"):
-        lines.append("  mode: Claude OS app — your replies render as Markdown in a chat window; tool calls show"
+        lines.append("  mode: Ovenbird app — your replies render as Markdown in a chat window; tool calls show"
                      " as chips, and the human approves anything that needs permission in a dialog. Keep it"
                      " conversational and brief; the app has visual Storage, Updates, Music and Feeds windows.")
     if os.environ.get("CLAUDE_OS_DAEMON"):
@@ -155,7 +155,7 @@ def statusline():
         payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
     except ValueError:
         payload = {}
-    parts = [ACCENT + "◆ Claude OS" + RESET]
+    parts = [ACCENT + "◆ Ovenbird" + RESET]
     model = (payload.get("model") or {}).get("display_name")
     if model:
         parts.append(model)

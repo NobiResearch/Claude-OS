@@ -35,7 +35,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         super.init()
 
         item.button?.title = "◆"
-        item.button?.toolTip = "Claude OS"
+        item.button?.toolTip = "Ovenbird"
         menu.delegate = self
         menu.autoenablesItems = false
         item.menu = menu
@@ -77,7 +77,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     private func render() {
         var title = "◆"
-        var tip = ["Claude OS"]
+        var tip = ["Ovenbird"]
         if let s = lastStatus {
             if let free = number((s["disk"] as? [String: Any])?["free"]) {
                 let gb = Self.gigabytes(free)
@@ -116,7 +116,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         }
         menu.addItem(.separator())
 
-        let open = NSMenuItem(title: "Open Claude OS", action: #selector(openClicked), keyEquivalent: "o")
+        let open = NSMenuItem(title: "Open Ovenbird", action: #selector(openClicked), keyEquivalent: "o")
         open.keyEquivalentModifierMask = [.command]
         open.target = self
         menu.addItem(open)
@@ -128,7 +128,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         menu.addItem(ask)
 
         menu.addItem(.separator())
-        let quit = NSMenuItem(title: "Quit Claude OS", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
+        let quit = NSMenuItem(title: "Quit Ovenbird", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         quit.keyEquivalentModifierMask = [.command]
         quit.target = NSApp
         menu.addItem(quit)

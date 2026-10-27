@@ -49,15 +49,15 @@ class TestEverywhere(TempHome):
 
     def test_daemons_from_another_claude_os_say_where_they_run(self):
         """A clone beside a downloaded app (0015) mustn't take that copy's daemons for its own."""
-        other = os.path.join(os.environ["HOME"], "Library", "Application Support", "Claude OS")
+        other = os.path.join(os.environ["HOME"], "Library", "Application Support", "Ovenbird")
         rows = [{"name": "pulse", "loaded": True, "llm": False, "elsewhere": other},
                 {"name": "morning", "loaded": True, "llm": True, "elsewhere": other},
                 {"name": "evolve", "loaded": True, "llm": True, "elsewhere": None},
                 {"name": "board", "loaded": False, "llm": True, "elsewhere": None}]
-        self.assertEqual(system.running(rows), "evolve, pulse, morning (from ~/Library/Application Support/Claude OS)")
+        self.assertEqual(system.running(rows), "evolve, pulse, morning (from ~/Library/Application Support/Ovenbird)")
         self.assertEqual(system.daemon_note(rows, skipped=True)[0],
                          "Background jobs left as they are: evolve, pulse, morning "
-                         "(from ~/Library/Application Support/Claude OS) running.")
+                         "(from ~/Library/Application Support/Ovenbird) running.")
 
     def test_only_commands_the_human_runs_look_for_another_claude_os(self):
         """The boot banner and the desktop call status() all the time; the other copy's folder
@@ -104,7 +104,7 @@ class TestEverywhere(TempHome):
         self.assertTrue(item["outside"])
         self.assertNotIn(elsewhere, str(core.load_json(core.home("friction.json"))))
         os.chdir(str(core.home()))
-        self.assertNotIn("outside", mem.add_friction("seen from Claude OS's own state folder"))
+        self.assertNotIn("outside", mem.add_friction("seen from Ovenbird's own state folder"))
         with redirect_stdout(io.StringIO()) as out:
             mem.friction_main(SimpleNamespace(friction_cmd=None, all=False, json=False))
         self.assertIn("from another project; don't quote it", out.getvalue())

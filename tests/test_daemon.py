@@ -15,7 +15,7 @@ def board_stream(finished=True):
         return json.dumps(m) + "\n"
 
     seats = ["architect", "guardian", "steward", "skeptic"]
-    out = [line(type="system", subtype="init", cwd="/Users/someone/Claude OS", tools=["Agent"]),
+    out = [line(type="system", subtype="init", cwd="/Users/someone/Ovenbird", tools=["Agent"]),
            line(type="assistant", message={"content": [
                {"type": "tool_use", "name": "Bash", "input": {"command": "bin/cos friction --all --json"}},
                {"type": "tool_use", "name": "Read", "input": {"file_path": "/Users/someone/.claude-os/memory.md"}}]}),
@@ -298,7 +298,7 @@ class TestOnlyItsOwnDaemons(TempHome):
         self.installed_from(self.other_checkout())
         r = daemon.install("pulse")
         self.assertFalse(r.ok)
-        self.assertIn("another Claude OS", r.err)
+        self.assertIn("another Ovenbird", r.err)
         self.assertFalse(daemon.uninstall("pulse").ok)
         self.assertTrue(os.path.exists(daemon.plist_path("pulse")))
         self.assertFalse([c for c in self.calls if c[:1] == ["launchctl"]], "launchd wasn't touched")

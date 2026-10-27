@@ -1,14 +1,14 @@
 # AGENTS.md
 
-For AI coding agents working on Claude OS (Codex, Cursor, Copilot, Claude Code and others).
+For AI coding agents working on Ovenbird (Codex, Cursor, Copilot, Claude Code and others).
 People: [CONTRIBUTING.md](CONTRIBUTING.md) says the same at more length.
 
 ## The project
 
-Claude OS is an operating layer for macOS that Claude lives in: `bin/cos` syscalls (Python,
+Ovenbird is an operating layer for macOS that Claude lives in: `bin/cos` syscalls (Python,
 `lib/cos/`), skills in `.claude/skills/`, board and lab agents in `.claude/agents/`, daemons in
 `etc/daemons.json`, a desktop (`ui/`, served by `lib/cos/server.py`) and a native shell
-(`app/`, Swift). [CLAUDE.md](CLAUDE.md) is Claude's kernel; its "Working on Claude OS itself"
+(`app/`, Swift). [CLAUDE.md](CLAUDE.md) is Claude's kernel; its "Working on Ovenbird itself"
 section is the house style.
 
 ## Rules every change keeps

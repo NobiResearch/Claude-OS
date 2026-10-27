@@ -43,7 +43,7 @@ then the link. Prefer depth over news. Skip duplicates across feeds.
 A single delightful item from the feeds: a surprising idea, a beautiful essay, an xkcd.
 Optional, and its link follows the same rule as the others.
 
-## Claude OS
+## Ovenbird
 Only if there's something: an evolve branch waiting for review, open friction (one that
 `cos friction` says is from a background run: its number and run only, never its text), one line on
 what the night shift merged, and **Waiting for your merge**: each of its open pull requests

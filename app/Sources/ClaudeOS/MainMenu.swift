@@ -3,7 +3,7 @@ import AppKit
 /// The standard main menu. The Edit menu matters: without it, ⌘C/⌘V/⌘Z do nothing in the
 /// web view's text fields.
 enum MainMenu {
-    /// `removable`: a downloaded copy gets "Remove Claude OS…" (decision 0015).
+    /// `removable`: a downloaded copy gets "Remove Ovenbird…" (decision 0015).
     static func build(appName: String, target: AppDelegate, removable: Bool = false) -> NSMenu {
         let main = NSMenu()
 
@@ -22,7 +22,7 @@ enum MainMenu {
         appMenu.addItem(withTitle: "Show All", action: #selector(NSApplication.unhideAllApplications(_:)), keyEquivalent: "")
         appMenu.addItem(.separator())
         if removable {
-            appMenu.addItem(withTitle: "Remove Claude OS…", action: #selector(AppDelegate.removeClaudeOS(_:)), keyEquivalent: "")
+            appMenu.addItem(withTitle: "Remove Ovenbird…", action: #selector(AppDelegate.removeClaudeOS(_:)), keyEquivalent: "")
                 .target = target
             appMenu.addItem(.separator())
         }
@@ -54,7 +54,7 @@ enum MainMenu {
         window.addItem(withTitle: "Zoom", action: #selector(NSWindow.performZoom(_:)), keyEquivalent: "")
         window.addItem(withTitle: "Close", action: #selector(NSWindow.performClose(_:)), keyEquivalent: "w")
         window.addItem(.separator())
-        window.addItem(withTitle: "Open Claude OS", action: #selector(AppDelegate.openMainWindow(_:)), keyEquivalent: "o").target = target
+        window.addItem(withTitle: "Open Ovenbird", action: #selector(AppDelegate.openMainWindow(_:)), keyEquivalent: "o").target = target
         window.addItem(withTitle: "Bring All to Front", action: #selector(NSApplication.arrangeInFront(_:)), keyEquivalent: "")
         NSApp.windowsMenu = window
 
