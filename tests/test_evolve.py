@@ -319,9 +319,12 @@ class TestSandbox(TempHome):
         self.assertNotIn("Finder", r.out, "LaunchServices (and so `open <url>`) is out of reach")
         r = core.run_sandboxed(["git", "--version"], cwd=work)
         self.assertTrue(r.ok, "git works inside: %s" % r.err)
-        for tool in ("strings", "nm"):  # the release scan's tests use them
-            r = core.run_sandboxed([tool, "-a", "/bin/ls"], cwd=work)
-            self.assertTrue(r.ok, "%s works inside: %s" % (tool, r.err))
+        # The release scan's tests use these. Only where the sandbox has the developer folder:
+        # an Xcode under another name (CI's Xcode_26.6.app) isn't readable inside.
+        if core.run(["xcode-select", "-p"], timeout=5).out.strip().startswith(core.SANDBOX_READ):
+            for tool in ("strings", "nm"):
+                r = core.run_sandboxed([tool, "-a", "/bin/ls"], cwd=work)
+                self.assertTrue(r.ok, "%s works inside: %s" % (tool, r.err))
 
     def test_developer_tools_come_before_the_shims(self):
         """Xcode keeps git and python3 in its usr/bin and strings and nm in its toolchain; the
