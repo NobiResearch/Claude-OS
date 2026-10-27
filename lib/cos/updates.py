@@ -31,6 +31,12 @@ def parse_softwareupdate(text):
     return items
 
 
+def macos_name(it):
+    """"macOS 27.2", not "macOS 27.2 27.2": the title usually has the version in it already."""
+    title, version = it.get("title") or it.get("label") or "", it.get("version") or ""
+    return title if version in title else ("%s %s" % (title, version)).strip()
+
+
 def check_macos():
     r = core.run(["softwareupdate", "-l"], timeout=120)
     text = r.out + "\n" + r.err
@@ -241,8 +247,7 @@ def render(data):
     if mac:
         print("macOS")
         for it in mac:
-            print("  ⚠ %s %s%s" % (it.get("title") or it["label"], it.get("version") or "",
-                                   " (restart)" if it.get("restart") else ""))
+            print("  ⚠ %s%s" % (macos_name(it), " (restart)" if it.get("restart") else ""))
     else:
         print("macOS: up to date")
     for name, label in (("brew", "Homebrew"), ("npm", "npm (global)"), ("mas", "App Store"), ("rustup", "Rust")):
