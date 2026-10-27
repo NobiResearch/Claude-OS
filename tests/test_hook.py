@@ -336,8 +336,21 @@ class TestPretool(TempHome):
     def test_what_cant_be_read_for_sure_asks(self):
         for cmd in ("cos clean apply `x`", "cos clean apply $(echo x)", "cos clean apply 'x",
                     'mdfind "$(cos  clean apply x --yes)"', "mdfind `cos  clean apply x --yes`",
-                    'git log "$(bin/cos  update apply brew --yes)"', 'echo don\\\'t "$(cos  clean apply x --yes)"'):
+                    'git log "$(bin/cos  update apply brew --yes)"', 'echo don\\\'t "$(cos  clean apply x --yes)"',
+                    # a substitution in the cos call's own part still asks, wherever it sits
+                    "cos status; echo $(cos clean apply x --yes)", 'echo "a; $(cos clean apply x --yes)"',
+                    'cos log add "$(cat secret.txt)"', "cos status > >(tee x)", "x=$(date; cos status)",
+                    "cos log add `date`", "printf '%s' \"$(cos status)\"", "cos status $((1+2))",
+                    "(cos log add $(date))", "echo 'open quote; cos status $(date)"):
             self.assertIn("can't read", self.decide(cmd), cmd)
+
+    def test_a_substitution_elsewhere_in_the_command_is_no_cos_call(self):
+        # The night shift timestamps its log lines; that's no reason for a card nobody answers.
+        for cmd in ('printf -- "- %s done\\n" "$(date +%H:%M)" >> x.md; bin/cos log add "done"',
+                    "x=$(date); cos status", "echo `date` && bin/cos guard --all",
+                    'bin/cos hook check night/x && git push origin "$(git rev-parse HEAD)"',
+                    "git log --since=$(date +%F) | head; cos status"):
+            self.assertIsNone(self.decide(cmd), cmd)
 
     def test_reading_and_everything_else_has_no_opinion(self):
         for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",

@@ -7,3 +7,4 @@
     never ask GitHub with your login;
   - the Guardian also catches your login name, your Mac's names, paths hidden in URLs, and
     text inside pictures.
+- **Fewer cards that nobody needed:** a `$( )` or backticks elsewhere in a command (a timestamp, say) no longer gets a card just because the same command also runs `cos`. A substitution in the `cos` call's own part still asks, as does every command that changes the Mac.
