@@ -275,6 +275,27 @@ def run_sandboxed(cmd, cwd, timeout=600):
         return run(argv + ["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real)
 
 
+# Model text that could carry a command or a link to a notification: backticks, $, pipes, links.
+LINK_OR_COMMAND = re.compile(r"[`$|]|://|www\.", re.I)
+
+
+def plain_line(text, fallback, limit=180):
+    """One line of model-written text, fit for a notification or the journal: compatibility
+    forms folded (a fullwidth colon is a colon), no control, format or line-separator
+    characters (bidi overrides, U+2028), and the fallback instead if it carries a command or a
+    link."""
+    import unicodedata
+    out = []
+    for c in unicodedata.normalize("NFKC", text or ""):
+        cat = unicodedata.category(c)
+        if cat in ("Zl", "Zp") or c in "\r\n\t":
+            out.append(" ")
+        elif not cat.startswith("C"):
+            out.append(c)
+    line = " ".join("".join(out).split())[:limit]
+    return fallback if not line or LINK_OR_COMMAND.search(line) else line
+
+
 def osascript(script, timeout=10):
     """Run AppleScript with a hard timeout.
 
