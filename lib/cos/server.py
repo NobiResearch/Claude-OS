@@ -85,6 +85,8 @@ class Restarting(Exception):
 RESTARTING = "Ovenbird is restarting to update; try again in a moment"
 COS = str(core.ROOT / "bin" / "cos")
 RESTART = 75  # the exit status that tells Ovenbird.app a restart was planned (EX_TEMPFAIL)
+# A package name for `update apply`: never one that starts with a dash and becomes an option.
+UPDATE_NAME = re.compile(r"(?!.*\.\.)[A-Za-z0-9@][\w@./+-]*")  # and no `..`: never a local folder
 
 
 # ---------------------------------------------------------------- jobs
@@ -528,7 +530,7 @@ def make_handler(app):
         source = b.get("source")
         if source not in ("brew", "npm", "mas", "rustup", "macos"):
             return h._error(400, "unknown source")
-        names = [n for n in b.get("names") or [] if re.match(r"^[\w@./+-]+$", n)]
+        names = [n for n in b.get("names") or [] if isinstance(n, str) and UPDATE_NAME.fullmatch(n)]
         argv = ["update", "apply", source] + names + ([] if source == "macos" else ["--yes"])
         h._json(app.job(argv, "Update %s %s" % (source, " ".join(names) or "(all)")))
 

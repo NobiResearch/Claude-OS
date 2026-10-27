@@ -44,7 +44,44 @@ def personal_patterns():
         pats.append(("your email address", re.compile(re.escape(email), re.I)))
     for line in (core.load_json(core.home("guard.json"), {}) or {}).get("extra", []):
         pats.append(("a private term from ~/.claude-os/guard.json", re.compile(re.escape(line), re.I)))
+    # A pasted prompt (`name@host %`) or log line carries these without the home path
+    # (Fable's review, F10). The login only where it names someone (`login@`, `~login`, a
+    # `/login` folder), never in a GitHub noreply address, and never a word everyone uses.
+    login = login_name()
+    if login:
+        w = re.escape(login)
+        pats.append(("your login name", re.compile(
+            r"(?<![\w.+-])%s@(?!users\.noreply\.github\.com)|~%s(?![\w-])|/%s(?![\w.-])" % (w, w, w), re.I)))
+    # The Mac's names only when they're the "Ada's MacBook Pro" kind macOS makes from a person's
+    # name; "Home" or "Studio" would block half the repository.
+    computer = core.run(["scutil", "--get", "ComputerName"], timeout=5).out.strip()
+    if re.search(r"\w['’]s\s", computer) and not generic_mac_name(computer):
+        local = core.run(["scutil", "--get", "LocalHostName"], timeout=5).out.strip()
+        for what, name in (("your Mac's name", computer), ("your Mac's network name", local)):
+            if name and not generic_mac_name(name):
+                pats.append((what, re.compile(r"(?<![\w-])%s(?![\w-])" % re.escape(name), re.I)))
     return pats
+
+
+# Logins that are also everyday words or folder names: as a pattern they'd block half the tree.
+COMMON_LOGINS = {"root", "admin", "administrator", "user", "users", "guest", "test", "runner", "dev", "mac",
+                 "staff", "home", "code", "data", "music", "work", "claude", "apps", "docs", "share", "local",
+                 "private", "shared", "build", "tools", "projects"}
+
+
+def login_name():
+    import pwd
+    try:
+        name = pwd.getpwuid(os.getuid()).pw_name
+    except (KeyError, OSError):
+        name = os.environ.get("USER", "")
+    return name if len(name) >= 4 and name.lower() not in COMMON_LOGINS else ""
+
+
+def generic_mac_name(name):
+    """"MacBook Pro", "Mac-mini-2": a model, not a person, so not worth blocking."""
+    rest = re.sub(r"(?i)\b(macbook|imac|mac|mini|studio|pro|air|max|ultra|local)\b|[\s\-_'’().0-9]", "", name)
+    return not rest
 
 
 def check_paths(paths):
@@ -52,10 +89,13 @@ def check_paths(paths):
 
 
 def check_text(path, text, patterns):
+    from urllib.parse import unquote
     problems = []
     for lineno, line in enumerate(text.splitlines(), 1):
+        # A URL hides a path as %2FUsers%2F…: look at the decoded line too.
+        decoded = unquote(line) if "%" in line else line
         for what, rx in patterns:
-            if rx.search(line):
+            if rx.search(line) or (decoded is not line and rx.search(decoded)):
                 problems.append((path, "line %d: %s" % (lineno, what)))
     return problems
 
@@ -100,10 +140,16 @@ def scan(paths, read):
     patterns = SECRET_PATTERNS + personal_patterns()
     problems = check_paths(paths)
     for p in paths:
-        if p.endswith((".png", ".jpg", ".gif", ".ico", ".pdf", ".zip")):
-            continue
-        problems += check_text(p, read(p), patterns)
+        text = read(p)
+        if p.lower().endswith(BINARY):
+            # Pictures carry text too (EXIF, PNG tEXt chunks, a PDF's /Author): check the
+            # readable runs in them rather than skipping the file.
+            text = "\n".join(re.findall(r"[ -~]{6,}", text))
+        problems += check_text(p, text, patterns)
     return problems
+
+
+BINARY = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".heic", ".webp")
 
 
 def text_problems(texts):

@@ -312,6 +312,10 @@ def config_cmd(args):
         # Night shift and Keep Ovenbird up to date: only the app's own dialog turns them on (or
         # pins the repository); here they can only be turned off, one at a time.
         core.die("turn that on in Ovenbird.app: Settings › Permissions asks in its own dialog", 2)
+    if isinstance(core.DEFAULT_CONFIG.get(args.key), dict) and not isinstance(value, dict):
+        # core.config ignores a section that isn't one: `notify false` would quietly change nothing.
+        core.die("%s is a section: set one of its keys, like `cos config %s.%s …`"
+                 % (args.key, args.key, next(iter(core.DEFAULT_CONFIG[args.key]), "key")), 2)
     core.config_set(args.key, value)
     print("%s = %s" % (args.key, json.dumps(value)))
     return 0

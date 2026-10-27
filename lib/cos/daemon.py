@@ -16,19 +16,16 @@ import re
 import time
 from pathlib import Path
 
-from . import core
+from . import cli, core
 
 LABEL_PREFIX = "com.claude-os."
 AGENTS_DIR = os.path.expanduser("~/Library/LaunchAgents")
 
 # Defense in depth: no daemon may mutate the machine or publish, whatever its allowlist
-# says. (The real enforcement is in cli.check_mutation, which refuses these commands
-# whenever CLAUDE_OS_DAEMON is set; these patterns just stop the attempt earlier.)
-_MUTATING = ["clean apply", "update apply", "daemon install", "daemon uninstall", "daemon run",
-             "evolve merge", "evolve discard", "install", "uninstall", "cal connect", "weather set",
-             "weather clear", "feeds add", "feeds mute", "config", "music play", "music like", "music unlike", "music radio", "remember",
-             "memory --forget", "ask", "serve", "app", "startup --full", "security on", "friction close", "say", "notify", "log add",
-             "net --speed"]
+# says. (The real enforcement is in cli, which refuses these commands whenever
+# CLAUDE_OS_DAEMON is set; these patterns just stop the attempt earlier.) Built from cli's own
+# two lists, so they can't drift apart (Fable's review, F12), plus every `cos app` at all.
+_MUTATING = sorted({" ".join(k) for k in cli.MUTATING | cli.DAEMON_REFUSED} | {"app"})
 ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/cos", "./bin/cos", "cos")] + [
     "Bash(git push*)", "Bash(sudo *)", "Bash(curl *)", "Bash(osascript *)",
     # Nothing a headless run does needs GitHub, and `gh release create` would publish an app
