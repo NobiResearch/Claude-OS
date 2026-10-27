@@ -27,7 +27,7 @@ AGENTS_DIR = os.path.expanduser("~/Library/LaunchAgents")
 _MUTATING = ["clean apply", "update apply", "daemon install", "daemon uninstall", "daemon run",
              "evolve merge", "evolve discard", "install", "uninstall", "cal connect", "weather set",
              "weather clear", "feeds add", "feeds mute", "config", "music play", "music like", "music unlike", "music radio", "remember",
-             "memory --forget", "ask", "serve", "app", "startup --full", "security on",
+             "memory --forget", "ask", "serve", "app", "startup --full", "security on", "friction close",
              "net --speed"]
 ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/cos", "./bin/cos", "cos")] + [
     "Bash(git push*)", "Bash(sudo *)", "Bash(curl *)", "Bash(osascript *)",

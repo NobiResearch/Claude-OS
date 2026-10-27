@@ -330,7 +330,9 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
     ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
-    ("net", "--speed"), ("backup", "setup")}
+    ("net", "--speed"), ("backup", "setup"),
+    # A background run may log friction (law 4), but closing it would hide real friction.
+    ("friction", "close")}
 
 
 def daemon_refused(args):
@@ -346,6 +348,8 @@ def daemon_refused(args):
         key = ("net", "--speed") if args.speed else None
     elif args.cmd == "backup":
         key = ("backup", args.backup_cmd)
+    elif args.cmd == "friction":
+        key = ("friction", args.friction_cmd)
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None
