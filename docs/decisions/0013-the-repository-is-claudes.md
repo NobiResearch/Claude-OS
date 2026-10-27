@@ -1,6 +1,6 @@
 # 0013 — The repository is Claude's
 
-- **Status:** accepted; where its allows live is amended by [0017](0017-stranger-safe-settings.md)
+- **Status:** accepted; where its allows live is amended by [0017](0017-stranger-safe-settings.md), and which pull requests get a review by [0020](0020-every-pull-request-gets-a-review.md)
 - **Date:** 2026-10-26
 - **Decided by:** the human. It supersedes the GitHub parts of [0006](0006-night-shift-pushes.md).
 

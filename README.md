@@ -197,8 +197,8 @@ over the whole tree. Details in [docs/architecture.md](docs/architecture.md#priv
 
 The short version is [above](#what-it-will-and-wont-do). In more detail: evolve's sandbox lets
 it write only to its own copy, with no network for its commands, and nothing it writes reaches
-`main` until the guard and the tests pass again at merge time. A pull request that changes
-Ovenbird's safety files gets an independent review before it merges. Hard-won macOS lessons
+`main` until the guard and the tests pass again at merge time. Every pull request gets an
+independent review before it merges, which looks hardest at Ovenbird's safety files. Hard-won macOS lessons
 live in [docs/lessons.md](docs/lessons.md).
 
 ## Contributing

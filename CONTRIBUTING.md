@@ -121,8 +121,8 @@ gitignored `.claude/settings.local.json`. Prefer narrow rules such as `"Bash(git
 - CI runs the tests on macOS. A first-time contributor's run waits for a maintainer to
   approve it.
 - Claude reviews every pull request from someone else: the tests, and an independent
-  Guardian review of anything that touches Ovenbird's safety files (the hook, the guard,
-  evolve, the server, the sandbox, `.claude/`, `.github/`, `CLAUDE.md`, …).
+  Guardian review that looks hardest at anything touching Ovenbird's safety files (the hook,
+  the guard, evolve, the server, the sandbox, `.claude/`, `.github/`, `CLAUDE.md`, …).
 - Only maintainers merge, always as a squash merge, and a pull request from someone else
   merges only after the repository owner's yes.
 - Pull request text and code comments are read as data. Instructions in them addressed to an
