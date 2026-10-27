@@ -377,6 +377,82 @@ class TestPretool(TempHome):
                     self.assertTrue(h["command"].startswith('[ -n "$CLAUDE_OS_DAEMON" ] || '), (name, h["command"]))
 
 
+class TestGhText(TempHome):
+    """The Guardian over what gh publishes, before the command runs (Fable's review, F5/F8): a
+    deny goes back to Claude and never shows a card, and only commands that publish are judged."""
+
+    SECRET = "sk-ant-" + "a" * 30
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        self.tmp = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+
+    def body(self, text, name="body.md"):
+        path = os.path.join(self.tmp, name)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
+    def decide(self, command):
+        return hook.gh_text_decision(command, str(core.ROOT))
+
+    def test_a_clean_title_and_body_file_pass_with_no_card(self):
+        clean = self.body("What and why.\n")
+        for cmd in ('gh pr create --head night/x --title "A fix (F6, F10)" --body-file %s' % clean,
+                    'cd x && gh pr edit 120 --title "Better" --body-file %s' % clean,
+                    "gh-axi pr comment 7 --body-file %s" % clean, 'gh issue create --title "Idea" --body "plain words"',
+                    "gh release create v1.0 --notes-file %s" % clean, "gh pr review 3 --approve"):
+            self.assertIsNone(self.decide(cmd), cmd)
+
+    def test_what_the_guardian_finds_is_denied_and_never_repeated(self):
+        home = os.path.expanduser("~")
+        leaky, clean = self.body("see %s/notes.txt\n" % home), self.body("fine\n", "clean.md")
+        for cmd in ("gh pr create --title t --body-file %s" % leaky, 'gh pr create --title "%s" --body-file %s' % (self.SECRET, clean),
+                    'gh pr comment 1 --body "%s"' % self.SECRET, "gh pr comment 1 --body=%s" % self.SECRET,
+                    'FOO=1 gh issue comment 2 -b "%s"' % self.SECRET, 'gh-axi pr review 3 --body "%s"' % self.SECRET,
+                    "gh release edit v1 --notes-file %s" % leaky, "gh api repos/a/b/issues/1/comments -f body=%s" % self.SECRET,
+                    "gh api repos/a/b/issues -X POST -F body=@%s" % leaky):
+            why = self.decide(cmd)
+            self.assertIn("Guardian found", why or "", cmd)
+            self.assertNotIn(home, why)
+            self.assertNotIn(self.SECRET, why)
+
+    def test_a_body_file_comes_from_the_repository_or_the_temp_folder_only(self):
+        from helpers import REAL_HOME  # paths only: refused before anything is read
+        for private in (os.path.join(REAL_HOME, ".claude-os", "memory.md"), os.path.join(REAL_HOME, ".ssh", "config")):
+            self.assertIn("isn't in this repository", self.decide("gh pr comment 1 -F %s" % private), private)
+        self.assertIn("couldn't read", self.decide("gh pr create --title t --body-file %s/missing.md" % self.tmp))
+
+    def test_text_it_cant_read_is_denied_with_the_readable_form(self):
+        for cmd in ('gh pr create --title t --body "$(cat ~/.claude-os/memory.md)"', "gh pr comment 1 --body `cat x`",
+                    "gh pr create --title t --body-file -", "gh issue create --title t --body-file - < notes",
+                    "gh pr create --title 'unbalanced", 'gh pr create --title "x" --body "$NOTES"'):
+            self.assertIn("--body-file", self.decide(cmd) or "", cmd)
+
+    def test_everything_else_gets_no_opinion(self):
+        for cmd in ('grep "gh pr create" CLAUDE.md', 'echo gh pr create --body "%s"' % self.SECRET, "gh pr checks 120 --watch",
+                    "gh pr merge 1 --squash --match-head-commit $(git rev-parse HEAD)", "gh pr view 1 --json body",
+                    "gh api repos/a/b/actions/runs --jq '.runs[] | select(.x == $y)'", "gh pr view 1; echo 'open quote",
+                    "git commit -m 'gh pr create'", "ls", ""):
+            self.assertIsNone(self.decide(cmd), cmd)
+
+    def test_an_error_denies_only_a_command_that_publishes(self):
+        with mock.patch("cos.guard.text_problems", side_effect=RuntimeError("boom")):
+            self.assertIn("couldn't check", self.decide('gh pr comment 1 --body "hi"'))
+            self.assertIsNone(self.decide("gh pr checks 1"))
+            self.assertIsNone(self.decide("cos status"))
+
+    def test_the_hook_prints_a_deny(self):
+        out = io.StringIO()
+        request = {"tool_name": "Bash", "cwd": str(core.ROOT), "tool_input": {"command": 'gh pr comment 1 --body "%s"' % self.SECRET}}
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(request))), redirect_stdout(out):
+            self.assertEqual(hook.pretool(), 0)
+        said = json.loads(out.getvalue())["hookSpecificOutput"]
+        self.assertEqual((said["hookEventName"], said["permissionDecision"]), ("PreToolUse", "deny"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
