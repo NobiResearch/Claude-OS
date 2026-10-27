@@ -5,7 +5,7 @@ import time
 import unittest
 from unittest import mock
 
-from helpers import TempHome, local_connection, local_server
+from helpers import IN_SANDBOX, TempHome, local_connection, local_server
 
 from cos import chat, server
 
@@ -50,6 +50,9 @@ class TestChanges(TempHome):
 
 
 class TestLocalServer(TempHome):
+    # Evolve's test check (core.run_sandboxed) allows Unix sockets and no TCP at all, so this
+    # fallback can't run there, and it's never needed there either.
+    @unittest.skipIf(IN_SANDBOX, "needs TCP on 127.0.0.1; the evolve check's sandbox has no network (CI runs it)")
     def test_falls_back_to_localhost_where_unix_sockets_are_refused(self):
         """Claude Code's sandbox (the nightly evolve session's) refuses Unix sockets; the
         server tests still have to run there, or the run can't tell its failures apart."""
