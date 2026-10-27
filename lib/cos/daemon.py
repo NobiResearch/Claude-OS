@@ -178,7 +178,9 @@ def status():
     for name, spec in definitions().items():
         last = last_run(name)
         now = live(name)
+        other = elsewhere(name)  # as ~/…: rows end up in --json output and the desktop
         out.append({"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
+                    "elsewhere": _tilde(other) if other else None,
                     "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
                     "description": spec["description"],
                     "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
@@ -195,6 +197,10 @@ def render_status(rows):
             print("%s %-8s %-12s %-5s now:  %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
             continue
         print("%s %-8s %-12s %-5s last: %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
+    others = sorted({r["elsewhere"] for r in rows if r.get("elsewhere")})
+    if others:
+        print("\nRunning from another Claude OS on this Mac (%s): %s"
+              % (", ".join(_tilde(o) for o in others), ", ".join(r["name"] for r in rows if r.get("elsewhere"))))
     print("\n● running  ○ installed, not loaded  – off · cos daemon install <name>|--all")
 
 

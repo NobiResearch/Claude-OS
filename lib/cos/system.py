@@ -96,13 +96,25 @@ def install(args):
     return 0
 
 
+def running(rows):
+    """The daemons that run, and where the ones another Claude OS on this Mac runs come from:
+    "pulse, morning (from ~/code/Claude-OS)". A clone beside a downloaded app (0015) would
+    otherwise take that copy's daemons for its own."""
+    here = [r["name"] for r in rows if r["loaded"] and not r.get("elsewhere")]
+    there = {}
+    for r in rows:
+        if r["loaded"] and r.get("elsewhere"):
+            there.setdefault(_tilde(r["elsewhere"]), []).append(r["name"])
+    return ", ".join(here + ["%s (from %s)" % (", ".join(names), where) for where, names in sorted(there.items())])
+
+
 def daemon_note(rows, skipped):
     """What install says about background jobs. --no-daemons leaves them as they are, so say
     which ones are running rather than that they're off."""
     lines = []
     if skipped:
-        running = [r["name"] for r in rows if r["loaded"]]
-        lines.append("Background jobs left as they are: %s running." % ", ".join(running) if running
+        on = running(rows)
+        lines.append("Background jobs left as they are: %s running." % on if on
                      else "No background jobs are running. The free one: cos daemon install pulse")
     optin = [r["name"] for r in rows if r["llm"] and not r["loaded"]]
     if optin:
@@ -148,8 +160,9 @@ def doctor(args):
     if core.app_running("Music"):
         r = core.osascript('tell application "Music" to get player state', timeout=5)
         check(r.ok, "Automation access to Music", "System Settings › Privacy & Security › Automation › allow your terminal to control Music")
-    loaded = [d["name"] for d in daemon.status() if d["loaded"]]
-    check("pulse" in loaded, "daemons running: %s" % (", ".join(loaded) or "none"), "cos daemon install pulse")
+    rows = daemon.status()
+    check(any(d["name"] == "pulse" and d["loaded"] for d in rows), "daemons running: %s" % (running(rows) or "none"),
+          "cos daemon install pulse")
     from . import guard
     problems = guard.scan(guard.publishable(), lambda p: _read(core.ROOT / p))
     check(not problems, "repository holds no private data", "run: cos guard --all")

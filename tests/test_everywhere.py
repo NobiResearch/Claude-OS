@@ -47,6 +47,18 @@ class TestEverywhere(TempHome):
         everything = [dict(r, loaded=True) for r in rows]
         self.assertEqual(system.daemon_note(everything, skipped=False), [], "nothing to suggest")
 
+    def test_daemons_from_another_claude_os_say_where_they_run(self):
+        """A clone beside a downloaded app (0015) mustn't take that copy's daemons for its own."""
+        other = os.path.join(os.environ["HOME"], "Library", "Application Support", "Claude OS")
+        rows = [{"name": "pulse", "loaded": True, "llm": False, "elsewhere": other},
+                {"name": "morning", "loaded": True, "llm": True, "elsewhere": other},
+                {"name": "evolve", "loaded": True, "llm": True, "elsewhere": None},
+                {"name": "board", "loaded": False, "llm": True, "elsewhere": None}]
+        self.assertEqual(system.running(rows), "evolve, pulse, morning (from ~/Library/Application Support/Claude OS)")
+        self.assertEqual(system.daemon_note(rows, skipped=True)[0],
+                         "Background jobs left as they are: evolve, pulse, morning "
+                         "(from ~/Library/Application Support/Claude OS) running.")
+
     def test_only_the_mac_skills_go_everywhere(self):
         self.assertEqual(system.EVERYWHERE, ("music", "tidy", "update", "startup"))
         for repo_only in ("brief", "board", "evolve", "lab"):
