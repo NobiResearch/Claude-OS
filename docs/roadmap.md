@@ -27,6 +27,8 @@ what, where, and how we'll know it works.
 - **The name** ([research](research/the-name.md)): can a downloadable app be called
   "Claude OS"? Probably not without Anthropic's permission; the human decides before the first
   public release.
+- **Growing the project** ([research](research/growing-the-project.md)): what Hermes Agent
+  did that a small project can copy. The name comes first; every public step is the human's.
 - Nothing else open. Answered: [a daily mix without an LLM](research/daily-mix.md) (Apple's own
   personal mixes through MusicKit: one fixed `claude-os://music/mix`), [Time Machine's last
   backup date](research/time-machine-last-backup.md) (`defaults export` reads it without Full
@@ -45,6 +47,22 @@ what, where, and how we'll know it works.
 - `cos power`: what keeps the Mac or display awake (`pmset -g assertions`), once friction
   asks; deliberate keepers (caffeinate, keep-awake apps) mustn't become nightly signals.
 - Photo library duplicate report (read-only).
+- **A community skills catalog** ([research](research/growing-the-project.md)): one
+  `catalog/<name>.yaml` per pull request, pinned to an exact commit and installed by `cos`;
+  the Guardian scans each one, and a human merges it. Board first, after 0017: an installed
+  skill is code Claude runs.
+- **Say what we want from contributors**: in CONTRIBUTING.md, a ranked list of wanted work,
+  "skill, syscall or daemon?" and what we turn down even when it's well built; an
+  `AI_POLICY.md` (say which tool wrote it, a human understands every line, a summary written
+  by a human). Board first: it's policy.
+- **Credit contributors**: when a maintainer finishes someone's pull request in a new one, keep
+  them as `Co-authored-by:` and say so on the original; release notes name every contributor.
+- **A Homebrew tap** ([research](research/growing-the-project.md)): `brew install --cask
+  <owner>/tap/<name>` once there's a release; no `auto_updates` (the app only links to new
+  versions), `arch: :arm64`, a `zap` that leaves `~/.claude-os` alone. Creating the tap's
+  repository is the human's call; Homebrew's main repository waits for 30 days and 75 stars.
+- **Trust first in the README**: a short threat model in plain words (read-only by default,
+  `--yes`, the journal, no Full Disk Access or Accessibility, what merges on its own).
 - Mail triage. Privacy-heavy: board review first.
 
 ## Done
