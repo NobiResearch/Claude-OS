@@ -1,27 +1,26 @@
-"""cos hook permission — answer Claude Code's push and merge prompts for the night shift (0006).
+"""cos hook permission — answer Claude Code's push prompts for the night shift (0006).
 
 Claude Code runs this as a PermissionRequest hook, just before it would ask the human. While
-the human has "Night shift" on in Settings, it approves two things and nothing else:
+the human has "Night shift" on in Settings, it approves pushes and nothing that merges:
 
 - **Pushing** `git push [-q] -u origin night/<name>` from a checkout of this repository, to
   the remote it was cloned from, after the Guardian has checked every commit and message it
   would publish. A pushed branch runs nothing that matters, so it may change anything except
   `.github/` (CI runs a branch's workflow the moment it's pushed).
-- **Merging** `gh pr merge <N> --squash --delete-branch --match-head-commit <sha>`: a green,
-  open `night/*` pull request of this repository, pinned to the commit checked here, that
-  leaves Ovenbird's safety files alone. A merge is where code starts to run, so a pull
-  request that touches the gate waits for the human's merge.
+- **Never merging.** A merge is where code starts to run, and every pull request gets a
+  guardian agent's review first (decision 0020). For `gh pr merge <N> --squash
+  --delete-branch --match-head-commit <sha>` it says at best that the pull request is ready
+  for that review, and the human's prompt appears.
 
-While the switch is on, it also lets read-only `gh api <path>` calls through, which the merge
-rules otherwise ask about, and pull request text (`gh pr create|edit|comment` with a title and
-a body) once the Guardian has read it. With the switch off, or in a downloaded copy, it
+While the switch is on, it also lets read-only `gh api <path>` calls through, and pull request
+text (`gh pr create|edit|comment` with a title and a body) once the Guardian has read it. With the switch off, or in a downloaded copy, it
 approves nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any
 doubt, any error: it prints nothing and the human's normal prompt appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
 human's own GitHub login, and decision 0006 lists the spellings these rules don't catch.
 
-`cos hook check <branch|PR>` answers the same question without acting, so a night shift
-leaves work for the morning instead of stalling on a prompt nobody will answer. With no
-argument it lists the night's pull requests that wait for the human.
+`cos hook check <branch|PR>` answers without acting: would this push go through, and is this
+pull request ready for its review (with the exact merge command)? With no argument it lists
+the night's pull requests and what each waits for.
 """
 
 import json
@@ -39,10 +38,10 @@ SHA = re.compile(r"[0-9a-f]{40}")
 # Every pull request gets a guardian agent's review before it merges (decision 0020), so the
 # hook never merges one on its own: at best it's ready for that review.
 READY = "ready once a guardian agent has reviewed it (0020)"
-GITHUB =re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
-# A night shift can't widen its own powers: this hook never merges changes here (they get a
-# guardian review first, 0013). That
-# includes the code this hook leans on (core, cli, evolve's guard_branch), the server that
+GITHUB = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
+# The files a guardian's review reads first (every pull request gets one, 0020), and the ones
+# the human's update cards, evolve's --reviewed and the boot banner single out. They
+# include the code this hook leans on (core, cli, evolve's guard_branch), the server that
 # flips the switch and the app's Allow/Deny path, so one night's merge can't loosen the next.
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
              "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py",
@@ -351,7 +350,7 @@ def permission():
         approve, why = decide(request, core.config())
         command = str((request.get("tool_input") or {}).get("command", ""))[:200]
         if approve and not why.startswith(("a read-only", "the Guardian checked")):
-            core.journal("action", "night shift: " + (why if why.startswith("merged") else "pushed " + why), via="hook")
+            core.journal("action", "night shift: pushed " + why, via="hook")  # it never merges (0020)
         elif not approve and command.startswith(("git push", "gh pr merge", "gh-axi pr merge", "gh pr create",
                                                  "gh pr edit", "gh pr comment")):
             core.journal("permission", "night shift: asked the human (%s): %s" % (why, command), via="hook")
@@ -540,8 +539,8 @@ def main(args):
         return 0 if rows is not None else 1
     if target.isdigit():
         approve, why, command = check_pr(int(target))
-        core.emit({"pr": int(target), "approve": approve, "why": why, "command": command}, args.json,
-                  lambda d: print(("✓ %s: %s" % (d["why"], d["command"])) if d["approve"] else "✗ waits: " + d["why"]))
+        core.emit({"pr": int(target), "ready": approve, "why": why, "command": command}, args.json,
+                  lambda d: print(("✓ %s: %s" % (d["why"], d["command"])) if d["ready"] else "✗ waits: " + d["why"]))
         return 0 if approve else 1
     approve, why = decide({"tool_name": "Bash", "tool_input": {"command": "git push -u origin %s" % target},
                            "cwd": os.getcwd()}, core.config())

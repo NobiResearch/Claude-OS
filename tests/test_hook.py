@@ -195,15 +195,16 @@ class TestMerge(TempHome):
                     "gh api repos/x/y/pulls/31/merge --input f", "gh api", "gh-axi api repos/x/y"):
             self.assertFalse(hook.decide(request(cmd), ON)[0], cmd)
 
-    def test_merges_are_journaled(self):
+    def test_what_it_approves_is_journaled(self):
+        # It never merges (0020); what it approves is a push, and that goes in the journal.
         out = io.StringIO()
         with mock.patch.object(hook.core, "config", return_value=ON), \
-                mock.patch.object(hook, "decide", lambda r, c: (True, "merged #31 (night/x at aaaaaaaa)")), \
-                mock.patch("sys.stdin", io.StringIO(json.dumps(request(MERGE)))), redirect_stdout(out):
+                mock.patch.object(hook, "decide", lambda r, c: (True, "night/x at aaaaaaaa")), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(request("git push -u origin night/x")))), redirect_stdout(out):
             hook.permission()
         self.assertTrue(json.loads(out.getvalue()))
         lines = TestHookEntry.journal_lines(self)
-        self.assertTrue(any("night shift: merged #31" in l for l in lines))
+        self.assertTrue(any("night shift: pushed night/x" in l for l in lines))
 
 
 class TestPullRequestText(TempHome):

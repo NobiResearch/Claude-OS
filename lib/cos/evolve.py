@@ -588,7 +588,10 @@ def main(args):
         touched = safety_files(args.branch)
         if touched is None:
             core.die("couldn't list what %s changes; not merging" % args.branch)
-        review = ("%s changes Ovenbird's safety files (%s). Decision 0013: a guardian agent reviews it "
+        # Decision 0020: the human's yes to this command (its card, or the desktop's Merge
+        # dialog) is the review of an evolve branch; one that changes the safety files also
+        # gets a guardian agent's, and says so with --reviewed.
+        review = ("%s changes Ovenbird's safety files (%s). Decisions 0013 and 0020: a guardian agent reviews it "
                   "first, then merge with --reviewed." % (args.branch, ", ".join(touched[:4]))) if touched else ""
         if not args.yes:
             how = "push it, open a pull request, wait for CI and squash-merge" if github else "fast-forward %s" % main_branch()

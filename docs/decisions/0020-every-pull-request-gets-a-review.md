@@ -32,8 +32,18 @@ leave gaps.
   files the change touches, which the review reads first, and prints the exact merge command.
 - **`PROTECTED` and everything it shows the human stay as they are.** It now means "look here
   first", not "the only files that get a review".
+- **An evolve branch merges through `cos evolve merge <branch> --yes`.** That command always
+  asks the human (its Allow card, or the desktop's Merge dialog), and their yes is that
+  branch's review. A branch that changes the safety files also gets a guardian agent's review
+  and says so with `--reviewed`, as before.
 
 ## Consequences
 
 - A guardian agent costs some usage per pull request, never a card or a ping.
 - The owner's own merges still need no prompt (0013); the review is Claude's to run.
+- `--match-head-commit` pins the commit CI checked. A fix after the review moves the head and
+  gets another look.
+- Follow-up: the Night shift switch's own words still promise merges: README's setup line, the
+  Settings text in `ui/apps.js` and the app's consent dialog in `Confirm.swift`. They overstate
+  what the switch grants, which is the safe direction, and get corrected with the app's next
+  rebuild.
