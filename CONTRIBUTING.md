@@ -84,8 +84,8 @@ Anything that breaks the rules above, and:
   Recording to work: Claude OS never needs them.
 - **New servers, or code from the network.** The desktop loads no code from the internet (its
   scripts and styles are its own; only images such as album art come from outside), and Claude
-  OS never downloads and runs code on its own. What runs is what's in the repository, plus the
-  upgrades the person approves with `cos update apply`.
+  OS never downloads and runs code from anywhere but this repository. What runs is what's in
+  it, plus the upgrades the person approves with `cos update apply`.
 - **Telemetry or analytics**, sending anything about the person anywhere but the service a
   feature names and they turned on, or keeping it outside `~/.claude-os`. What Claude OS learns
   stays on the Mac.
