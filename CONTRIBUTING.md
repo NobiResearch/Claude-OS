@@ -10,9 +10,10 @@ For anything new (a command, skill, daemon or desktop feature), open an
 [idea issue](https://github.com/NobiResearch/Claude-OS/issues/new?template=idea.md) first, so
 nobody builds something we'd turn down. Bug reports and fixes for open issues don't need one.
 
-1. **Bug reports:** your macOS version, chip, `cos version` and what broke. `cos doctor`'s
-   output helps; it writes your home folder as `~`, but check it for your username anyway.
-   Leave out the output of `status`, `startup`, `cal`, `feeds` and `music`: it describes you.
+1. **Bug reports:** your macOS version, chip and what broke. Paste only `cos version` and
+   `cos doctor` (it writes your home folder as `~`, but check it for your username anyway), and
+   describe anything else in your own words: the other commands' output describes you and your
+   Mac.
 2. **Fixes for open issues.**
 3. **Trying it on other Macs:** other macOS versions and system languages (AppleScript errors
    come back in the system's language). What you learn goes in an issue or in
@@ -64,11 +65,13 @@ cos doctor          # checks the wiring
 - **Touching the Mac** is a syscall in `lib/cos/`: deterministic, and read-only unless `--yes`.
   One that changes the Mac also goes in `cli.MUTATING` and `daemon._MUTATING`, gets the same
   `ask` rules as the others in `.claude/settings.json`, and has a test that it's refused
-  under `CLAUDE_OS_DAEMON`.
+  under `CLAUDE_OS_DAEMON`. One that's fine when the person asks but never from a background
+  run (playing music, say) goes in `cli.DAEMON_REFUSED`.
 - **Judgment** is a skill in `.claude/skills/`. Skills call syscalls rather than doing their
   work again, and so does the desktop (`ui/`, through `lib/cos/server.py`).
 - **Scheduled work** is a daemon. Anything that uses a model is off until the person turns it
-  on, and no daemon changes the Mac.
+  on, and no daemon changes the Mac (the one exception is `pulse` bringing in Claude OS's own
+  updates, when the person turns on Keep Claude OS up to date).
 - Prefer extending what's there. A new command touches `lib/cos/cli.py` and CLAUDE.md's table,
   which are safety files: that's expected, and it gets the safety review.
 
@@ -78,9 +81,11 @@ Anything that breaks the rules above, and:
 
 - **A new macOS permission prompt**, unless it's off by default behind a switch the person
   turns on, and the board agreed. Nothing that needs Full Disk Access, Accessibility or Screen
-  Recording to work: we never ask people for those.
-- **New servers, or code from the network.** The desktop loads nothing from the internet, and
-  nothing downloads and runs code. What runs on a Mac is what's in the repository.
+  Recording to work: Claude OS never needs them.
+- **New servers, or code from the network.** The desktop loads no code from the internet (its
+  scripts and styles are its own; only images such as album art come from outside), and Claude
+  OS never downloads and runs code on its own. What runs is what's in the repository, plus the
+  upgrades the person approves with `cos update apply`.
 - **Telemetry or analytics**, sending anything about the person anywhere but the service a
   feature names and they turned on, or keeping it outside `~/.claude-os`. What Claude OS learns
   stays on the Mac.
