@@ -173,18 +173,24 @@ def last_run(name):
     return runs[-1] if runs else None
 
 
-def status():
+def status(where=False):
+    """Every daemon's state. With `where`, also the other Claude OS that runs it, as ~/…: only
+    for commands the human runs (doctor, install, `cos daemon list`). The boot banner and the
+    desktop ask too often for a look at a folder that may be in Documents (a privacy prompt)
+    or on a network volume that's gone (a hang)."""
     out = []
     for name, spec in definitions().items():
         last = last_run(name)
         now = live(name)
-        other = elsewhere(name)  # as ~/…: rows end up in --json output and the desktop
-        out.append({"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
-                    "elsewhere": _tilde(other) if other else None,
-                    "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
-                    "description": spec["description"],
-                    "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
-                    "running_minutes": now["minutes"] if now else None})
+        row = {"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
+               "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
+               "description": spec["description"],
+               "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
+               "running_minutes": now["minutes"] if now else None}
+        if where:
+            other = elsewhere(name)
+            row["elsewhere"] = _tilde(other) if other else None
+        out.append(row)
     return out
 
 
@@ -197,10 +203,10 @@ def render_status(rows):
             print("%s %-8s %-12s %-5s now:  %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
             continue
         print("%s %-8s %-12s %-5s last: %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
-    others = sorted({r["elsewhere"] for r in rows if r.get("elsewhere")})
-    if others:
+    theirs = [r for r in rows if r["loaded"] and r.get("elsewhere")]
+    if theirs:
         print("\nRunning from another Claude OS on this Mac (%s): %s"
-              % (", ".join(_tilde(o) for o in others), ", ".join(r["name"] for r in rows if r.get("elsewhere"))))
+              % (", ".join(sorted({_tilde(r["elsewhere"]) for r in theirs})), ", ".join(r["name"] for r in theirs)))
     print("\n● running  ○ installed, not loaded  – off · cos daemon install <name>|--all")
 
 
@@ -514,7 +520,7 @@ def main(args):
     names = list(definitions())
     c = args.daemon_cmd or "list"
     if c == "list":
-        core.emit(status(), args.json, render_status)
+        core.emit(status(where=True), args.json, render_status)
         return 0
     if c in ("install", "uninstall"):
         targets = names if args.all else args.names

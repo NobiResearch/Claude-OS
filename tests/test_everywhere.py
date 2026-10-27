@@ -59,6 +59,21 @@ class TestEverywhere(TempHome):
                          "Background jobs left as they are: evolve, pulse, morning "
                          "(from ~/Library/Application Support/Claude OS) running.")
 
+    def test_only_commands_the_human_runs_look_for_another_claude_os(self):
+        """The boot banner and the desktop call status() all the time; the other copy's folder
+        may be in Documents (a privacy prompt) or on a volume that's gone (a hang)."""
+        from unittest import mock
+        from cos import daemon
+        with mock.patch.object(daemon, "elsewhere", side_effect=AssertionError("looked")), \
+                mock.patch.object(daemon, "is_loaded", return_value=False):
+            rows = daemon.status()
+        self.assertTrue(rows)
+        self.assertNotIn("elsewhere", rows[0])
+        with mock.patch.object(daemon, "elsewhere", return_value=None) as looked, \
+                mock.patch.object(daemon, "is_loaded", return_value=False):
+            self.assertIn("elsewhere", daemon.status(where=True)[0])
+        self.assertTrue(looked.called)
+
     def test_only_the_mac_skills_go_everywhere(self):
         self.assertEqual(system.EVERYWHERE, ("music", "tidy", "update", "startup"))
         for repo_only in ("brief", "board", "evolve", "lab"):

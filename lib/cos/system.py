@@ -92,7 +92,7 @@ def install(args):
     core.journal("action", "installed Claude OS %s" % __version__)
     print("\n".join(steps))
     print("\nNext: run `cos` to boot into Claude OS.")
-    print("\n".join(daemon_note(daemon.status(), skipped=args.no_daemons)))
+    print("\n".join(daemon_note(daemon.status(where=True), skipped=args.no_daemons)))
     return 0
 
 
@@ -160,7 +160,7 @@ def doctor(args):
     if core.app_running("Music"):
         r = core.osascript('tell application "Music" to get player state', timeout=5)
         check(r.ok, "Automation access to Music", "System Settings › Privacy & Security › Automation › allow your terminal to control Music")
-    rows = daemon.status()
+    rows = daemon.status(where=True)
     check(any(d["name"] == "pulse" and d["loaded"] for d in rows), "daemons running: %s" % (running(rows) or "none"),
           "cos daemon install pulse")
     from . import guard
