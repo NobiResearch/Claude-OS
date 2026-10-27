@@ -23,6 +23,15 @@ MAX_RESULT_CHARS = 6000
 IDLE_SECONDS = 4 * 3600
 
 
+def claude_command():
+    """The app's chat reads feeds and pages for the human, so it gets an Allow card for
+    anything not pre-allowed: not the owner's own .claude/settings.local.json (git, gh and more
+    with no card, 0013), and the manual permission mode whatever their global default is."""
+    return ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
+            "--verbose", "--include-partial-messages", "--permission-prompt-tool", "stdio",
+            "--permission-mode", "manual", "--setting-sources", "user,project"]
+
+
 class Session:
     def __init__(self, spawn=True):
         self.id = uuid.uuid4().hex[:12]
@@ -41,10 +50,8 @@ class Session:
             return
         env = dict(os.environ, CLAUDE_OS_APP="1")
         env.pop("CLAUDE_OS_DAEMON", None)
-        cmd = ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
-               "--verbose", "--include-partial-messages", "--permission-prompt-tool", "stdio"]
         try:
-            self.proc = subprocess.Popen(cmd, cwd=str(core.ROOT), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            self.proc = subprocess.Popen(claude_command(), cwd=str(core.ROOT), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                          stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace",
                                          bufsize=1, env=env, start_new_session=True)
         except OSError as e:

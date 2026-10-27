@@ -94,6 +94,19 @@ class TestDaemons(TempHome):
                 self.assertIn(rule, denied, name)
             self.assertEqual("--settings" in cmd, bool(spec.get("sandbox")), name)
 
+    def test_background_runs_and_the_app_chat_never_get_the_owners_local_allows(self):
+        # The owner's .claude/settings.local.json allows git and gh with no card (0013): a git
+        # alias runs anything, so a run that reads feeds must not load it (Fable's review, F1).
+        from cos import chat
+        cmds = [daemon.claude_command(s) for s in daemon.definitions().values() if "prompt" in s]
+        self.assertTrue(cmds)
+        for cmd in cmds + [chat.claude_command()]:
+            sources = cmd[cmd.index("--setting-sources") + 1].split(",")
+            self.assertNotIn("local", sources, cmd)
+            self.assertIn("project", sources, cmd)  # CLAUDE.md's rules and the checked-in asks still apply
+        chat_cmd = chat.claude_command()
+        self.assertEqual(chat_cmd[chat_cmd.index("--permission-mode") + 1], "manual")  # a card, whatever the global default
+
     def test_no_daemon_can_keep_itself_alive_or_schedule_more(self):
         # The first weekly meeting scheduled a 20-minute wakeup and sat out its whole timeout.
         for tool in ("ScheduleWakeup", "CronCreate", "CronDelete", "Monitor", "RemoteTrigger"):
