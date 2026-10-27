@@ -32,7 +32,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
         webView.allowsBackForwardNavigationGestures = false
         webView.allowsMagnification = true
         if #available(macOS 13.3, *) {
-            webView.isInspectable = true  // Safari > Develop > Claude OS
+            webView.isInspectable = true  // Safari > Develop > Ovenbird
         }
 
         window = NSWindow(
@@ -41,7 +41,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
             backing: .buffered,
             defer: false
         )
-        window.title = "Claude OS"
+        window.title = "Ovenbird"
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.backgroundColor = Theme.background
@@ -146,7 +146,7 @@ final class MainWindowController: NSObject, NSWindowDelegate, WKNavigationDelega
     }
 
     /// Only web and mail links leave the app. Anything else (file:, claude-os:, ssh:,
-    /// shortcuts:, smb:…) could launch apps, scripts or Claude OS's own commands.
+    /// shortcuts:, smb:…) could launch apps, scripts or Ovenbird's own commands.
     static func opensExternally(_ url: URL) -> Bool {
         ["http", "https", "mailto"].contains(url.scheme?.lowercased() ?? "")
     }

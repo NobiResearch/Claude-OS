@@ -1,4 +1,4 @@
-"""cos serve — the local server behind Claude OS.app (and `cos serve --open` in a browser).
+"""cos serve — the local server behind Ovenbird.app (and `cos serve --open` in a browser).
 
 Security model: binds 127.0.0.1 only; every /api call needs the per-launch token (sent
 as X-COS-Token, never in a URL or an environment variable); the Host header must be
@@ -32,7 +32,7 @@ UI_DIR = core.ROOT / "ui"
 
 
 def pin_code():
-    """Load all of Claude OS now (0011, part three). Routes import their modules lazily, so a
+    """Load all of Ovenbird now (0011, part three). Routes import their modules lazily, so a
     checkout that moved while the server ran used to give it new modules beside old ones until
     a restart; now everything it runs is what it started with. -> the module names loaded."""
     import importlib
@@ -82,9 +82,9 @@ class Restarting(Exception):
     """Raised by App.job while the server is on its way out (see r_restart)."""
 
 
-RESTARTING = "Claude OS is restarting to update; try again in a moment"
+RESTARTING = "Ovenbird is restarting to update; try again in a moment"
 COS = str(core.ROOT / "bin" / "cos")
-RESTART = 75  # the exit status that tells Claude OS.app a restart was planned (EX_TEMPFAIL)
+RESTART = 75  # the exit status that tells Ovenbird.app a restart was planned (EX_TEMPFAIL)
 
 
 # ---------------------------------------------------------------- jobs
@@ -163,7 +163,7 @@ def with_artwork(n):
 
 
 def confirm_natively(what, wait=120):
-    """Ask in Claude OS.app's own native dialog, which code in the page can't click (0006).
+    """Ask in Ovenbird.app's own native dialog, which code in the page can't click (0006).
     -> True (yes), False (no, or no answer in time) or None (the app couldn't be asked)."""
     import uuid
     if not core.app_running("ClaudeOS"):
@@ -273,7 +273,7 @@ class App:
         # (serve() pins its modules and desktop files to this commit; 0011, part three).
         self.head = head or core.run(["git", "-C", str(core.ROOT), "rev-parse", "HEAD"], timeout=5).out
         self.ui = read_ui(UI_DIR)
-        self.managed = False  # started by Claude OS.app, which restarts it (see r_restart)
+        self.managed = False  # started by Ovenbird.app, which restarts it (see r_restart)
 
 
     def job(self, argv, label):
@@ -479,10 +479,10 @@ def make_handler(app):
         h._json(dict(s, claude_os=code_state(app), new_here=core.new_here(), downloaded=core.downloaded()))
 
     def r_restart(h, q, b):
-        """Restart only the server (music plays on in the app): exit 75 tells Claude OS.app
-        it was planned. With Keep Claude OS up to date on, the new server catches up first."""
+        """Restart only the server (music plays on in the app): exit 75 tells Ovenbird.app
+        it was planned. With Keep Ovenbird up to date on, the new server catches up first."""
         if not app.managed:
-            return h._error(400, "only Claude OS.app restarts its server; in a browser, restart `cos serve`")
+            return h._error(400, "only Ovenbird.app restarts its server; in a browser, restart `cos serve`")
         # A job's output comes through this process: a restart would cut a `clean apply` or an
         # `update apply` off halfway.
         running = [j for j in list(app.jobs.values()) if j.ended is None]
@@ -497,7 +497,7 @@ def make_handler(app):
                     return  # one started in the meantime: the Update item stays for later
                 app.restarting = True  # from here on, no job and no POST starts (App.job, dispatch)
             app.chats.close_all()
-            core.journal("action", "Claude OS's server restarted to update", via="app")
+            core.journal("action", "Ovenbird's server restarted to update", via="app")
             os._exit(RESTART)
         threading.Thread(target=later, daemon=True).start()
 
@@ -555,7 +555,7 @@ def make_handler(app):
         from . import music
         on = bool(b.get("apple_music"))
         core.config_set("music.apple_music", on)
-        core.journal("action", "Apple Music in Claude OS turned %s" % ("on" if on else "off"), via="app")
+        core.journal("action", "Apple Music in Ovenbird turned %s" % ("on" if on else "off"), via="app")
         if on:
             res = music.player_command("authorize", wait=60)  # macOS shows its own prompt; the human decides
             st = res.get("state") or {}
@@ -566,16 +566,16 @@ def make_handler(app):
     def r_settings_night(h, q, b):
         on = bool(b.get("on"))
         if on and core.downloaded():
-            return h._json({"night_shift": False, "error": "A downloaded Claude OS has no night shift: its Claude "
+            return h._json({"night_shift": False, "error": "A downloaded Ovenbird has no night shift: its Claude "
                             "doesn't push to GitHub or merge pull requests."})
         if on:
             # The page can call this route, but only the human can click the app's own dialog.
             answer = confirm_natively("night")
             if answer is not True:
                 core.journal("action", "Night shift stayed off (%s)" % (
-                    "declined in the app window" if answer is False else "couldn't ask in Claude OS.app"), via="app")
+                    "declined in the app window" if answer is False else "couldn't ask in Ovenbird.app"), via="app")
                 return h._json({"night_shift": False, "confirmed": answer,
-                                "error": None if answer is False else "Night shift can only be turned on in Claude OS.app"})
+                                "error": None if answer is False else "Night shift can only be turned on in Ovenbird.app"})
         core.config_set("autonomy.night_shift", on)
         core.journal("action", "Night shift turned %s%s" % ("on" if on else "off", " (confirmed in the app window)" if on else ""),
                      via="app")
@@ -586,21 +586,21 @@ def make_handler(app):
         if on:
             answer = confirm_natively("catch-up")  # like Night shift: the page can't click it
             if answer is not True:
-                core.journal("action", "Keep Claude OS up to date stayed off (%s)" % (
-                    "declined in the app window" if answer is False else "couldn't ask in Claude OS.app"), via="app")
+                core.journal("action", "Keep Ovenbird up to date stayed off (%s)" % (
+                    "declined in the app window" if answer is False else "couldn't ask in Ovenbird.app"), via="app")
                 return h._json({"catch_up": False, "confirmed": answer,
-                                "error": None if answer is False else "It can only be turned on in Claude OS.app"})
+                                "error": None if answer is False else "It can only be turned on in Ovenbird.app"})
             core.config_set("autonomy.catch_up_url",
                             core.run(["git", "-C", str(core.ROOT), "config", "--get", "remote.origin.url"], timeout=5).out)
         core.config_set("autonomy.catch_up", on)
-        core.journal("action", "Keep Claude OS up to date turned %s%s" % (
+        core.journal("action", "Keep Ovenbird up to date turned %s%s" % (
             "on" if on else "off", " (confirmed in the app window)" if on else ""), via="app")
         h._json({"catch_up": on})
 
     def r_settings_notify(h, q, b):
         on = bool(b.get("native"))
         core.config_set("notify.native", on)
-        core.journal("action", "Claude OS notifications turned %s" % ("on" if on else "off"), via="app")
+        core.journal("action", "Ovenbird notifications turned %s" % ("on" if on else "off"), via="app")
         if not on:
             return h._json({"native": False})
         before = (core.load_json(core.home("state", "notify.json"), {}) or {}).get("ts", 0)

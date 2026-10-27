@@ -3,7 +3,7 @@ name: startup
 description: Explain what starts with this Mac (login items, launch agents and daemons, background items) and what's worth a look. Use when the human asks what runs at startup or login on their Mac, why the Mac is slow to start, about background items, or whether something on their Mac is suspicious. Not for a project's or app's own startup code.
 ---
 
-> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Claude OS folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
+> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Ovenbird folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
 
 # Startup
 

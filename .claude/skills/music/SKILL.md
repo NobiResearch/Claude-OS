@@ -4,7 +4,7 @@ description: Play, find and control the human's own Apple Music on this Mac. Use
 argument-hint: "[what you want to hear]"
 ---
 
-> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Claude OS folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in. Outside Claude OS there's no boot banner: read `cos memory` before choosing by taste.
+> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Ovenbird folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in. Outside Ovenbird there's no boot banner: read `cos memory` before choosing by taste.
 
 # Music
 
@@ -22,15 +22,15 @@ You are the DJ. The syscall does mechanics; you bring taste.
      and choose something they haven't heard in the last few days.
    - "Something from my library": `cos music find <genre or word>`, or
      `cos music playlists`, then `cos music playlist "<name>" --shuffle`. It plays in
-     Claude OS's own player when that's on, so next, shuffle and like work there too.
+     Ovenbird's own player when that's on, so next, shuffle and like work there too.
 3. **Play it.**
    - A mood or activity: `cos music radio "<song> <artist>"` plays that song, then
-     similar music from its Apple Music station, in Claude OS's own player. With no
+     similar music from its Apple Music station, in Ovenbird's own player. With no
      argument it starts from the song playing now. If it says the song plays alone (no
-     station), say so; if it needs "Apple Music in Claude OS", use `play` instead.
+     station), say so; if it needs "Apple Music in Ovenbird", use `play` instead.
    - A named song, album or artist: `cos music play "<song> <artist>"`, one song as
-     asked. It tries the library first; then, if "Apple Music in Claude OS" is on, it plays
-     the catalog song in Claude OS's own player; otherwise it opens the song page in Music
+     asked. It tries the library first; then, if "Apple Music in Ovenbird" is on, it plays
+     the catalog song in Ovenbird's own player; otherwise it opens the song page in Music
      (`cos music setup` shows the state). `--source catalog` skips the library;
      `--pick N` chooses another result from `cos music catalog "<query>"`.
 4. **Report** in one line what's playing and why you picked it ("Paper Lanterns, then

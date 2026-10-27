@@ -376,7 +376,7 @@ def journal(kind, msg, **data):
 
 
 def new_here(days=7):
-    """Is Claude OS in its first week on this Mac? (The journal's first entry is that young, or
+    """Is Ovenbird in its first week on this Mac? (The journal's first entry is that young, or
     there's no journal yet.) Today shows a welcome card then."""
     try:
         files = sorted(home("journal").glob("*.jsonl"))
@@ -419,7 +419,8 @@ def same_folder(a, b):
 
 
 def same_repository(url, repository=None):
-    """Is this git URL (https, ssh or scp-style) the repository? Like the app's isRepository."""
+    """Is this git URL (https, ssh or scp-style) the repository, under its name now or a former
+    one? Like the app's isRepository."""
     u = (url or "").strip().lower()
     for prefix in ("https://", "ssh://", "git@"):
         if u.startswith(prefix):
@@ -429,11 +430,12 @@ def same_repository(url, repository=None):
     u = u.replace("github.com:", "github.com/", 1).rstrip("/")
     if u.endswith(".git"):
         u = u[:-4]
-    return u == (repository or REPOSITORY).lower()
+    names = (repository,) if repository else (REPOSITORY,) + FORMER_REPOSITORIES
+    return u in (n.lower() for n in names)
 
 
 def install_record():
-    """What Claude OS.app's first launch wrote when it downloaded this checkout (decision 0015,
+    """What Ovenbird.app's first launch wrote when it downloaded this checkout (decision 0015,
     step 5), or {}. A checkout someone cloned themselves has none."""
     d = load_json(home("state", "install.json"), {})
     root = d.get("root") if isinstance(d, dict) and d.get("kind") == "download" else None
@@ -493,8 +495,8 @@ DEFAULT_CONFIG = {
     "weather": {},
     "notify": {"enabled": True, "native": False},
     "pulse": {"low_disk_gb": 20, "backup_check": True},
-    # Only the human turns these on, in Claude OS.app's own dialog: Night shift (0006), and
-    # Keep Claude OS up to date (0011), which pins the origin it was turned on for.
+    # Only the human turns these on, in Ovenbird.app's own dialog: Night shift (0006), and
+    # Keep Ovenbird up to date (0011), which pins the origin it was turned on for.
     "autonomy": {"night_shift": False, "catch_up": False, "catch_up_url": None},
 }
 
@@ -523,17 +525,21 @@ def config_set(dotted, value):
 
 # ---------------------------------------------------------------- network
 
-REPOSITORY = "github.com/NobiResearch/Claude-OS"
+REPOSITORY = "github.com/NobiResearch/Ovenbird"
+# Its name until decision 0019. GitHub sends the old address on to the new one, and a copy
+# cloned from it is still a copy of this repository. Never create a repository at that path:
+# that would end the redirect.
+FORMER_REPOSITORIES = ("github.com/NobiResearch/Claude-OS",)
 RELEASES = "https://%s/releases" % REPOSITORY
 # What a downloaded copy's Claude may never do on its own (decision 0015): the repository isn't
-# the person's. Claude OS.app writes these into the copy's .claude/settings.local.json when it
+# the person's. Ovenbird.app writes these into the copy's .claude/settings.local.json when it
 # downloads it (FirstLaunch.localSettings, the same list), and system.keep_download_settings
 # puts them back if they go missing.
 DOWNLOAD_DENY = ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)", "Bash(git * push*)"]
-# The oldest Claude OS.app this code works with (decision 0015, step 6). Raise it when the
+# The oldest Ovenbird.app this code works with (decision 0015, step 6). Raise it when the
 # server needs something only a newer app does, and a downloaded app that's older says so.
 APP_NEEDED = "0.7.0"
-USER_AGENT = "ClaudeOS/0.1 (+https://%s)" % REPOSITORY
+USER_AGENT = "Ovenbird/0.1 (+https://%s)" % REPOSITORY
 _SSL = None
 
 
@@ -572,7 +578,7 @@ def curl_get(url, timeout=12):
 
 def app_url(path, **params):
     """A claude-os:// link for a command that changes something. It carries the per-launch
-    nonce Claude OS.app keeps in ~/.claude-os/state/app.nonce (0600), so a web page or any
+    nonce Ovenbird.app keeps in ~/.claude-os/state/app.nonce (0600), so a web page or any
     process that can't read that file can't make the app act."""
     import urllib.parse
     try:
@@ -584,7 +590,7 @@ def app_url(path, **params):
 
 
 def app_record():
-    """What Claude OS.app wrote about itself when it last launched (state/app.json), or {}."""
+    """What Ovenbird.app wrote about itself when it last launched (state/app.json), or {}."""
     d = load_json(home("state", "app.json"), {})
     return d if isinstance(d, dict) else {}
 
@@ -604,7 +610,7 @@ def app_outdated():
 
 
 def _is_claude_os_app(path):
-    """A Claude OS.app bundle: our executable, and it handles claude-os:// links."""
+    """An Ovenbird.app bundle: our executable, and it handles claude-os:// links."""
     import plistlib
     try:
         with open(os.path.join(str(path), "Contents", "Info.plist"), "rb") as f:
@@ -617,24 +623,24 @@ def _is_claude_os_app(path):
 
 
 def app_bundle():
-    """The Claude OS.app to talk to: the one that last launched (a downloaded release or a
-    developer's own build, wherever it is), if it's still there and is Claude OS; else
-    ~/Applications/Claude OS.app; else None (decision 0015)."""
-    for path in (app_record().get("bundle"), os.path.expanduser("~/Applications/Claude OS.app")):
+    """The Ovenbird.app to talk to: the one that last launched (a downloaded release or a
+    developer's own build, wherever it is), if it's still there and is Ovenbird; else
+    ~/Applications/Ovenbird.app; else None (decision 0015)."""
+    for path in (app_record().get("bundle"), os.path.expanduser("~/Applications/Ovenbird.app")):
         if path and _is_claude_os_app(path):
             return str(path)
     return None
 
 
 def open_app_url(url, timeout=15):
-    """Hand a claude-os:// link to the Claude OS.app in use (`open -a`), never to whichever copy
+    """Hand a claude-os:// link to the Ovenbird.app in use (`open -a`), never to whichever copy
     macOS prefers: with two copies on a Mac, each would get the other's links (0015)."""
     bundle = app_bundle()
     return run(["open", "-g"] + (["-a", bundle] if bundle else []) + [url], timeout=timeout)
 
 
 def ensure_app(wait=12):
-    """Start Claude OS.app (in the background) if it isn't running; True once it's up."""
+    """Start Ovenbird.app (in the background) if it isn't running; True once it's up."""
     if app_running("ClaudeOS"):
         return True
     bundle = app_bundle()
@@ -652,7 +658,7 @@ def ensure_app(wait=12):
 
 
 def native_notifications():
-    """Claude OS.app posts them itself when the human turned it on, macOS allowed it and the
+    """Ovenbird.app posts them itself when the human turned it on, macOS allowed it and the
     app is running. Background jobs never launch the app just to show a notification."""
     if not config()["notify"].get("native"):
         return False
@@ -665,7 +671,7 @@ def native_notifications():
 NOTIFY_TARGETS = ("board", "brief", "evolve", "daemons")
 
 
-def notify(message, title="Claude OS", subtitle=None, sound=None, target=None):
+def notify(message, title="Ovenbird", subtitle=None, sound=None, target=None):
     if not config()["notify"]["enabled"]:
         return Result(0, "", "notifications disabled")
     if native_notifications():

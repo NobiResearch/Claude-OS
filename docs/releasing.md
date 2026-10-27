@@ -1,4 +1,4 @@
-# Releasing Claude OS.app
+# Releasing Ovenbird.app
 
 How the downloadable app is built (decision 0015). Only the repository's owner cuts a release,
 on their own Mac; nothing here runs in CI, and publishing is a separate step on their yes.
@@ -27,7 +27,7 @@ The full check from decision 0015, step 1, on the notarized zip: download it in 
 macOS user account** (so it's quarantined and nothing of yours is there), and go through the
 first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
-Remove Claude OS… leaves nothing behind but the app.
+Remove Ovenbird… leaves nothing behind but the app.
 
 Check one thing no one has tested yet: whether the code the downloaded app clones comes out
 quarantined (`xattr -l` on `bin/cos`), and whether `cos` still runs from Terminal and from
@@ -41,7 +41,7 @@ Claude Code there ([research](research/growing-the-project.md)).
    (`v0.8.0`).
 2. **The oldest app the code works with.** If the server now needs something only this app
    does, raise `APP_NEEDED` in `lib/cos/core.py` to this version: older downloaded apps then say
-   "download Claude OS.app" instead of breaking.
+   "download Ovenbird.app" instead of breaking.
 3. **Build** from a clean checkout of `main`, at `origin/main`:
 
 ```sh
@@ -58,14 +58,14 @@ the evolve sandbox. It then:
 - checks the profile: Developer ID (any Mac), the release App ID, neutral names;
 - signs with Developer ID, the hardened runtime, a secure timestamp and the allowlisted
   entitlements, with no fallback;
-- notarizes, staples and zips it to `build/Claude-OS-<version>.zip`.
+- notarizes, staples and zips it to `build/Ovenbird-<version>.zip`.
 
 `--no-notarize` stops before notarizing, for a local check. That zip isn't for publishing.
 
 ## Publishing
 
-Only on the owner's yes, each time: `gh release create v<version> build/Claude-OS-<version>.zip
---title "Claude OS <version>" --notes-file <notes>`, which asks before it runs. The notes pass
+Only on the owner's yes, each time: `gh release create v<version> build/Ovenbird-<version>.zip
+--title "Ovenbird <version>" --notes-file <notes>`, which asks before it runs. The notes pass
 `bin/cos guard --text` first.
 
 ### The notes
@@ -73,27 +73,27 @@ Only on the owner's yes, each time: `gh release create v<version> build/Claude-O
 Plain words, for someone who isn't a developer. Start from this and add what's new:
 
 ```markdown
-**Claude OS <version>**: an operating layer for your Mac that Claude lives in.
+**Ovenbird <version>**: an operating layer for your Mac that Claude lives in.
 
 **What you need:** macOS 14 or later, [Claude Code](https://claude.com/claude-code) with a Claude
 plan, and Apple Music for the music player.
 
-**Install:** unzip, move Claude OS.app to your Applications folder, and open it. The first launch
+**Install:** unzip, move Ovenbird.app to your Applications folder, and open it. The first launch
 shows a checklist: Apple's command line tools (Apple installs them), Claude Code (a link to
-Anthropic's page), and Claude OS itself, downloaded from this repository into
-~/Library/Application Support/Claude OS. Nothing is installed until you click. Two extras, the
-skills in Claude Code and a vitals check every 2 hours, start off. Claude OS never asks for Full
+Anthropic's page), and Ovenbird itself, downloaded from this repository into
+~/Library/Application Support/Ovenbird. Nothing is installed until you click. Two extras, the
+skills in Claude Code and a vitals check every 2 hours, start off. Ovenbird never asks for Full
 Disk Access, Accessibility or Screen Recording.
 
-**Updates:** when a newer Claude OS.app is out, Updates says so. Download it, replace the old one
-and open it: Claude OS comes along.
+**Updates:** when a newer Ovenbird.app is out, Updates says so. Download it, replace the old one
+and open it: Ovenbird comes along.
 
-**Remove:** Claude OS menu › Remove Claude OS… turns off its background jobs, removes its links
+**Remove:** Ovenbird menu › Remove Ovenbird… turns off its background jobs, removes its links
 and moves its code to the Trash; your journal and memory go only if you say so. Then drag the app
 to the Trash.
 
 **What's new:** <from CHANGELOG.md>
 
-Claude OS is open source under the MIT License, the app included. It isn't made or endorsed by
+Ovenbird is open source under the MIT License, the app included. It isn't made or endorsed by
 Anthropic; Claude is Anthropic's trademark.
 ```

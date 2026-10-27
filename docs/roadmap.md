@@ -22,17 +22,15 @@ what, where, and how we'll know it works.
 
 ## Research (for `/lab`)
 
-- **The name** ([research](research/the-name.md)): can a downloadable app be called
-  "Claude OS"? Probably not without Anthropic's permission; the human decides before the first
-  public release.
 - **Growing the project** ([research](research/growing-the-project.md)): what Hermes Agent
-  did that a small project can copy. The name comes first; every public step is the human's.
+  did that a small project can copy. The name is settled (0019); every public step is the
+  human's.
 - Nothing else open. Answered: [a daily mix without an LLM](research/daily-mix.md) (Apple's own
   personal mixes through MusicKit: one fixed `claude-os://music/mix`), [Time Machine's last
   backup date](research/time-machine-last-backup.md) (`defaults export` reads it without Full
   Disk Access; verify with a real destination), [Apple Music catalog playback](research/apple-music-catalog-playback.md)
-  (Claude OS's own MusicKit player), [Claude OS as a plugin](research/claude-code-plugin.md);
-  the menu bar presence is Claude OS.app's status item.
+  (Ovenbird's own MusicKit player), [Ovenbird as a plugin](research/claude-code-plugin.md);
+  the menu bar presence is Ovenbird.app's status item.
 
 ## Ideas
 
@@ -63,9 +61,9 @@ what, where, and how we'll know it works.
 
 - v0.1: status, clean, update, music, feeds, journal/friction/memory, daemons, evolve
   plumbing, guard, board, lab.
-- v0.2: Claude OS.app, the desktop, Claude chat with Allow/Deny cards, `cos serve`.
+- v0.2: Ovenbird.app, the desktop, Claude chat with Allow/Deny cards, `cos serve`.
 - v0.3: Shortcuts music route, old simulator runtimes, trend logging, demo mode.
-- v0.4: permissions on request (0003): Claude OS's own Apple Music player, weather +
+- v0.4: permissions on request (0003): Ovenbird's own Apple Music player, weather +
   location, stable signing.
 - v0.5: calendar & reminders, weather alerts, loving the right song.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).

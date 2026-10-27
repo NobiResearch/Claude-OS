@@ -3,7 +3,7 @@
 - **Asked:** 2026-10-26, by the board (the Skeptic), before decision 0015 ships an app
 - **Checked against:** Anthropic's trademark guidelines (effective 1 August 2024), searched on
   26 October 2026
-- **Status:** open, and the human's call. Research only.
+- **Status:** decided: the project is Ovenbird ([decision 0019](../decisions/0019-the-name.md)).
 
 ## Answer
 

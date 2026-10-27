@@ -1,10 +1,10 @@
 ---
 name: Idea
-about: Something Claude OS could do
+about: Something Ovenbird could do
 labels: enhancement
 ---
 
-**What you'd like Claude OS to do**
+**What you'd like Ovenbird to do**
 
 **Why** (what you do today instead)
 

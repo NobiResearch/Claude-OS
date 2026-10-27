@@ -9,7 +9,7 @@ from . import core
 DATA_VOLUME = "/System/Volumes/Data"
 
 
-# ps and sysctl write decimals the locale's way ("12,5" in Norwegian, say), and Claude OS
+# ps and sysctl write decimals the locale's way ("12,5" in Norwegian, say), and Ovenbird
 # parses them, so they always run in the C locale.
 C_LOCALE = {"LC_ALL": "C"}
 
@@ -191,10 +191,10 @@ def signals(s):
     from . import evolve
     stuck = evolve.follow_problem()
     if stuck:
-        out.append(("warn", "Claude OS's code couldn't follow its app: %s" % stuck))
+        out.append(("warn", "Ovenbird's code couldn't follow its app: %s" % stuck))
     older = core.app_outdated()
     if older:
-        out.append(("warn", "this Claude OS needs Claude OS.app %s or newer (this one is %s): download it from %s"
+        out.append(("warn", "this Ovenbird needs Ovenbird.app %s or newer (this one is %s): download it from %s"
                     % (older["needed"], older["have"], core.RELEASES)))
     upd = core.cache_get("updates")
     if upd:

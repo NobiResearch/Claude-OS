@@ -1,6 +1,6 @@
 import AppKit
 
-/// Remove Claude OS (decision 0015, step 5): a downloaded copy undoes only what it added. Its
+/// Remove Ovenbird (decision 0015, step 5): a downloaded copy undoes only what it added. Its
 /// background jobs and links go through `cos uninstall` (which leaves another checkout's alone),
 /// its code goes to the Trash, and ~/.claude-os, with the journal and memory, goes to the Trash
 /// only after its own yes. Anything that fails stops it with everything left in place, so it can
@@ -40,8 +40,8 @@ enum Remover {
         guard let root = downloadedRoot(config: config, home: home) else { return }
         let place = "~/" + AppConfig.installFolder
         let ask = NSAlert()
-        ask.messageText = "Remove Claude OS from this Mac?"
-        ask.informativeText = "This turns off Claude OS's background jobs, removes the links it added for Claude Code, "
+        ask.messageText = "Remove Ovenbird from this Mac?"
+        ask.informativeText = "This turns off Ovenbird's background jobs, removes the links it added for Claude Code, "
             + "and moves its code (\(place)) to the Trash. Your journal and memory stay unless you choose to remove "
             + "them next."
         ask.alertStyle = .warning
@@ -55,14 +55,14 @@ enum Remover {
         let r = FirstLaunch.run("/usr/bin/python3", [root.appendingPathComponent("bin/cos").path, "uninstall"],
                                 environment: env, timeout: 60)
         if r.status != 0 {
-            return stop("Claude OS couldn't turn off its background jobs and links, so nothing was moved to the Trash. "
-                        + "Open Claude OS and try again.\n\n\((r.error + r.output).suffix(400))")
+            return stop("Ovenbird couldn't turn off its background jobs and links, so nothing was moved to the Trash. "
+                        + "Open Ovenbird and try again.\n\n\((r.error + r.output).suffix(400))")
         }
         do {
             try FileManager.default.trashItem(at: root, resultingItemURL: nil)
         } catch {
-            return stop("Claude OS's background jobs and links are off, but \(place) couldn't be moved to the Trash: "
-                        + "\(error.localizedDescription)\n\nMove it to the Trash yourself, or open Claude OS and try again.")
+            return stop("Ovenbird's background jobs and links are off, but \(place) couldn't be moved to the Trash: "
+                        + "\(error.localizedDescription)\n\nMove it to the Trash yourself, or open Ovenbird and try again.")
         }
         try? FileManager.default.removeItem(at: AppURL.base.appendingPathComponent("state/install.json"))
 
@@ -70,8 +70,8 @@ enum Remover {
         var trashData = false
         if AppURL.base.standardizedFileURL.path == home + "/.claude-os", !isLink(AppURL.base) {
             let data = NSAlert()
-            data.messageText = "Also move your Claude OS journal and memory to the Trash?"
-            data.informativeText = "~/.claude-os holds Claude OS's journal, what it learned about you, and its settings. "
+            data.messageText = "Also move your Ovenbird journal and memory to the Trash?"
+            data.informativeText = "~/.claude-os holds Ovenbird's journal, what it learned about you, and its settings. "
                 + "Keep them if you might come back. Your conversations with Claude stay in Claude Code's own "
                 + "history (~/.claude/projects) either way."
             data.addButton(withTitle: "Keep Them")
@@ -79,9 +79,9 @@ enum Remover {
             trashData = data.runModal() == .alertSecondButtonReturn
         }
         let done = NSAlert()
-        done.messageText = "Claude OS is removed"
+        done.messageText = "Ovenbird is removed"
         done.informativeText = (trashData ? "Its journal and memory go to the Trash as it quits. " : "")
-            + "To finish, drag Claude OS.app to the Trash."
+            + "To finish, drag Ovenbird.app to the Trash."
         done.addButton(withTitle: "Quit")
         done.runModal()
         if trashData {
@@ -97,7 +97,7 @@ enum Remover {
     /// Something failed: say what, leave everything as it is, and quit (the server is stopped).
     private static func stop(_ message: String) {
         let alert = NSAlert()
-        alert.messageText = "Claude OS wasn't removed"
+        alert.messageText = "Ovenbird wasn't removed"
         alert.informativeText = message
         alert.alertStyle = .critical
         alert.addButton(withTitle: "Quit")

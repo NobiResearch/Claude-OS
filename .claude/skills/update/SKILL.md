@@ -3,7 +3,7 @@ name: update
 description: Keep macOS and the software installed on this Mac up to date: macOS, Homebrew, global npm packages, App Store apps, Rust toolchains. Use when the human asks about Mac updates, outdated Homebrew or global tools, App Store apps, or security patches. Not for a project's own dependencies, lockfile or package.json.
 ---
 
-> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Claude OS folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
+> Works from any folder on this Mac ([0009](../../../docs/decisions/0009-claude-os-everywhere.md)). Run syscalls as `cos …`; in the Ovenbird folder, `bin/cos …` is the same. Whatever you `cos remember` or `cos friction add` is about the human or this Mac, never the project or client you're working in.
 
 # Update
 
@@ -29,4 +29,4 @@ description: Keep macOS and the software installed on this Mac up to date: macOS
 
 - Long upgrades can take many minutes; tell the human before starting a big batch.
 - If an upgrade fails, show the last lines of output and log friction if it looks like
-  something Claude OS should handle better.
+  something Ovenbird should handle better.

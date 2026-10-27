@@ -80,7 +80,7 @@ class TestWorkspace(TempHome):
 
 
 class TestSafetyFiles(TempHome):
-    """A branch that changes Claude OS's gate merges only after a guardian review (0013)."""
+    """A branch that changes Ovenbird's gate merges only after a guardian review (0013)."""
 
     def setUp(self):
         super().setUp()

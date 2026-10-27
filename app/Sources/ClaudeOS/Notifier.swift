@@ -1,9 +1,9 @@
 import Foundation
 import UserNotifications
 
-/// Notifications with Claude OS's own name and icon (decision 0004).
+/// Notifications with Ovenbird's own name and icon (decision 0004).
 ///
-/// Text never travels in a URL, so a web page or stray process can't make Claude OS say
+/// Text never travels in a URL, so a web page or stray process can't make Ovenbird say
 /// anything: `cos` writes each notification to ~/.claude-os/state/outbox/*.json and then
 /// opens claude-os://notify/flush, which carries nothing. Permission is asked only when the
 /// human turns the setting on (claude-os://notify/authorize).
@@ -64,7 +64,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
                   let data = try? Data(contentsOf: file),
                   let note = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { continue }
             let content = UNMutableNotificationContent()
-            content.title = String((note["title"] as? String ?? "Claude OS").prefix(120))
+            content.title = String((note["title"] as? String ?? "Ovenbird").prefix(120))
             content.subtitle = String((note["subtitle"] as? String ?? "").prefix(120))
             content.body = String((note["body"] as? String ?? "").prefix(600))
             if note["sound"] as? Bool == true { content.sound = .default }
@@ -90,7 +90,7 @@ final class Notifier: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    // Show banners even while Claude OS is in front; a click brings the desktop up.
+    // Show banners even while Ovenbird is in front; a click brings the desktop up.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification)
         async -> UNNotificationPresentationOptions {
         [.banner, .list, .sound]

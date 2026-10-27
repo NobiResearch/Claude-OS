@@ -68,7 +68,7 @@ final class Locator: NSObject, CLLocationManagerDelegate {
             let enabled = CLLocationManager.locationServicesEnabled()
             DispatchQueue.main.async {
                 self.finish(error: enabled
-                    ? "Claude OS isn't allowed to use your location. You can allow it in System Settings › "
+                    ? "Ovenbird isn't allowed to use your location. You can allow it in System Settings › "
                         + "Privacy & Security › Location Services."
                     : "Location Services are turned off. You can turn them on in System Settings › "
                         + "Privacy & Security › Location Services.")

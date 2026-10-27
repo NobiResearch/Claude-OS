@@ -1,6 +1,6 @@
 """cos cal — today's events and due reminders.
 
-Claude OS.app reads them with EventKit (it holds the Calendars/Reminders grant; `cos`
+Ovenbird.app reads them with EventKit (it holds the Calendars/Reminders grant; `cos`
 never asks for it) and writes ~/.claude-os/state/agenda.json. Nothing is read until the
 human connects it once, from Settings or `cos cal connect` (decision 0002).
 """
@@ -38,7 +38,7 @@ def _ask_app(command, wait):
 
 
 def connect(wait=90):
-    """Ask Claude OS.app to request access (macOS shows its prompts) and read the agenda."""
+    """Ask Ovenbird.app to request access (macOS shows its prompts) and read the agenda."""
     if not core.ensure_app():
         return state()
     return _ask_app("connect", wait) or state()
@@ -46,7 +46,7 @@ def connect(wait=90):
 
 def agenda(refresh=False):
     s = state()
-    # Only ask a running app; launching Claude OS from a background job would pop its window up.
+    # Only ask a running app; launching Ovenbird from a background job would pop its window up.
     if connected(s) and core.app_running("ClaudeOS") and (refresh or time.time() - s.get("ts", 0) > STALE_SECONDS):
         s = _ask_app("refresh", 6) or s
     return s or {"calendar": "not connected", "reminders": "not connected"}
@@ -80,7 +80,7 @@ def day_view(s, now=None):
 
 def render(v):
     if not v["connected"]:
-        print("Calendar isn't connected. Connect it in Claude OS › Settings, or: cos cal connect")
+        print("Calendar isn't connected. Connect it in Ovenbird › Settings, or: cos cal connect")
         return
     print("Today")
     for e in v["today"] or []:

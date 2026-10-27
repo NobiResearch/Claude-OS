@@ -1,6 +1,6 @@
 # Lessons
 
-Things Claude OS learned about macOS the hard way. Read before touching the same area;
+Things Ovenbird learned about macOS the hard way. Read before touching the same area;
 add to it when you learn something new. Each lesson: what happened, the rule.
 
 ## Apple Events and AppleScript
@@ -109,10 +109,10 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   *Rule:* after creating an App ID, wait a few minutes and test in a fresh launch; the log line
   `[com.apple.amp.iTunesCloud]` names the reason (`log show --predicate 'eventMessage CONTAINS
   "client identifier"'`).
-- **Two Claude OS apps on one Mac step on each other.** Both register `claude-os://`, and macOS
+- **Two Ovenbird apps on one Mac step on each other.** Both register `claude-os://`, and macOS
   sends those links to the one it prefers (the installed one), not the one you're testing; both
   write the per-launch `state/app.nonce`, so a command built for one is refused by the other;
-  and `core.ensure_app` opens `~/Applications/Claude OS.app` by name. *Rule:* run one at a time;
+  and `core.ensure_app` opens `~/Applications/Ovenbird.app` by name. *Rule:* run one at a time;
   to test another build, quit the installed app, send commands with `open -a <that app>`, and
   afterwards `lsregister -u` and trash the test build, then `lsregister -f` the installed one.
 
@@ -191,15 +191,15 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **`Write(path)` permission rules aren't used for files.** Claude Code warns that only
   `Edit(path)` rules are checked, and they cover every file-editing tool.
 - **macOS `pgrep` skips its own ancestors** unless you pass `-a`. Everything the app's chat
-  runs is a descendant of Claude OS.app, so `pgrep -x ClaudeOS` couldn't see the app from
-  inside it, and `cos music radio` said "Claude OS isn't running" from inside Claude OS.
+  runs is a descendant of Ovenbird.app, so `pgrep -x ClaudeOS` couldn't see the app from
+  inside it, and `cos music radio` said "Ovenbird isn't running" from inside Ovenbird.
 - **`git diff --name-only` shows a moved file under its new name only.** A check on paths
   needs `--no-renames`, or moving `.claude/settings.json` to `docs/` looks like adding a docs
   file. A failed `git diff` is also not "no changes": treat it as a reason to ask.
 - **Local Network privacy covers ping.** Apple's TN3179 lists TCP and UDP, but a ping to the
   router from a third-party terminal app failed with `sendto: No route to host` while the
   router was right there in `arp -n`. Only Terminal.app, SSH, root and launchd daemons are
-  exempt; everything else (an app's helpers, Claude OS.app's chat, Warp, iTerm) needs the
+  exempt; everything else (an app's helpers, Ovenbird.app's chat, Warp, iTerm) needs the
   Local Network permission, and the first try may show the human an alert. `cos net` reads
   the ARP table instead, which sends no packets. CoreWLAN's signal properties need no
   permission; only the network's name and the like need Location.
@@ -228,4 +228,4 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   the old URL, but `cos hook check` compares a pull request's URL with the checkout's origin,
   and catch-up only runs while origin matches the URL the human approved. After a transfer:
   `git remote set-url origin <new>` in the live checkout (worktrees share it), and the human
-  turns Keep Claude OS up to date off and on.
+  turns Keep Ovenbird up to date off and on.

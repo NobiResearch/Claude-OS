@@ -397,13 +397,13 @@ class TestUpdateSource(Repos):
             self.assertNotEqual(self.head(), self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
             with redirect_stdout(io.StringIO()) as out:
                 self.assertEqual(updates.apply("claude-os", [], yes=True), 0)
-            self.assertIn("✓ Claude OS is at", out.getvalue())
+            self.assertIn("✓ Ovenbird is at", out.getvalue())
             self.assertEqual(self.head(), self.sh("git", "rev-parse", "HEAD", cwd=self.hub))
 
 
 class TestFollowTheApp(Repos):
     """Decision 0015, step 6: a downloaded copy's code follows its app. Opening a newer
-    Claude OS.app moves it to that app's commit (only forward, only over GitHub's merges,
+    Ovenbird.app moves it to that app's commit (only forward, only over GitHub's merges,
     only a commit on main); it never follows main by itself."""
 
     def setUp(self):
@@ -463,7 +463,7 @@ class TestFollowTheApp(Repos):
         self.assertFalse(c["updated"])
         self.assertEqual(evolve.follow_problem(), "it has uncommitted changes")
         fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
-        self.assertIn("Claude OS's code couldn't follow its app: it has uncommitted changes",
+        self.assertIn("Ovenbird's code couldn't follow its app: it has uncommitted changes",
                       [m for _, m in status.signals(fake)])
 
     def test_no_false_alarm_for_a_download_at_its_apps_commit(self):
@@ -486,7 +486,7 @@ class TestFollowTheApp(Repos):
             updates.apply_claude_os(yes=True)
         with redirect_stdout(io.StringIO()) as out:
             self.assertEqual(daemon.run("evolve"), 0)
-        self.assertIn("doesn't run in a downloaded Claude OS", out.getvalue())
+        self.assertIn("doesn't run in a downloaded Ovenbird", out.getvalue())
         self.assertEqual(self.head(), self.released)
 
     def test_a_held_lock_says_so(self):
@@ -510,7 +510,7 @@ class TestNewerApp(TempHome):
     """A downloaded app says when a newer one is out, at most one look a day; one someone
     built never asks GitHub."""
 
-    def release(self, tag="v0.9.0", url="https://github.com/NobiResearch/Claude-OS/releases/tag/v0.9.0", **kw):
+    def release(self, tag="v0.9.0", url="https://github.com/NobiResearch/Ovenbird/releases/tag/v0.9.0", **kw):
         body = dict({"tag_name": tag, "html_url": url, "draft": False}, **kw)
 
         class Reply(io.BytesIO):
@@ -530,7 +530,7 @@ class TestNewerApp(TempHome):
         with self.release():
             s = updates.check_app()
         self.assertEqual(s["items"][0]["latest"], "0.9.0")
-        self.assertEqual(s["items"][0]["url"], "https://github.com/NobiResearch/Claude-OS/releases/tag/v0.9.0")
+        self.assertEqual(s["items"][0]["url"], "https://github.com/NobiResearch/Ovenbird/releases/tag/v0.9.0")
         with mock.patch.object(core, "http_get", side_effect=AssertionError("asked twice in a day")):
             self.assertEqual(updates.check_app()["items"][0]["latest"], "0.9.0")
 
@@ -566,7 +566,7 @@ class TestNewerApp(TempHome):
         self.app(version="0.6.0")
         fake = {"disk": {"free": 10 ** 12, "free_pct": 50}, "memory": {"swap_used": 0}, "security": {}, "uptime": 0}
         msgs = [m for _, m in status.signals(fake)]
-        self.assertTrue(any("needs Claude OS.app" in m and core.RELEASES in m for m in msgs), msgs)
+        self.assertTrue(any("needs Ovenbird.app" in m and core.RELEASES in m for m in msgs), msgs)
 
 
 class TestDownloadsDontEvolve(TempHome):

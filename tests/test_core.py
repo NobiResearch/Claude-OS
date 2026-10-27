@@ -204,12 +204,12 @@ if __name__ == "__main__":
 
 
 class TestWhichApp(TempHome):
-    """`cos` talks to the Claude OS.app that last launched, wherever it is (decision 0015):
+    """`cos` talks to the Ovenbird.app that last launched, wherever it is (decision 0015):
     with two copies on one Mac, macOS would hand claude-os:// links to the one it prefers."""
 
     def app(self, folder, executable="ClaudeOS", schemes=("claude-os",)):
         import plistlib
-        path = os.path.join(self.tmp, folder, "Claude OS.app")
+        path = os.path.join(self.tmp, folder, "Ovenbird.app")
         os.makedirs(os.path.join(path, "Contents"))
         with open(os.path.join(path, "Contents", "Info.plist"), "wb") as f:
             plistlib.dump({"CFBundleExecutable": executable,
@@ -249,17 +249,22 @@ class TestWhichApp(TempHome):
 
 
 class TestDownloaded(TempHome):
-    """Decision 0015, step 5: a copy Claude OS.app downloaded from the project's repository
+    """Decision 0015, step 5: a copy Ovenbird.app downloaded from the project's repository
     has no night shift; one someone cloned, or pointed at their own fork, does."""
 
     def test_the_repository_in_any_url_form(self):
-        for url in ("https://github.com/NobiResearch/Claude-OS.git", "https://github.com/nobiresearch/claude-os",
-                    "git@github.com:NobiResearch/Claude-OS.git", "ssh://git@github.com/NobiResearch/Claude-OS.git/",
-                    "https://someone@github.com/NobiResearch/Claude-OS.git"):
+        for url in ("https://github.com/NobiResearch/Ovenbird.git", "https://github.com/nobiresearch/ovenbird",
+                    "git@github.com:NobiResearch/Ovenbird.git", "ssh://git@github.com/NobiResearch/Ovenbird.git/",
+                    "https://someone@github.com/NobiResearch/Ovenbird.git",
+                    # its former name (decision 0019): a copy cloned from it is still ours
+                    "https://github.com/NobiResearch/Claude-OS.git", "https://github.com/nobiresearch/claude-os"):
             self.assertTrue(core.same_repository(url), url)
-        for url in ("https://github.com/someone/Claude-OS.git", "https://github.com/NobiResearch/Claude-OS-evil",
-                    "https://example.com/NobiResearch/Claude-OS", "", None):
+        for url in ("https://github.com/someone/Ovenbird.git", "https://github.com/someone/Claude-OS.git",
+                    "https://github.com/NobiResearch/Ovenbird-evil", "https://github.com/NobiResearch/Claude-OS-evil",
+                    "https://example.com/NobiResearch/Ovenbird", "", None):
             self.assertFalse(core.same_repository(url), url)
+        # Asked about one repository, only that one counts.
+        self.assertFalse(core.same_repository("https://github.com/NobiResearch/Claude-OS", "github.com/a/b"))
 
     def record(self, **kw):
         core.save_json(core.home("state", "install.json"), dict({"kind": "download", "root": str(core.ROOT)}, **kw))
@@ -276,7 +281,7 @@ class TestDownloaded(TempHome):
     def test_downloaded_follows_origin(self):
         def origin(url):
             return mock.patch.object(core, "run", return_value=core.Result(0, url, ""))
-        with origin("https://github.com/NobiResearch/Claude-OS.git"):
+        with origin("https://github.com/NobiResearch/Ovenbird.git"):
             self.assertFalse(core.downloaded(), "no record: a clone of its own")
             self.record()
             self.assertTrue(core.downloaded())
@@ -298,7 +303,7 @@ class TestDownloaded(TempHome):
 
 
 class TestNewHere(TempHome):
-    """Today's welcome card shows in Claude OS's first week on a Mac (the board, 26 Oct)."""
+    """Today's welcome card shows in Ovenbird's first week on a Mac (the board, 26 Oct)."""
 
     def test_the_first_week_from_the_journals_first_entry(self):
         import datetime as dt

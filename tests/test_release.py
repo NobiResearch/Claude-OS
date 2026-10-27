@@ -18,7 +18,7 @@ class TestRelease(TempHome):
 
     def profile(self, **kw):
         p = {"ProvisionsAllDevices": True, "Platform": ["OSX"], "TeamIdentifier": ["TEAM123456"],
-             "Name": "Claude OS Developer ID", "AppIDName": "Claude OS",
+             "Name": "Ovenbird Developer ID", "AppIDName": "Ovenbird",
              "Entitlements": {"com.apple.application-identifier": "TEAM123456.app.claude-os.desktop"}}
         p.update(kw)
         return p
@@ -33,7 +33,7 @@ class TestRelease(TempHome):
 
     def test_the_profile_is_named_neutrally(self):
         home = os.path.expanduser("~")
-        problems = release.profile_problems(self.profile(Name="Claude OS for " + home), "app.claude-os.desktop")[0]
+        problems = release.profile_problems(self.profile(Name="Ovenbird for " + home), "app.claude-os.desktop")[0]
         self.assertTrue(any("Name holds something private" in p for p in problems), problems)
 
     def test_entitlements_come_from_the_allowlist(self):
@@ -45,7 +45,7 @@ class TestRelease(TempHome):
                 release.entitlements("T.x", "T", extra={key: True})
 
     def bundle(self, info, resource=b"icon"):
-        app = os.path.join(self.tmp, "Claude OS.app")
+        app = os.path.join(self.tmp, "Ovenbird.app")
         os.makedirs(os.path.join(app, "Contents", "MacOS"))
         os.makedirs(os.path.join(app, "Contents", "Resources"))
         with open(os.path.join(app, "Contents", "Info.plist"), "wb") as f:

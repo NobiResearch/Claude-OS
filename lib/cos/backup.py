@@ -9,7 +9,7 @@ mounting the destination, so it isn't shown.
 Volume names can be personal ("…'s Passport"): they're printed for the human and returned by
 `--json`, and never cached, journaled, signalled or written anywhere else.
 
-`cos backup setup` opens Time Machine's settings; the human chooses the disk there. Claude OS
+`cos backup setup` opens Time Machine's settings; the human chooses the disk there. Ovenbird
 never runs `tmutil enable`, `setdestination` or `startbackup`.
 """
 

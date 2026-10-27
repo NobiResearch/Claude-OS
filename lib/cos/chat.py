@@ -1,4 +1,4 @@
-"""Claude sessions for the Claude OS app.
+"""Claude sessions for the Ovenbird app.
 
 Each session is a headless Claude Code process speaking stream-json, running in this
 repository (so it gets CLAUDE.md, the skills and the boot banner). Permission prompts
@@ -171,7 +171,7 @@ class Session:
         if allow:
             response = {"behavior": "allow", "updatedInput": req.get("input") or {}}
         else:
-            response = {"behavior": "deny", "message": message or "The human declined this in the Claude OS app."}
+            response = {"behavior": "deny", "message": message or "The human declined this in the Ovenbird app."}
         self._write({"type": "control_response", "response": {
             "subtype": "success", "request_id": request_id, "response": response}})
         summary = describe(req)

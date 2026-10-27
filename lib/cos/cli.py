@@ -15,9 +15,9 @@ COMMANDS = {
 }
 
 INTRO = """\
-◆ Claude OS %s — a Claude-native layer for your Mac
+◆ Ovenbird %s — a Claude-native layer for your Mac
 
-  cos                       boot into Claude OS (Claude Code, in this repo)
+  cos                       boot into Ovenbird (Claude Code, in this repo)
   cos <anything else>       boot and ask, e.g.  cos find me a chill song
   cos ask "question"        one-shot answer, no session
 
@@ -27,14 +27,14 @@ syscalls (what Claude uses; you can too):
   net [--speed]             is it the Wi-Fi, the router or the internet? · --speed: networkQuality
   backup [setup]            Time Machine, and which connected disk could hold it · setup: its settings
   clean [--deep]            reclaimable space · clean apply <id>... --yes
-  update [--fetch]          what's outdated, Claude OS too · update apply <source> --yes
+  update [--fetch]          what's outdated, Ovenbird too · update apply <source> --yes
   music ...                 now | play <q> | pause | next | find | catalog | playlists | playlist <name> | like
   feeds                     unread headlines · feeds list | add <url> | mute <url> | mark-read
   log · friction · remember · memory        the OS's memory
   notify "msg" · say "text" · brief         talk back
   daemon list|install|run   background jobs (pulse, morning, evolve, board)
-  evolve                    review what Claude OS changed about itself
-  app [build|install|open]  the desktop: Claude OS.app · serve --open: same desktop in a browser
+  evolve                    review what Ovenbird changed about itself
+  app [build|install|open]  the desktop: Ovenbird.app · serve --open: same desktop in a browser
   guard · doctor · install · uninstall · config
 """ % __version__
 
@@ -48,8 +48,8 @@ def _full_sha(text):
 
 
 def build_parser():
-    p = argparse.ArgumentParser(prog="cos", description="Claude OS syscalls", add_help=True)
-    p.add_argument("--version", action="version", version="Claude OS " + __version__)
+    p = argparse.ArgumentParser(prog="cos", description="Ovenbird syscalls", add_help=True)
+    p.add_argument("--version", action="version", version="Ovenbird " + __version__)
     sub = p.add_subparsers(dest="cmd")
 
     def cmd(name, help_text, json_flag=True):
@@ -141,7 +141,7 @@ def build_parser():
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
     ca_sub = ca_.add_subparsers(dest="cal_cmd")
-    ca_sub.add_parser("connect", help="let Claude OS read your calendar and reminders")
+    ca_sub.add_parser("connect", help="let Ovenbird read your calendar and reminders")
 
     f = cmd("feeds", "RSS/Atom headlines")
     f.add_argument("--all", action="store_true", help="include already-read items")
@@ -180,12 +180,12 @@ def build_parser():
 
     r = cmd("remember", "store a fact about your human", json_flag=False)
     r.add_argument("fact", nargs="+")
-    mm = cmd("memory", "what Claude OS knows about you", json_flag=False)
+    mm = cmd("memory", "what Ovenbird knows about you", json_flag=False)
     mm.add_argument("--forget", metavar="TEXT")
 
     n = cmd("notify", "macOS notification", json_flag=False)
     n.add_argument("message", nargs="+")
-    n.add_argument("--title", default="Claude OS")
+    n.add_argument("--title", default="Ovenbird")
     n.add_argument("--sound")
     s = cmd("say", "speak out loud", json_flag=False)
     s.add_argument("text", nargs="+")
@@ -228,18 +228,18 @@ def build_parser():
 
     cmd("boot", "session banner (SessionStart hook)", json_flag=False)
     cmd("statusline", "one-line status for Claude Code", json_flag=False)
-    i = cmd("install", "set up Claude OS on this Mac", json_flag=False)
+    i = cmd("install", "set up Ovenbird on this Mac", json_flag=False)
     i.add_argument("--no-daemons", action="store_true")
     i.add_argument("--no-skills", action="store_true", help="don't link /music, /tidy, /update, /startup into ~/.claude/skills")
     cmd("uninstall", "remove daemons, link and hook", json_flag=False)
     cmd("doctor", "check that everything is wired up", json_flag=False)
     cmd("version", "print version", json_flag=False)
-    sv = cmd("serve", "local server for Claude OS.app (or a browser)", json_flag=False)
+    sv = cmd("serve", "local server for Ovenbird.app (or a browser)", json_flag=False)
     sv.add_argument("--port", type=int, default=0)
     sv.add_argument("--open", action="store_true", help="open the desktop in your browser")
     sv.add_argument("--demo", action="store_true", help="a fictional Mac: fixtures only, nothing real is read or changed")
     sv.add_argument("--exit-on-stdin-eof", action="store_true", help=argparse.SUPPRESS)
-    ap = cmd("app", "build, install or open Claude OS.app", json_flag=False)
+    ap = cmd("app", "build, install or open Ovenbird.app", json_flag=False)
     ap.add_argument("app_cmd", choices=["build", "install", "open"], nargs="?", default="open")
     cf = cmd("config", "get or set preferences", json_flag=False)
     cf.add_argument("key", nargs="?")
@@ -282,7 +282,7 @@ def app_cmd(action):
     record = core.app_record()
     if action in ("install", "open") and record.get("release") is True and record.get("bundle") \
             and core._is_claude_os_app(record["bundle"]):
-        core.die("you're using the downloaded Claude OS.app; installing your own build would put a "
+        core.die("you're using the downloaded Ovenbird.app; installing your own build would put a "
                  "second one beside it, and the two would get each other's links (decision 0015). "
                  "Quit it and move it to the Trash first, or just build: cos app build")
     script = str(core.ROOT / "app" / "build.sh")
@@ -306,9 +306,9 @@ def config_cmd(args):
     except ValueError:
         value = args.value
     if args.key.split(".")[0] == "autonomy" and (value or args.key not in ("autonomy.night_shift", "autonomy.catch_up")):
-        # Night shift and Keep Claude OS up to date: only the app's own dialog turns them on (or
+        # Night shift and Keep Ovenbird up to date: only the app's own dialog turns them on (or
         # pins the repository); here they can only be turned off, one at a time.
-        core.die("turn that on in Claude OS.app: Settings › Permissions asks in its own dialog", 2)
+        core.die("turn that on in Ovenbird.app: Settings › Permissions asks in its own dialog", 2)
     core.config_set(args.key, value)
     print("%s = %s" % (args.key, json.dumps(value)))
     return 0
@@ -476,13 +476,13 @@ def main(argv=None):
         from . import system
         return getattr(system, c)(args)
     if c == "version":
-        print("Claude OS %s" % __version__)
+        print("Ovenbird %s" % __version__)
         return 0
     if c == "serve":
         from . import evolve
         app_server = args.exit_on_stdin_eof and not args.demo and not os.environ.get("CLAUDE_OS_APP")
         if app_server and not os.environ.get("COS_CAUGHT_UP"):
-            # Claude OS.app's own server, before any of the server is loaded: catch up, then
+            # Ovenbird.app's own server, before any of the server is loaded: catch up, then
             # start again on the new code. Never under another running server, and never
             # anything that keeps the app from getting its server.
             try:

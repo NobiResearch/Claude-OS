@@ -1,5 +1,5 @@
 // swift-tools-version:5.9
-// Claude OS.app: the native macOS shell around the `cos serve` desktop, with its own
+// Ovenbird.app: the native macOS shell around the `cos serve` desktop, with its own
 // Apple Music player (MusicKit). Build the bundle with app/build.sh (this package only
 // produces the executable).
 import PackageDescription

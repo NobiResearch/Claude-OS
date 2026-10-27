@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Something in Claude OS doesn't work as it should
+about: Something in Ovenbird doesn't work as it should
 labels: bug
 ---
 

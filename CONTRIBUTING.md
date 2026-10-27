@@ -1,13 +1,13 @@
-# Contributing to Claude OS
+# Contributing to Ovenbird
 
-Thanks for wanting to make Claude OS better. Ideas, bug reports and pull requests are all
+Thanks for wanting to make Ovenbird better. Ideas, bug reports and pull requests are all
 welcome. For a privacy or safety hole, please don't open an issue: see [SECURITY.md](SECURITY.md).
 Working with an AI coding agent is fine too: [AI_POLICY.md](AI_POLICY.md) says what we ask.
 
 ## What we want most
 
 For anything new (a command, skill, daemon or desktop feature), open an
-[idea issue](https://github.com/NobiResearch/Claude-OS/issues/new?template=idea.md) first, so
+[idea issue](https://github.com/NobiResearch/Ovenbird/issues/new?template=idea.md) first, so
 nobody builds something we'd turn down. Bug reports and fixes for open issues don't need one.
 
 1. **Bug reports:** your macOS version, chip and what broke. Paste only `cos version` and
@@ -25,12 +25,12 @@ nobody builds something we'd turn down. Bug reports and fixes for open issues do
 ## Set up
 
 ```sh
-git clone https://github.com/<you>/Claude-OS.git && cd Claude-OS   # your fork
+git clone https://github.com/<you>/Ovenbird.git && cd Ovenbird   # your fork
 bin/cos install     # also turns on the privacy guard (git hooks in githooks/)
 cos doctor          # checks the wiring
 ```
 
-- Python 3.9+ standard library only: macOS ships it, and Claude OS adds no packages.
+- Python 3.9+ standard library only: macOS ships it, and Ovenbird adds no packages.
 - `cos serve --demo --open` shows a fictional Mac, for desktop work and screenshots. It
   never reads or changes the real machine.
 - Building the app needs the Xcode command line tools. Its own Apple Music player needs your
@@ -70,8 +70,8 @@ cos doctor          # checks the wiring
 - **Judgment** is a skill in `.claude/skills/`. Skills call syscalls rather than doing their
   work again, and so does the desktop (`ui/`, through `lib/cos/server.py`).
 - **Scheduled work** is a daemon. Anything that uses a model is off until the person turns it
-  on, and no daemon changes the Mac (the one exception is `pulse` bringing in Claude OS's own
-  updates, when the person turns on Keep Claude OS up to date).
+  on, and no daemon changes the Mac (the one exception is `pulse` bringing in Ovenbird's own
+  updates, when the person turns on Keep Ovenbird up to date).
 - Prefer extending what's there. A new command touches `lib/cos/cli.py` and CLAUDE.md's table,
   which are safety files: that's expected, and it gets the safety review.
 
@@ -81,13 +81,13 @@ Anything that breaks the rules above, and:
 
 - **A new macOS permission prompt**, unless it's off by default behind a switch the person
   turns on, and the board agreed. Nothing that needs Full Disk Access, Accessibility or Screen
-  Recording to work: Claude OS never needs them.
+  Recording to work: Ovenbird never needs them.
 - **New servers, or code from the network.** The desktop loads no code from the internet (its
   scripts and styles are its own; only images such as album art come from outside), and Claude
   OS never downloads and runs code from anywhere but this repository. What runs is what's in
   it, plus the upgrades the person approves with `cos update apply`.
 - **Telemetry or analytics**, sending anything about the person anywhere but the service a
-  feature names and they turned on, or keeping it outside `~/.claude-os`. What Claude OS learns
+  feature names and they turned on, or keeping it outside `~/.claude-os`. What Ovenbird learns
   stays on the Mac.
 - **More room for background jobs:** a daemon that's on by default (other than `pulse`), or
   wider limits for background jobs or the sandbox. Nobody watches them run.
@@ -121,7 +121,7 @@ gitignored `.claude/settings.local.json`. Prefer narrow rules such as `"Bash(git
 - CI runs the tests on macOS. A first-time contributor's run waits for a maintainer to
   approve it.
 - Claude reviews every pull request from someone else: the tests, and an independent
-  Guardian review of anything that touches Claude OS's safety files (the hook, the guard,
+  Guardian review of anything that touches Ovenbird's safety files (the hook, the guard,
   evolve, the server, the sandbox, `.claude/`, `.github/`, `CLAUDE.md`, …).
 - Only maintainers merge, always as a squash merge, and a pull request from someone else
   merges only after the repository owner's yes.
@@ -130,6 +130,6 @@ gitignored `.claude/settings.local.json`. Prefer narrow rules such as `"Bash(git
 
 ## License of contributions
 
-Claude OS is licensed under the [MIT License](LICENSE). By opening a pull request you agree
+Ovenbird is licensed under the [MIT License](LICENSE). By opening a pull request you agree
 that your contribution is licensed under it too. You keep your copyright. If you can't agree to
 that, open an issue to talk about it first.

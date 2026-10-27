@@ -171,13 +171,13 @@ def check_rustup():
 
 
 def check_claude_os():
-    """Claude OS itself: what's merged on GitHub and not on this Mac yet (decision 0011). A
+    """Ovenbird itself: what's merged on GitHub and not on this Mac yet (decision 0011). A
     downloaded copy follows its app instead (0015), so main is none of its business."""
     from . import evolve
     if core.downloaded():
         return None
     c = evolve.catch_up(fetch=True, source="update")
-    items = [{"name": "Claude OS", "installed": c["head"], "latest": c["latest"], "changes": c["subjects"],
+    items = [{"name": "Ovenbird", "installed": c["head"], "latest": c["latest"], "changes": c["subjects"],
               "protected": c["protected"]}] if c["behind"] else []
     return {"items": items, "error": c["why"] if items else None}
 
@@ -187,7 +187,7 @@ RELEASE_PAGE = re.compile(r"https://github\.com/%s/releases/tag/[\w.-]+" % re.es
 
 
 def latest_release():
-    """The newest Claude OS.app on GitHub, {"version", "url"}, or None. One look a day at
+    """The newest Ovenbird.app on GitHub, {"version", "url"}, or None. One look a day at
     most, whatever the answer (decision 0015, step 6)."""
     cached = core.cache_get("app-release", max_age=86400)
     if cached:
@@ -207,7 +207,7 @@ def latest_release():
 
 
 def check_app():
-    """A newer Claude OS.app, for a downloaded one: it never replaces itself (0015), so it
+    """A newer Ovenbird.app, for a downloaded one: it never replaces itself (0015), so it
     says so here, quietly. None for an app someone built themselves."""
     app = core.app_record()
     if not app.get("release"):
@@ -215,7 +215,7 @@ def check_app():
     latest, have = latest_release(), core.version_tuple(app.get("version"))
     if not latest or not have or core.version_tuple(latest["version"]) <= have:
         return {"items": [], "error": None}
-    return {"items": [{"name": "Claude OS.app", "installed": app["version"], "latest": latest["version"],
+    return {"items": [{"name": "Ovenbird.app", "installed": app["version"], "latest": latest["version"],
                        "url": latest["url"]}], "error": None}
 
 
@@ -268,13 +268,13 @@ def render(data):
             print("  … and %d more" % (len(items) - 12))
     render_claude_os(src.get("claude-os"))
     for it in (src.get("app") or {}).get("items", []):
-        print("Claude OS.app %s is out (you have %s): %s" % (it["latest"], it["installed"], it["url"]))
+        print("Ovenbird.app %s is out (you have %s): %s" % (it["latest"], it["installed"], it["url"]))
     if not data["fetched"] and src.get("brew"):
         print("\n(brew metadata not refreshed; `cos update --fetch` asks Homebrew for the latest)")
     if data["missing_tools"]:
-        print("tip: `brew install mas` lets Claude OS see App Store updates too")
+        print("tip: `brew install mas` lets Ovenbird see App Store updates too")
     print("\nupgrade with: cos update apply brew|npm|mas|rustup [names...] --yes · macOS: cos update apply macos"
-          + (" · Claude OS: cos update apply claude-os --yes" if (src.get("claude-os") or {}).get("items") else ""))
+          + (" · Ovenbird: cos update apply claude-os --yes" if (src.get("claude-os") or {}).get("items") else ""))
 
 
 def render_claude_os(s):
@@ -282,7 +282,7 @@ def render_claude_os(s):
         return
     it = s["items"][0]
     n = len(it["changes"])
-    print("Claude OS: %d change%s merged on GitHub, not on this Mac (%s → %s)"
+    print("Ovenbird: %d change%s merged on GitHub, not on this Mac (%s → %s)"
           % (n, "" if n == 1 else "s", it["installed"], it["latest"]))
     for subject in it["changes"][:8]:
         print("  · %s" % subject)
@@ -329,21 +329,21 @@ def apply_claude_os(yes):
     """Fast-forward the live checkout to main on GitHub, through evolve.catch_up's guards."""
     from . import evolve
     if core.downloaded():
-        core.die("a downloaded Claude OS follows its app: download the newest Claude OS.app from %s" % core.RELEASES)
+        core.die("a downloaded Ovenbird follows its app: download the newest Ovenbird.app from %s" % core.RELEASES)
     c = evolve.catch_up(fetch="force", source="update", retry=True)
     if not c["behind"]:
-        print("Claude OS is up to date with GitHub (%s)." % c["head"])
+        print("Ovenbird is up to date with GitHub (%s)." % c["head"])
         return 0
     if c["why"]:
-        core.die("Claude OS stays at %s: %s." % (c["head"], c["why"]))
+        core.die("Ovenbird stays at %s: %s." % (c["head"], c["why"]))
     if not yes:
         render_claude_os(check_claude_os())
         print("\nWould fast-forward this checkout to %s. (add --yes to do it)" % c["latest"])
         return 2
     c = evolve.catch_up(apply=True, fetch=False, source="update", retry=True)
     if not c["updated"]:
-        core.die("Claude OS stays at %s: %s." % (c["head"], c["why"]))
-    print("✓ Claude OS is at %s now:" % c["head"])
+        core.die("Ovenbird stays at %s: %s." % (c["head"], c["why"]))
+    print("✓ Ovenbird is at %s now:" % c["head"])
     for subject in c["subjects"][:12]:
         print("  · %s" % subject)
     if c["protected"]:
@@ -353,7 +353,7 @@ def apply_claude_os(yes):
         print("The daemons changed: `cos daemon install --all` reloads them.")
     if core.app_running("ClaudeOS") and any(p.startswith(("lib/", "ui/", "app/", "bin/")) for p in c["paths"]):
         rebuild = any(p.startswith("app/") for p in c["paths"])
-        print("Claude OS.app still runs the old code: %squit and reopen it." % ("rebuild it (`cos app install`), then " if rebuild else ""))
+        print("Ovenbird.app still runs the old code: %squit and reopen it." % ("rebuild it (`cos app install`), then " if rebuild else ""))
     core.run(["rm", "-f", str(core.home("cache", "updates.json"))])
     return 0
 

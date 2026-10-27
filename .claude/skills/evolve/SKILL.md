@@ -1,6 +1,6 @@
 ---
 name: evolve
-description: Improve Claude OS itself. Turn friction, board priorities and roadmap items into one small, tested change. Runs nightly via the evolve daemon ("/evolve nightly"); the human can also run "/evolve" or "/evolve <idea>".
+description: Improve Ovenbird itself. Turn friction, board priorities and roadmap items into one small, tested change. Runs nightly via the evolve daemon ("/evolve nightly"); the human can also run "/evolve" or "/evolve <idea>".
 argument-hint: "[nightly | <idea>]"
 ---
 
@@ -41,7 +41,7 @@ checked-in settings), don't commit half of it: stop and name it under `Couldn't 
 
 ## 3. Build it
 
-- Follow `CLAUDE.md` ("Working on Claude OS itself"): stdlib only, existing style, tests.
+- Follow `CLAUDE.md` ("Working on Ovenbird itself"): stdlib only, existing style, tests.
 - Add or update tests in `tests/`. Write the changelog entry as its own file,
   `changes/YYYY-MM-DD-<slug>.md` (see `changes/README.md`); don't edit `CHANGELOG.md`.
 - Update docs that the change makes wrong (README, CLAUDE.md syscall table, skills).
@@ -56,7 +56,7 @@ to ask. You're already in your clone's root.
 
 - `python3 -m unittest discover -s tests` passes.
   Also under macOS's own Python (`/usr/bin/python3 -m unittest discover -s tests`), the
-  oldest one Claude OS supports, and `node --check ui/<file>.js` for any JavaScript you changed.
+  oldest one Ovenbird supports, and `node --check ui/<file>.js` for any JavaScript you changed.
 - `bin/cos guard --all` is clean (no personal data anywhere in the repo).
 - Run the changed command for real, read-only, and look at the output.
 

@@ -1,7 +1,7 @@
 import AppKit
 import MusicKit
 
-/// Claude OS's own Apple Music player (decision 0003, amended): MusicKit's
+/// Ovenbird's own Apple Music player (decision 0003, amended): MusicKit's
 /// ApplicationMusicPlayer plays any catalog song with the human's subscription, under the
 /// narrow "Media & Apple Music" permission. No UI scripting, no Accessibility.
 ///
@@ -97,7 +97,7 @@ final class Player {
         switch command {
         case .authorize, .play, .playLibrary, .playPlaylist, .radio:
             guard Self.appleMusicEnabled else {
-                lastError = "Apple Music in Claude OS is off (Settings › Permissions)"
+                lastError = "Apple Music in Ovenbird is off (Settings › Permissions)"
                 write()
                 return
             }
@@ -295,7 +295,7 @@ final class Player {
     /// Apple Music API's ratings endpoint. MusicDataRequest adds both tokens itself.
     private func rate(love: Bool) async {
         guard let song = nowPlaying else {
-            lastError = queueMoves ? "can't tell which song is playing, so nothing was rated" : "nothing is playing in Claude OS"
+            lastError = queueMoves ? "can't tell which song is playing, so nothing was rated" : "nothing is playing in Ovenbird"
             write()
             return
         }

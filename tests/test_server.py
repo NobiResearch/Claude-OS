@@ -113,7 +113,7 @@ class TestServerSecurity(TempHome):
     def test_static_files_and_traversal(self):
         status, headers, data = self.request("GET", "/", token=None)
         self.assertEqual(status, 200)
-        self.assertIn(b"Claude OS", data)
+        self.assertIn(b"Ovenbird", data)
         self.assertIn("script-src 'self'", headers.get("Content-Security-Policy", ""))
         for bad in ("/../lib/cos/core.py", "/%2e%2e/lib/cos/core.py", "/..%2flib/cos/core.py"):
             self.assertEqual(self.request("GET", bad, token=None)[0], 404, bad)
@@ -173,7 +173,7 @@ class TestServerSecurity(TempHome):
         self.assertEqual((last["event"], last["catalog_id"], last["label"]), ("radio", "456", "Song — Artist"))
 
     def answer_dialog(self, approved, what="night"):
-        """Stand in for Claude OS.app: when the confirm link opens, write the dialog's answer."""
+        """Stand in for Ovenbird.app: when the confirm link opens, write the dialog's answer."""
         from urllib.parse import parse_qs, urlparse
         from cos import core
         real_run = core.run
@@ -204,7 +204,7 @@ class TestServerSecurity(TempHome):
         with mock.patch.object(server.core, "app_running", lambda name: False):
             reply = json.loads(self.request("POST", "/api/settings/night", {"on": True})[2])
         self.assertFalse(reply["night_shift"])
-        self.assertIn("only be turned on in Claude OS.app", reply["error"])
+        self.assertIn("only be turned on in Ovenbird.app", reply["error"])
         self.assertFalse(core.config()["autonomy"]["night_shift"])
 
     def test_a_downloaded_copy_has_no_night_shift(self):
@@ -214,7 +214,7 @@ class TestServerSecurity(TempHome):
             reply = json.loads(self.request("POST", "/api/settings/night", {"on": True})[2])
             self.assertTrue(json.loads(self.request("GET", "/api/settings")[2])["downloaded"])
         self.assertFalse(reply["night_shift"])
-        self.assertIn("downloaded Claude OS", reply["error"])
+        self.assertIn("downloaded Ovenbird", reply["error"])
         from cos import core
         self.assertFalse((core.config().get("autonomy") or {}).get("night_shift"))
 

@@ -132,7 +132,7 @@ def remember(fact):
     path = core.home(MEMORY_FILE)
     text = memory_text()
     if not text:
-        text = "# What Claude OS knows about its human\n\n"
+        text = "# What Ovenbird knows about its human\n\n"
     line = "- %s  _(%s)_\n" % (fact.strip(), dt.date.today().isoformat())
     path.write_text(text + line)
     core.journal("memory", "remembered: %s" % fact.strip())

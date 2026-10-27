@@ -1,7 +1,7 @@
 import AppKit
 
-/// The first-launch checklist of a downloaded Claude OS.app (decision 0015, step 5): one native
-/// window, nothing done before a click. The command line tools, Claude Code and Claude OS's own
+/// The first-launch checklist of a downloaded Ovenbird.app (decision 0015, step 5): one native
+/// window, nothing done before a click. The command line tools, Claude Code and Ovenbird's own
 /// code, each with what it's for and the one button that gets it; two opt-ins that start off.
 final class SetupWindowController: NSObject, NSWindowDelegate {
     let window: NSWindow
@@ -21,13 +21,13 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
     private let toolsRow = Row(title: "Apple's command line tools")
     private let claudeRow = Row(title: "Claude Code")
-    private let codeRow = Row(title: "Claude OS itself")
+    private let codeRow = Row(title: "Ovenbird itself")
     private let skillsBox = NSButton(checkboxWithTitle: "Use /music, /tidy, /update and /startup in Claude Code from any folder "
                                      + "(adds the `cos` command to ~/.local/bin)", target: nil, action: nil)
     private let pulseBox = NSButton(checkboxWithTitle: "Check this Mac's vitals every 2 hours in the background (no AI, no cost)",
                                     target: nil, action: nil)
     private let moveNote = NSTextField(wrappingLabelWithString: "")
-    private let openButton = NSButton(title: "Open Claude OS", target: nil, action: nil)
+    private let openButton = NSButton(title: "Open Ovenbird", target: nil, action: nil)
 
     init(config: AppConfig, onReady: @escaping () -> Void) {
         self.config = config
@@ -37,7 +37,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 620, height: 560),
                           styleMask: [.titled, .closable, .miniaturizable], backing: .buffered, defer: false)
         super.init()
-        window.title = "Welcome to Claude OS"
+        window.title = "Welcome to Ovenbird"
         window.isReleasedWhenClosed = false
         window.delegate = self
         window.contentView = layout()
@@ -72,10 +72,10 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     // MARK: layout
 
     private func layout() -> NSView {
-        let heading = NSTextField(labelWithString: "Welcome to Claude OS")
+        let heading = NSTextField(labelWithString: "Welcome to Ovenbird")
         heading.font = .systemFont(ofSize: 22, weight: .semibold)
         let intro = NSTextField(wrappingLabelWithString:
-            "Claude OS needs three things on this Mac before it starts. Nothing is installed until you click, "
+            "Ovenbird needs three things on this Mac before it starts. Nothing is installed until you click, "
             + "and it never asks for Full Disk Access, Accessibility or Screen Recording.")
         intro.textColor = .secondaryLabelColor
 
@@ -132,18 +132,18 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
     private func render() {
         if let dir = tools {
-            toolsRow.set(.done, "Installed (\(dir)). Claude OS runs on the git and Python that come with them.", button: nil)
+            toolsRow.set(.done, "Installed (\(dir)). Ovenbird runs on the git and Python that come with them.", button: nil)
         } else if poll != nil {
             toolsRow.set(.working, "Follow Apple's installer. This continues by itself when it's done.", button: nil)
         } else {
-            toolsRow.set(.todo, "Claude OS runs on the git and Python that come with them. Apple installs them in a few minutes.",
+            toolsRow.set(.todo, "Ovenbird runs on the git and Python that come with them. Apple installs them in a few minutes.",
                          button: "Install…")
         }
 
         if let path = claude {
-            claudeRow.set(.done, "Found (\(tilde(path))). Claude OS talks with you through it, on your Claude plan.", button: nil)
+            claudeRow.set(.done, "Found (\(tilde(path))). Ovenbird talks with you through it, on your Claude plan.", button: nil)
         } else {
-            claudeRow.set(.todo, "Claude OS talks with you through Claude Code, on your Claude plan. Install it from Anthropic's "
+            claudeRow.set(.todo, "Ovenbird talks with you through Claude Code, on your Claude plan. Install it from Anthropic's "
                           + "page, then come back here. The desktop works without it; the chat doesn't.", button: "Get Claude Code…")
         }
 
@@ -151,20 +151,20 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         let version = config.commit.map { String($0.prefix(7)) } ?? "?"
         switch folder {
         case _ where working:
-            codeRow.set(.working, "Downloading Claude OS from \(AppConfig.repository)…", button: nil)
+            codeRow.set(.working, "Downloading Ovenbird from \(AppConfig.repository)…", button: nil)
         case .claudeOS:
             codeRow.set(.done, "In \(place).", button: nil)
         case .other:
-            codeRow.set(.blocked, "\(place) already holds something that isn't this Claude OS, so it was left alone. "
+            codeRow.set(.blocked, "\(place) already holds something that isn't this Ovenbird, so it was left alone. "
                         + "Move it somewhere else, then come back.", button: "Show in Finder")
         case .absent, .empty:
             if let problem = problem {
                 codeRow.set(.blocked, problem, button: "Try Again")
             } else if !FirstLaunch.isCommit(config.commit) {
-                codeRow.set(.blocked, "This copy of the app doesn't say which Claude OS it belongs to. Download Claude OS.app again.",
+                codeRow.set(.blocked, "This copy of the app doesn't say which Ovenbird it belongs to. Download Ovenbird.app again.",
                             button: nil)
             } else {
-                codeRow.set(.todo, "Downloads Claude OS \(version) from GitHub into \(place) (about 5 MB). "
+                codeRow.set(.todo, "Downloads Ovenbird \(version) from GitHub into \(place) (about 5 MB). "
                             + "Its Claude doesn't push to GitHub or open pull requests.", button: "Download")
             }
             codeRow.button.isEnabled = tools != nil && FirstLaunch.isCommit(config.commit)
@@ -173,7 +173,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
         let bundle = Bundle.main.bundlePath
         if FirstLaunch.translocated(bundle) || !FirstLaunch.inApplications(bundle, home: home) {
-            moveNote.stringValue = "Move Claude OS to your Applications folder and open it from there: macOS runs a "
+            moveNote.stringValue = "Move Ovenbird to your Applications folder and open it from there: macOS runs a "
                 + "downloaded app from a temporary copy until it's moved."
             moveNote.isHidden = false
         } else {
@@ -235,7 +235,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
                 self.downloading = nil
                 self.working = false
                 self.problem = why
-                if why == nil { log("downloaded Claude OS \(commit.prefix(7))") }
+                if why == nil { log("downloaded Ovenbird \(commit.prefix(7))") }
                 self.refresh()
             }
         }
@@ -262,7 +262,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
                 self.working = false
                 if !failed.isEmpty {
                     let alert = NSAlert()
-                    alert.messageText = "Claude OS is ready, but an option didn't take"
+                    alert.messageText = "Ovenbird is ready, but an option didn't take"
                     alert.informativeText = failed.joined(separator: "\n\n") + "\n\nYou can turn it on later in Settings."
                     alert.beginSheetModal(for: self.window) { _ in self.finish() }
                 } else {

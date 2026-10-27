@@ -9,7 +9,7 @@ the human has "Night shift" on in Settings, it approves two things and nothing e
   `.github/` (CI runs a branch's workflow the moment it's pushed).
 - **Merging** `gh pr merge <N> --squash --delete-branch --match-head-commit <sha>`: a green,
   open `night/*` pull request of this repository, pinned to the commit checked here, that
-  leaves Claude OS's safety files alone. A merge is where code starts to run, so a pull
+  leaves Ovenbird's safety files alone. A merge is where code starts to run, so a pull
   request that touches the gate waits for the human's merge.
 
 While the switch is on, it also lets read-only `gh api <path>` calls through, which the merge
@@ -54,7 +54,7 @@ GREEN = ("SUCCESS", "SKIPPED", "NEUTRAL")
 
 
 def protected(path):
-    """Is this path part of the gate? Also anything Python loads before Claude OS's own code:
+    """Is this path part of the gate? Also anything Python loads before Ovenbird's own code:
     bin/cos puts lib/ first on sys.path, so a lib/json.py would stand in for the standard
     library's inside this very hook, and compiled .pyc files can skip their source."""
     if path in PROTECTED or path.startswith(PROTECTED):
@@ -248,7 +248,7 @@ def inspect_pr(number, sha, cwd):
 
 def _common(facts):
     if not facts.get("same_repo"):
-        return "not a checkout of Claude OS"
+        return "not a checkout of Ovenbird"
     if not facts.get("clean_main"):
         return "the hook isn't running from a clean main"
     url = facts.get("url") or ""
@@ -308,7 +308,7 @@ def decide_merge(number, sha, facts):
         return False, "couldn't list what #%d changes" % number
     touched = [p for p in facts["paths"] if protected(p)]
     if touched:
-        return False, ("changes Claude OS's safety files (%s): the hook never merges that; have a guardian agent "
+        return False, ("changes Ovenbird's safety files (%s): the hook never merges that; have a guardian agent "
                        "review it first (0013)" % ", ".join(touched[:3]))
     if facts.get("problems"):
         return False, "the Guardian found %d problem(s)" % len(facts["problems"])
@@ -325,7 +325,7 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
     if not (cfg.get("autonomy") or {}).get("night_shift"):
         return False, "night shift is off"
     if core.downloaded():
-        return False, "a downloaded Claude OS doesn't push or merge (decision 0015)"
+        return False, "a downloaded Ovenbird doesn't push or merge (decision 0015)"
     if parse_api_read(command):
         return True, "a read-only gh api call"
     pr_text = parse_pr_text(command)
@@ -434,9 +434,9 @@ def pretool_decision(command, patterns):
     import fnmatch
     calls = cos_calls(command)
     if calls is None:
-        return "Claude OS can't read this command for sure, and it runs cos"
+        return "Ovenbird can't read this command for sure, and it runs cos"
     if calls and patterns is None:
-        return "Claude OS couldn't read its own ask rules"
+        return "Ovenbird couldn't read its own ask rules"
     for call, plain, odd in calls:
         if any(fnmatch.fnmatchcase(call, p) for p in patterns):
             return "`%s` changes something" % call[:120]
@@ -445,7 +445,7 @@ def pretool_decision(command, patterns):
             prefix = " ".join(["cos"] + plain)
             literal = [p.split("*", 1)[0].rstrip() for p in patterns]
             if any(l == prefix or l.startswith(prefix + " ") for l in literal):
-                return "`%s …` is written in a way Claude OS can't read for sure" % prefix[:120]
+                return "`%s …` is written in a way Ovenbird can't read for sure" % prefix[:120]
     return None
 
 

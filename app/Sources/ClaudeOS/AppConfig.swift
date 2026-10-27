@@ -1,13 +1,13 @@
 import AppKit
 
-/// Where Claude OS lives and how to start its server.
+/// Where Ovenbird lives and how to start its server.
 ///
 /// A developer's own build (app/build.sh) bakes `ClaudeOSRoot` (the repo root) and
 /// `ClaudeOSPath` (the builder's $PATH) into the bundle's Info.plist. Both are
 /// machine-specific, so they only ever exist in the built bundle, never in a committed file.
 /// Apps launched from Finder get launchd's minimal PATH, which is why the shell PATH is baked
 /// in. A release (`app/build.sh --release`, decision 0015) bakes neither: it finds its code
-/// at runtime, checks it's Claude OS from this repository, and uses a fixed PATH.
+/// at runtime, checks it's Ovenbird from this repository, and uses a fixed PATH.
 struct AppConfig {
     let root: URL
     let path: String
@@ -23,15 +23,18 @@ struct AppConfig {
     /// It must honor the same contract: print `COS_SERVE_READY port=<n> token=<t>` on
     /// stdout, serve `/` and `/api/status` on 127.0.0.1, and exit when stdin closes.
     /// Use `exec` so the app's SIGTERM reaches the server. Example:
-    ///   open --env CLAUDE_OS_SERVE_CMD='exec python3 /path/to/stub.py' "build/Claude OS.app"
+    ///   open --env CLAUDE_OS_SERVE_CMD='exec python3 /path/to/stub.py' "build/Ovenbird.app"
     let serveCommandOverride: String?
 
     var cosScript: URL { root.appendingPathComponent("bin/cos") }
 
     /// The repository a release runs code from, and nothing else.
-    static let repository = "github.com/NobiResearch/Claude-OS"
-    /// Where a release's first launch puts Claude OS when there's no checkout yet.
-    static let installFolder = "Library/Application Support/Claude OS"
+    static let repository = "github.com/NobiResearch/Ovenbird"
+    /// Its name until decision 0019: GitHub sends it on to `repository`, and a copy cloned from
+    /// it is still this repository. Like core.FORMER_REPOSITORIES.
+    static let formerRepositories = ["github.com/NobiResearch/Claude-OS"]
+    /// Where a release's first launch puts Ovenbird when there's no checkout yet.
+    static let installFolder = "Library/Application Support/Ovenbird"
 
     static func load() -> AppConfig {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -89,7 +92,7 @@ struct AppConfig {
             .joined(separator: ":")
     }
 
-    /// Is this folder Claude OS, cloned from `repository`? Read from the files themselves: a
+    /// Is this folder Ovenbird, cloned from `repository`? Read from the files themselves: a
     /// release never runs `git` to find out (on a Mac without the command line tools, that
     /// would summon Apple's install dialog).
     static func isClaudeOS(_ root: String, fileExists: (String) -> Bool, read: (String) -> String?) -> Bool {
@@ -121,7 +124,7 @@ struct AppConfig {
         u = u.replacingOccurrences(of: "github.com:", with: "github.com/")
         if u.hasSuffix(".git") { u.removeLast(4) }
         if u.hasSuffix("/") { u.removeLast() }
-        return u == repository.lowercased()
+        return ([repository] + formerRepositories).contains { u == $0.lowercased() }
     }
 
     /// What `cos` reads to find this app (decision 0015): which bundle and which build, so its
@@ -143,12 +146,12 @@ struct AppConfig {
 
     /// Until the first-launch checklist (0015, step 5): what to do when a release finds no code.
     static let missingCodeMessage = """
-        Claude OS needs its code on this Mac. In Terminal, run:
+        Ovenbird needs its code on this Mac. In Terminal, run:
 
           git clone https://\(repository).git "$HOME/\(installFolder)"
 
-        then open Claude OS again. If macOS offers to install the command line developer tools, \
-        say yes: Claude OS runs on them.
+        then open Ovenbird again. If macOS offers to install the command line developer tools, \
+        say yes: Ovenbird runs on them.
         """
 
     /// For `swift run` during development: walk up from the executable to the repo root.

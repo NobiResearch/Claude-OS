@@ -1,9 +1,9 @@
 #!/bin/bash
-# Builds "build/Claude OS.app", the native shell around `cos serve`, with
+# Builds "build/Ovenbird.app", the native shell around `cos serve`, with
 # a built-in Apple Music player (MusicKit, "Media & Apple Music" permission).
 #
-#   app/build.sh             build and sign build/Claude OS.app
-#   app/build.sh --install   also copy it to ~/Applications/Claude OS.app
+#   app/build.sh             build and sign build/Ovenbird.app
+#   app/build.sh --install   also copy it to ~/Applications/Ovenbird.app
 #   app/build.sh --open      also open it (the installed copy with --install)
 #
 # The bundle's Info.plist bakes in this checkout's absolute path and your current $PATH
@@ -79,7 +79,7 @@ echo "==> swift build (release)"
 swift build -c release --package-path app
 BIN_DIR="$(swift build -c release --package-path app --show-bin-path)"
 
-APP="build/Claude OS.app"
+APP="build/Ovenbird.app"
 # MusicKit only works for a bundle id registered (with the MusicKit service) in the signing
 # team's developer account. Anyone building their own copy sets COS_BUNDLE_ID to theirs.
 if [ "$RELEASE" = 1 ]; then
@@ -113,10 +113,10 @@ import plistlib
 import sys
 
 out, version, root, path, bundle_id, commit = sys.argv[1:7]
-location = ("Claude OS shows the weather for where you are. "
+location = ("Ovenbird shows the weather for where you are. "
             "Your location is rounded to about a kilometre and stays on this Mac.")
-calendar = "Claude OS shows today's events on your desktop and in your morning brief. It only reads; it never changes your calendar."
-reminders = "Claude OS shows the reminders that are due on your desktop and in your morning brief. It only reads them."
+calendar = "Ovenbird shows today's events on your desktop and in your morning brief. It only reads; it never changes your calendar."
+reminders = "Ovenbird shows the reminders that are due on your desktop and in your morning brief. It only reads them."
 info = {
     "CFBundleIconFile": "AppIcon",
     "CFBundlePackageType": "APPL",
@@ -124,8 +124,8 @@ info = {
     "CFBundleShortVersionString": version,
     "CFBundleVersion": version,
     "LSMinimumSystemVersion": "14.0",
-    "CFBundleName": "Claude OS",
-    "CFBundleDisplayName": "Claude OS",
+    "CFBundleName": "Ovenbird",
+    "CFBundleDisplayName": "Ovenbird",
     "CFBundleIdentifier": bundle_id,
     "CFBundleExecutable": "ClaudeOS",
     "NSHighResolutionCapable": True,
@@ -133,19 +133,19 @@ info = {
     "NSAppTransportSecurity": {"NSAllowsLocalNetworking": True},
     "NSLocationUsageDescription": location,
     "NSLocationWhenInUseUsageDescription": location,
-    "NSAppleMusicUsageDescription": "Claude OS plays the Apple Music songs you ask for.",
+    "NSAppleMusicUsageDescription": "Ovenbird plays the Apple Music songs you ask for.",
     "NSCalendarsFullAccessUsageDescription": calendar,
     "NSCalendarsUsageDescription": calendar,
     "NSRemindersFullAccessUsageDescription": reminders,
     "NSRemindersUsageDescription": reminders,
     # claude-os://music/play?id=… lets `cos` drive the built-in player (see Player.swift).
-    "CFBundleURLTypes": [{"CFBundleURLName": "Claude OS", "CFBundleURLSchemes": ["claude-os"]}],
+    "CFBundleURLTypes": [{"CFBundleURLName": "Ovenbird", "CFBundleURLSchemes": ["claude-os"]}],
 }
 if commit:
     # A release: nothing machine-specific. The app finds its code and PATH at runtime, and
     # knows which commit it was built from.
     info["ClaudeOSCommit"] = commit
-    info["NSAppleEventsUsageDescription"] = "Claude OS controls the Music app when you ask it to play something there."
+    info["NSAppleEventsUsageDescription"] = "Ovenbird controls the Music app when you ask it to play something there."
 else:
     info["ClaudeOSRoot"] = root
     info["ClaudeOSPath"] = path
@@ -192,7 +192,7 @@ if [ "$RELEASE" = 1 ]; then
         exit 1
     fi
 
-    ZIP="build/Claude-OS-$VERSION.zip"
+    ZIP="build/Ovenbird-$VERSION.zip"
     rm -f "$ZIP"
     ditto -c -k --keepParent "$APP" "$ZIP"
     if [ "$NOTARIZE" = 1 ]; then
@@ -309,13 +309,13 @@ fi
 
 TARGET="$APP"
 if [ "$INSTALL" = 1 ]; then
-    DEST="$HOME/Applications/Claude OS.app"
-    echo "==> installing to ~/Applications/Claude OS.app"
+    DEST="$HOME/Applications/Ovenbird.app"
+    echo "==> installing to ~/Applications/Ovenbird.app"
     mkdir -p "$HOME/Applications"
     rm -rf "$DEST"
     ditto "$APP" "$DEST"
     TARGET="$DEST"
-    echo "    (if Claude OS was running, quit and reopen it to use the new build)"
+    echo "    (if Ovenbird was running, quit and reopen it to use the new build)"
 fi
 
 echo "==> built $APP"

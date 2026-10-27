@@ -105,7 +105,7 @@ def runs_from(name):
 
 
 def elsewhere(name):
-    """Another Claude OS checkout on this Mac that runs this daemon: its folder, or None. Each
+    """Another Ovenbird checkout on this Mac that runs this daemon: its folder, or None. Each
     checkout installs and removes only its own (decision 0015: a downloaded copy never re-points
     a developer's daemons, and its Remove never takes them away)."""
     root = runs_from(name)
@@ -118,9 +118,9 @@ def refusal(name):
     """Why this checkout may not install this daemon, or None."""
     other = elsewhere(name)
     if other:
-        return "it runs from another Claude OS (%s); turn it off there first" % _tilde(other)
+        return "it runs from another Ovenbird (%s); turn it off there first" % _tilde(other)
     if name == "evolve" and core.downloaded():
-        return "a downloaded Claude OS follows its app's releases; evolve is for a checkout you develop"
+        return "a downloaded Ovenbird follows its app's releases; evolve is for a checkout you develop"
     return None
 
 
@@ -145,7 +145,7 @@ def install(name):
 def uninstall(name):
     other = elsewhere(name)
     if other:
-        return core.Result(1, "", "it runs from another Claude OS (%s), so it was left on" % _tilde(other))
+        return core.Result(1, "", "it runs from another Ovenbird (%s), so it was left on" % _tilde(other))
     core.run(["launchctl", "bootout", "gui/%d/%s" % (os.getuid(), label(name))], timeout=10)
     if os.path.exists(plist_path(name)):
         os.remove(plist_path(name))
@@ -174,7 +174,7 @@ def last_run(name):
 
 
 def status(where=False):
-    """Every daemon's state. With `where`, also the other Claude OS that runs it, as ~/…: only
+    """Every daemon's state. With `where`, also the other Ovenbird that runs it, as ~/…: only
     for commands the human runs (doctor, install, `cos daemon list`). The boot banner and the
     desktop ask too often for a look at a folder that may be in Documents (a privacy prompt)
     or on a network volume that's gone (a hang)."""
@@ -205,7 +205,7 @@ def render_status(rows):
         print("%s %-8s %-12s %-5s last: %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
     theirs = [r for r in rows if r["loaded"] and r.get("elsewhere")]
     if theirs:
-        print("\nRunning from another Claude OS on this Mac (%s): %s"
+        print("\nRunning from another Ovenbird on this Mac (%s): %s"
               % (", ".join(sorted({_tilde(r["elsewhere"]) for r in theirs})), ", ".join(r["name"] for r in theirs)))
     print("\n● running  ○ installed, not loaded  – off · cos daemon install <name>|--all")
 
@@ -378,7 +378,7 @@ def live(name):
 
 
 def pulse_catch_up():
-    """Fetch and report; with Keep Claude OS up to date on, also move forward, but never
+    """Fetch and report; with Keep Ovenbird up to date on, also move forward, but never
     under a running app, whose server would mix versions (0011)."""
     from . import evolve
     if core.downloaded():
@@ -498,7 +498,7 @@ def run(name):
     if not spec:
         core.die("no daemon %r" % name)
     if name == "evolve" and core.downloaded():
-        print("evolve doesn't run in a downloaded Claude OS (it follows its app's releases): cos daemon uninstall evolve")
+        print("evolve doesn't run in a downloaded Ovenbird (it follows its app's releases): cos daemon uninstall evolve")
         return 0
     lock = _lock(name)
     if not lock:

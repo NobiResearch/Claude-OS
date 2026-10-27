@@ -101,7 +101,7 @@ class TestCli(TempHome):
         with mock.patch.object(core, "run", spy):
             rc, out = self.cos("boot")
         self.assertEqual(rc, 0)
-        self.assertTrue(out.startswith("◆ Claude OS"))
+        self.assertTrue(out.startswith("◆ Ovenbird"))
         self.assertEqual([c for c in ran if "fetch" in c], [])
 
     def test_entry_point_runs_under_system_python(self):
@@ -112,12 +112,12 @@ class TestCli(TempHome):
         python = next((p for p in developer + ["/usr/bin/python3"] if os.path.exists(p)), sys.executable)
         r = subprocess.run([python, COS, "version"], capture_output=True, text=True, timeout=30)
         self.assertEqual(r.returncode, 0, r.stderr)
-        self.assertIn("Claude OS", r.stdout)
+        self.assertIn("Ovenbird", r.stdout)
 
     def test_statusline_reads_claude_payload(self):
         r = subprocess.run([sys.executable, COS, "statusline"], input='{"model": {"display_name": "Test"}}',
                            capture_output=True, text=True, timeout=30, env=dict(os.environ))
-        self.assertIn("Claude OS", r.stdout)
+        self.assertIn("Ovenbird", r.stdout)
         self.assertIn("Test", r.stdout)
 
 

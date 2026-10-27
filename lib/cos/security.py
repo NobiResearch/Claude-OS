@@ -3,7 +3,7 @@
 Read: FileVault, System Integrity Protection, the firewall and Gatekeeper, each with what it
 does and how to turn it on. Act: `cos security on firewall --yes` is the one switch a command
 may flip, and only ever on. It's a fixed command, run as admin through macOS's own password
-dialog, which says that Claude OS is asking; the password never reaches Claude. FileVault and
+dialog, which says that Ovenbird is asking; the password never reaches Claude. FileVault and
 SIP can't be turned on by a script, and spctl lost its global Gatekeeper switch in macOS 15,
 so for those it says where to go.
 
@@ -22,7 +22,7 @@ FIREWALL = "/usr/libexec/ApplicationFirewall/socketfilterfw"
 # there's no way to turn anything off.
 SWITCHES = {
     "firewall": 'do shell script "/usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate on" '
-                'with prompt "Claude OS wants to turn on the macOS firewall." with administrator privileges',
+                'with prompt "Ovenbird wants to turn on the macOS firewall." with administrator privileges',
 }
 NAMES = {"filevault": "FileVault", "sip": "System Integrity Protection", "firewall": "Firewall",
          "gatekeeper": "Gatekeeper"}
@@ -79,7 +79,7 @@ def turn_on(name, yes=False):
         print("The %s is already on." % name)
         return 0
     if not yes:
-        print("Would turn on the macOS %s. macOS shows its own password dialog, saying Claude OS is asking;\n"
+        print("Would turn on the macOS %s. macOS shows its own password dialog, saying Ovenbird is asking;\n"
               "the password goes to macOS, not to Claude. Undo any time: System Settings › Network › Firewall.\n"
               "(add --yes to do it)" % name)
         return 2

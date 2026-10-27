@@ -29,10 +29,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         }
         config = AppConfig.load()
         config.record()  // so `cos` reaches this copy of the app (state/app.json)
-        NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self)
+        NSApp.mainMenu = MainMenu.build(appName: "Ovenbird", target: self)
 
         if config.release && config.rootProblem != nil {
-            // A downloaded app with no Claude OS on this Mac yet: the first-launch checklist.
+            // A downloaded app with no Ovenbird on this Mac yet: the first-launch checklist.
             let setup = SetupWindowController(config: config) { [weak self] in self?.setupFinished() }
             self.setup = setup
             setup.show()
@@ -55,7 +55,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
     }
 
     private func startDesktop() {
-        NSApp.mainMenu = MainMenu.build(appName: "Claude OS", target: self, removable: Remover.downloadedRoot(config: config) != nil)
+        NSApp.mainMenu = MainMenu.build(appName: "Ovenbird", target: self, removable: Remover.downloadedRoot(config: config) != nil)
         windowController = MainWindowController(config: config)
         statusController = StatusItemController(
             onOpen: { [weak self] in self?.openMainWindow(nil) },
@@ -84,7 +84,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
         startServer()
     }
 
-    /// Quitting while the first launch downloads Claude OS: stop the download, which removes
+    /// Quitting while the first launch downloads Ovenbird: stop the download, which removes
     /// its half-finished copy, then quit.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         if let setup = setup, setup.busy { setup.stopDownload() }
@@ -169,7 +169,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
                 self.windowController.load(ep)
                 self.statusController.endpoint = ep
             case .failure(let failure):
-                self.showServerAlert(title: "Claude OS couldn't start its server",
+                self.showServerAlert(title: "Ovenbird couldn't start its server",
                                      summary: failure.summary, stderr: failure.stderr)
             }
         }
@@ -186,7 +186,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
             return
         }
         if let last = restartedAt, Date().timeIntervalSince(last) < Self.restartWindow {
-            showServerAlert(title: "The Claude OS server stopped",
+            showServerAlert(title: "The Ovenbird server stopped",
                             summary: "It exited (status \(status)) again soon after being restarted.",
                             stderr: stderr)
             return
@@ -206,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, ServerControllerDelega
             alert.accessoryView = Self.scrollingText(String(stderr.suffix(6000)))
         }
         alert.addButton(withTitle: "Try Again")
-        alert.addButton(withTitle: "Quit Claude OS")
+        alert.addButton(withTitle: "Quit Ovenbird")
         if alert.runModal() == .alertFirstButtonReturn {
             restartedAt = nil
             startServer()

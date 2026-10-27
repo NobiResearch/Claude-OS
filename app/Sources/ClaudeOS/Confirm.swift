@@ -18,14 +18,14 @@ enum Confirm {
     private static let questions: [String: Question] = [
         "night": Question(
             title: "Turn on Night shift?",
-            body: "While you're away, Claude may push its own night/… branches of Claude OS, open pull requests "
+            body: "While you're away, Claude may push its own night/… branches of Ovenbird, open pull requests "
                 + "and merge the ones that pass, without asking you. Every commit is checked for private data "
-                + "first, and pull requests that change Claude OS's own safety checks wait for your merge. "
+                + "first, and pull requests that change Ovenbird's own safety checks wait for your merge. "
                 + "You can turn it off any time in Settings.",
             yes: "Turn On"),
         "catch-up": Question(
-            title: "Keep Claude OS up to date?",
-            body: "When a pull request is merged on GitHub, Claude OS brings it to this Mac by itself: when the app "
+            title: "Keep Ovenbird up to date?",
+            body: "When a pull request is merged on GitHub, Ovenbird brings it to this Mac by itself: when the app "
                 + "starts, when a terminal session starts, and in the background while the app is closed. Some of "
                 + "those changes are merged by Claude on its own, without a person's review. It only moves a clean "
                 + "main forward, only over GitHub's own pull request merges, and each update is in your journal "

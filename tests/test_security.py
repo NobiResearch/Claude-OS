@@ -45,7 +45,7 @@ class TestSecurity(TempHome):
             self.assertIn(" on", script, name)
             for word in ("off", "disable", "remove", "%", "{"):
                 self.assertNotIn(word, script.lower(), name)
-            self.assertIn('with prompt "Claude OS wants to', script, "the dialog says who is asking")
+            self.assertIn('with prompt "Ovenbird wants to', script, "the dialog says who is asking")
         self.assertEqual(list(security.SWITCHES), ["firewall"], "FileVault, SIP and Gatekeeper aren't switches")
         parser = cli.build_parser()
         with self.assertRaises(SystemExit), redirect_stdout(io.StringIO()), mock.patch("sys.stderr", io.StringIO()):
@@ -132,9 +132,9 @@ if __name__ == "__main__":
 
 
 class TestStrangerSafeSettings(unittest.TestCase):
-    """The checked-in .claude/settings.json is what everyone who clones or downloads Claude OS
+    """The checked-in .claude/settings.json is what everyone who clones or downloads Ovenbird
     runs (decision 0017). It may let Claude run only what's safe for a stranger without a card:
-    Claude OS's own syscalls (read-only unless --yes, and the mutating ones ask) and a few
+    Ovenbird's own syscalls (read-only unless --yes, and the mutating ones ask) and a few
     read-only system commands. The owner's broader allows live in their own, gitignored
     .claude/settings.local.json."""
 
@@ -168,7 +168,7 @@ class TestStrangerSafeSettings(unittest.TestCase):
 class TestKeepDownloadSettings(TempHome):
     def setUp(self):
         super().setUp()
-        self.root = os.path.join(self.tmp, "Claude OS")
+        self.root = os.path.join(self.tmp, "Ovenbird")
         os.makedirs(os.path.join(self.root, ".claude"))
         patcher = mock.patch.object(core, "ROOT", Path(self.root))
         patcher.start()
