@@ -17,6 +17,9 @@ from concurrent.futures import ThreadPoolExecutor
 from . import core
 
 FRESH_SECONDS = 30 * 60
+# A feed is a few hundred KB at most: one that streams more never reaches the parser or
+# pulse's memory (Fable's review, F15).
+MAX_BYTES = 5 * 1000 * 1000
 
 
 # ---------------------------------------------------------------- feed lists
@@ -160,14 +163,16 @@ def fetch(feed, http_cache):
         headers["If-Modified-Since"] = prev["modified"]
     try:
         with core.http_get(url, headers=headers, timeout=12) as resp:
-            body = resp.read()
+            body = resp.read(MAX_BYTES + 1)
+            if len(body) > MAX_BYTES:
+                return {"url": url, "ok": False, "error": "larger than 5 MB"}
             meta = {"etag": resp.headers.get("ETag"), "modified": resp.headers.get("Last-Modified")}
         title, items = parse_feed(body)
         return {"url": url, "ok": True, "title": title, "items": items[:40], "meta": meta}
     except urllib.error.HTTPError as e:
         if e.code == 304:
             return {"url": url, "ok": True, "not_modified": True}
-        body = core.curl_get(url) if e.code in (403, 429, 503) else None
+        body = core.curl_get(url, max_bytes=MAX_BYTES) if e.code in (403, 429, 503) else None
         if body:
             try:
                 title, items = parse_feed(body)

@@ -488,7 +488,10 @@ def check_pr(number, cwd=None):
 
 def waiting(cwd=None):
     """The night shift's open pull requests and what each waits for, or None if GitHub
-    couldn't be asked. Ones that touch the gate list exactly which safety files."""
+    couldn't be asked. Ones that touch the gate list exactly which safety files. A background
+    run never asks: it would be GitHub with the human's login (Fable's review, F12)."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return None
     r = core.run(["gh", "pr", "list", "--state", "open", "--limit", "50", "--json", "number,title,headRefName,url"],
                  cwd=cwd or str(core.ROOT), timeout=20)
     try:
@@ -523,6 +526,8 @@ def main(args):
     if args.hook_cmd == "pretool":
         return pretool()
     target = args.target
+    if os.environ.get("CLAUDE_OS_DAEMON") and (target is None or target.isdigit()):
+        core.die("a background run doesn't ask GitHub: it would be the human's login", 3)
     if target is None:
         rows = waiting(os.getcwd())
         core.emit(rows, args.json, render_waiting)

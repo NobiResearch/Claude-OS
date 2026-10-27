@@ -528,8 +528,9 @@ def config():
     cfg = json.loads(json.dumps(DEFAULT_CONFIG))
     user = load_json(home("config.json"), {}) or {}
     for section, values in user.items():
-        if isinstance(values, dict) and isinstance(cfg.get(section), dict):
-            cfg[section].update(values)
+        if isinstance(cfg.get(section), dict):
+            if isinstance(values, dict):  # a hand-edited `"autonomy": true` keeps the defaults (off)
+                cfg[section].update(values)
         else:
             cfg[section] = values
     return cfg
@@ -588,10 +589,12 @@ def http_get(url, headers=None, timeout=12):
     return urllib.request.urlopen(req, timeout=timeout, context=ssl_context())
 
 
-def curl_get(url, timeout=12):
-    """Fallback for sites that reject Python's TLS fingerprint. Returns bytes or None."""
+def curl_get(url, timeout=12, max_bytes=5 * 1000 * 1000):
+    """Fallback for sites that reject Python's TLS fingerprint. Returns bytes or None (also
+    when the body would be larger than max_bytes: curl stops the transfer there)."""
     try:
-        p = subprocess.run(["curl", "-sfL", "--max-time", str(timeout), "-A", USER_AGENT, url],
+        p = subprocess.run(["curl", "-sfL", "--max-time", str(timeout), "--max-filesize", str(max_bytes),
+                            "-A", USER_AGENT, "--", url],
                            capture_output=True, timeout=timeout + 5)
     except (OSError, subprocess.TimeoutExpired):
         return None

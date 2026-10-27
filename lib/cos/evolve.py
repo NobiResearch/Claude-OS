@@ -58,7 +58,9 @@ def new_workspace():
     path = core.home("worktrees", branch.replace("/", "-"))
     if os.path.exists(str(path)):
         shutil.rmtree(str(path), ignore_errors=True)
-    r = git("clone", "--quiet", "--local", "--branch", base, str(core.ROOT), str(path), timeout=180)
+    # Copies, not hard links: model-written code may write inside its clone, and a linked object
+    # rewritten there would be the live repository's object too (Fable's review, F6).
+    r = git("clone", "--quiet", "--no-hardlinks", "--branch", base, str(core.ROOT), str(path), timeout=180)
     if not r.ok:
         raise RuntimeError("git clone failed: %s" % r.err)
     for args in (("checkout", "-q", "-b", branch), ("config", "core.hooksPath", "githooks")):
@@ -134,7 +136,7 @@ def test_commit(branch):
     import tempfile
     with tempfile.TemporaryDirectory(prefix="cos-evolve-test-") as tmp:
         path = os.path.join(tmp, "repo")
-        r = git("clone", "--quiet", "--local", "--branch", branch, str(core.ROOT), path, timeout=180)
+        r = git("clone", "--quiet", "--no-hardlinks", "--branch", branch, str(core.ROOT), path, timeout=180)  # as above
         if not r.ok:
             return None
         return run_tests(path)
