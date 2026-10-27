@@ -14,7 +14,10 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
-- Nothing open. Done: the sandbox for model-written tests is deny-by-default (Apple Events,
+- The sandbox for model-written tests only knows `/Applications/Xcode.app` and the command
+  line tools: with an Xcode under another name selected, its git and python3 are shims that
+  can't run inside (friction #24).
+- Done: the sandbox for model-written tests is deny-by-default (Apple Events,
   LaunchServices, the home folder and the parent's environment are out of reach) and has no
   network: the tests' servers listen on Unix sockets in the run's own folder. The morning
   merge queue is moot since 0013: Claude merges green pull requests as they're ready.
@@ -36,9 +39,9 @@ what, where, and how we'll know it works.
 - Focus modes via Shortcuts (`cos focus work|off`).
 - Time Machine's last backup age, once it can be read without Full Disk Access or mounting
   (0005, 0012; `cos backup` covers setting it up).
-- **Morning station** (0012, Steward): a Today card that starts a radio seeded from a song
-  the human played or liked this week, one click, no LLM. A full daily mix needs a queue in
-  the player, and must never be picked in a run that reads feeds (Guardian).
+- **A daily mix**: Apple's own personal mixes through MusicKit, one fixed `claude-os://music/mix`
+  ([research](research/daily-mix.md)). Waits until the human asks (0012); never picked in a
+  run that reads feeds (Guardian).
 - `cos power`: what keeps the Mac or display awake (`pmset -g assertions`), once friction
   asks; deliberate keepers (caffeinate, keep-awake apps) mustn't become nightly signals.
 - Photo library duplicate report (read-only).
@@ -59,4 +62,6 @@ what, where, and how we'll know it works.
 - Since v0.7 (Unreleased): the night shift's pull requests and merges (0006), the board and
   daemons live on the desktop (0007), `cos security` and the firewall switch (0008), `/music`
   `/tidy` `/update` `/startup` in any folder through skill links rather than a plugin (0009),
-  the Guardian on pull request text, and Night shift turned on only in the app's own dialog.
+  the Guardian on pull request text, Night shift turned on only in the app's own dialog, and
+  Today's Radio chip: one click to a radio from a song you've been playing (0012's "morning
+  station").
