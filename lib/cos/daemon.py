@@ -444,15 +444,19 @@ def on_subscription():
 
 
 def claude_command(spec, capped=True):
+    # The owner's .claude/settings.local.json allows git, gh and more with no card (0013): fine
+    # at their own terminal, not in a run that reads feeds with nobody watching (a git alias
+    # alone runs any command), so background runs don't load it (core.SETTING_SOURCES).
     cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",
-           "--permission-mode", spec.get("permission_mode", "dontAsk")]
+           "--permission-mode", spec.get("permission_mode", "dontAsk"), "--setting-sources", core.SETTING_SOURCES]
     if capped and spec.get("budget_usd"):
         cmd += ["--max-budget-usd", str(spec["budget_usd"])]
     if spec.get("allowed_tools"):
         cmd += ["--allowedTools"] + spec["allowed_tools"]
     if spec.get("sandbox"):
         cmd += ["--settings", json.dumps(SANDBOX_SETTINGS)]
-    cmd += ["--disallowedTools"] + spec.get("disallowed_tools", []) + ALWAYS_DENIED
+    denied = spec.get("disallowed_tools", []) + ALWAYS_DENIED
+    cmd += ["--disallowedTools"] + denied + [r for r in core.local_denies() if r not in denied]
     return cmd
 
 

@@ -94,6 +94,71 @@ class TestDaemons(TempHome):
                 self.assertIn(rule, denied, name)
             self.assertEqual("--settings" in cmd, bool(spec.get("sandbox")), name)
 
+    def test_background_runs_and_the_app_chat_never_get_the_owners_local_allows(self):
+        # The owner's .claude/settings.local.json allows git and gh with no card (0013): a git
+        # alias runs anything, so a run that reads feeds must not load it (Fable's review, F1).
+        from cos import chat
+        cmds = [daemon.claude_command(s) for s in daemon.definitions().values() if "prompt" in s]
+        self.assertTrue(cmds)
+        for cmd in cmds + [chat.claude_command()]:
+            sources = cmd[cmd.index("--setting-sources") + 1].split(",")
+            self.assertNotIn("local", sources, cmd)
+            self.assertIn("project", sources, cmd)  # CLAUDE.md's rules and the checked-in asks still apply
+        chat_cmd = chat.claude_command()
+        self.assertEqual(chat_cmd[chat_cmd.index("--permission-mode") + 1], "manual")  # a card, whatever the global default
+        # The runs that read feeds never need git: a deny closes aliases and pushes, whatever
+        # a user-level allow says.
+        for name in ("morning", "board"):
+            cmd = daemon.claude_command(daemon.definitions()[name])
+            self.assertIn("Bash(git *)", cmd[cmd.index("--disallowedTools") + 1:], name)
+
+    def test_the_local_files_denies_survive_leaving_it_out(self):
+        """A downloaded copy's DOWNLOAD_DENY, and the person's own denies, live in the very file
+        the chat and `cos ask` no longer load: they come along on the command line."""
+        import tempfile
+        from cos import chat, cli
+        root = tempfile.mkdtemp()
+        self.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
+        os.makedirs(os.path.join(root, ".claude"))
+        with open(os.path.join(root, ".claude", "settings.local.json"), "w") as f:
+            json.dump({"permissions": {"allow": ["Bash(git *)"],
+                                       "deny": ["Bash(rm *)", 3, "--permission-mode=bypassPermissions", "", "-x"]}}, f)
+        specs = {n: daemon.definitions()[n] for n in ("morning", "board")}  # read from the real ROOT
+        with mock.patch.object(core, "ROOT", __import__("pathlib").Path(root)):
+            for downloaded, expected in ((False, ["Bash(rm *)"]), (True, ["Bash(rm *)"] + core.DOWNLOAD_DENY)):
+                with mock.patch.object(core, "downloaded", return_value=downloaded):
+                    self.assertEqual(core.local_denies(), expected)
+                    cmd = chat.claude_command()
+                    self.assertEqual(cmd[cmd.index("--disallowedTools") + 1:], expected)
+                    self.assertNotIn("Bash(git *)", cmd)  # the allows stay behind
+                    with mock.patch.object(core, "which", return_value="/x/claude"), \
+                            mock.patch("subprocess.call", return_value=0) as call:
+                        cli.ask("-p is a flag, not a question")
+                    argv = call.call_args[0][0]
+                    self.assertEqual(argv[argv.index("--setting-sources") + 1], core.SETTING_SOURCES)
+                    self.assertEqual(argv[-2:], ["--", "-p is a flag, not a question"])
+                    self.assertEqual(argv[argv.index("--disallowedTools") + 1:-2], expected)
+                    self.assertEqual(argv[argv.index("--permission-mode") + 1], "manual")
+                    # The background runs that read feeds keep the person's denies too.
+                    for name, spec in specs.items():
+                        denied = daemon.claude_command(spec)
+                        denied = denied[denied.index("--disallowedTools") + 1:]
+                        for rule in expected:
+                            self.assertIn(rule, denied, name)
+                    # Only rule-shaped entries reach a command line: none can become a flag.
+                    self.assertFalse([a for a in cmd + argv[:-1] if a.startswith("-") and a not in (
+                        "-p", "--input-format", "--output-format", "--verbose", "--include-partial-messages",
+                        "--permission-prompt-tool", "--permission-mode", "--setting-sources", "--disallowedTools", "--")])
+
+    def test_cos_ask_refuses_inside_the_apps_chat(self):
+        # It would start a second Claude that answers to no Allow card (the guardian on #118).
+        from cos import cli
+        with mock.patch.dict(os.environ, {"CLAUDE_OS_APP": "1"}), mock.patch("subprocess.call") as call:
+            with self.assertRaises(SystemExit) as e:
+                cli.main(["ask", "hello"])
+        self.assertEqual(e.exception.code, 3)
+        call.assert_not_called()
+
     def test_no_daemon_can_keep_itself_alive_or_schedule_more(self):
         # The first weekly meeting scheduled a 20-minute wakeup and sat out its whole timeout.
         for tool in ("ScheduleWakeup", "CronCreate", "CronDelete", "Monitor", "RemoteTrigger"):

@@ -259,7 +259,10 @@ def ask(question):
     if not core.which("claude"):
         core.die("Claude Code isn't installed")
     core.journal("ask", question)
-    return subprocess.call(["claude", "-p", question], cwd=str(core.ROOT))
+    cmd = ["claude", "-p", "--permission-mode", "manual", "--setting-sources", core.SETTING_SOURCES]
+    denies = core.local_denies()
+    cmd += (["--disallowedTools"] + denies if denies else []) + ["--", question]
+    return subprocess.call(cmd, cwd=str(core.ROOT))
 
 
 def say(text):
@@ -405,6 +408,9 @@ def main(argv=None):
     refused = daemon_refused(args) if os.environ.get("CLAUDE_OS_DAEMON") else None
     if refused:
         core.die("`cos %s` is not allowed in a headless daemon run" % " ".join(refused), 3)
+    if args.cmd == "ask" and os.environ.get("CLAUDE_OS_APP"):
+        # The app's chat would start a second Claude that answers to no Allow card.
+        core.die("`cos ask` isn't for the app's chat: just ask the question there", 3)
     if args.cmd == "startup" and args.full and argv[:2] != ["startup", "--full"]:
         # It summons macOS's password dialog, so the ask rule must be able to see it.
         core.die("write it as `cos startup --full …`, so permission rules can see it.", 2)
