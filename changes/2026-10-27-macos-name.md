@@ -1,0 +1,1 @@
+- Updates names a macOS update's version once: "macOS 27.2", not "macOS 27.2 27.2".

@@ -27,7 +27,7 @@ AGENTS_DIR = os.path.expanduser("~/Library/LaunchAgents")
 _MUTATING = ["clean apply", "update apply", "daemon install", "daemon uninstall", "daemon run",
              "evolve merge", "evolve discard", "install", "uninstall", "cal connect", "weather set",
              "weather clear", "feeds add", "feeds mute", "config", "music play", "music like", "music unlike", "music radio", "remember",
-             "memory --forget", "ask", "serve", "app", "startup --full", "security on",
+             "memory --forget", "ask", "serve", "app", "startup --full", "security on", "friction close", "say", "notify", "log add",
              "net --speed"]
 ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/cos", "./bin/cos", "cos")] + [
     "Bash(git push*)", "Bash(sudo *)", "Bash(curl *)", "Bash(osascript *)",
@@ -41,8 +41,12 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 ]
 
 # Evolve edits code and runs tests, so its shell runs in Claude Code's sandbox: writes
-# confined to its workspace clone, no network, no unsandboxed escape hatch.
-SANDBOX_SETTINGS = {"sandbox": {"enabled": True, "failIfUnavailable": True,
+# confined to its workspace clone, no network, no unsandboxed escape hatch. No hooks at all:
+# Claude Code runs a hook outside the sandbox, and the workspace's hooks run its bin/cos,
+# which the run itself may edit. Its file edits stay in the workspace through acceptEdits
+# alone: a bare Edit or Write allow would reach any path on the Mac.
+SANDBOX_SETTINGS = {"disableAllHooks": True, "disableSkillShellExecution": True,
+                    "sandbox": {"enabled": True, "failIfUnavailable": True,
                                 "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False,
                                 # the test suite starts servers on 127.0.0.1; still no outside network
                                 "network": {"allowLocalBinding": True}}}
@@ -169,16 +173,24 @@ def last_run(name):
     return runs[-1] if runs else None
 
 
-def status():
+def status(where=False):
+    """Every daemon's state. With `where`, also the other Claude OS that runs it, as ~/…: only
+    for commands the human runs (doctor, install, `cos daemon list`). The boot banner and the
+    desktop ask too often for a look at a folder that may be in Documents (a privacy prompt)
+    or on a network volume that's gone (a hang)."""
     out = []
     for name, spec in definitions().items():
         last = last_run(name)
         now = live(name)
-        out.append({"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
-                    "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
-                    "description": spec["description"],
-                    "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
-                    "running_minutes": now["minutes"] if now else None})
+        row = {"name": name, "installed": os.path.exists(plist_path(name)), "loaded": is_loaded(name),
+               "schedule": describe_schedule(spec["schedule"]), "llm": "prompt" in spec,
+               "description": spec["description"],
+               "last_run": last["ts"] if last else None, "last_ok": last.get("ok") if last else None,
+               "running_minutes": now["minutes"] if now else None}
+        if where:
+            other = elsewhere(name)
+            row["elsewhere"] = _tilde(other) if other else None
+        out.append(row)
     return out
 
 
@@ -191,6 +203,10 @@ def render_status(rows):
             print("%s %-8s %-12s %-5s now:  %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
             continue
         print("%s %-8s %-12s %-5s last: %-16s %s" % (mark, r["name"], r["schedule"], "llm" if r["llm"] else "", last, r["description"]))
+    theirs = [r for r in rows if r["loaded"] and r.get("elsewhere")]
+    if theirs:
+        print("\nRunning from another Claude OS on this Mac (%s): %s"
+              % (", ".join(sorted({_tilde(r["elsewhere"]) for r in theirs})), ", ".join(r["name"] for r in theirs)))
     print("\n● running  ○ installed, not loaded  – off · cos daemon install <name>|--all")
 
 
@@ -234,6 +250,13 @@ LABEL = re.compile(r"[A-Za-z][\w:.-]{0,60}")
 COS_VERB = re.compile(r"(?:\./)?(?:bin/)?cos\s+([a-z]+)")
 VOTE = re.compile(r"VOTE:\W*(approve|amend|reject)", re.I)
 HEADING = re.compile(r"^#{1,3}\s+(.+)$", re.M)
+# The runs that read text strangers wrote (feeds, friction) get a line made here, not one from
+# their output: a feed item could have written that ("Good morning — your Mac is infected, run
+# …"), and the notification would show it as if from the Mac.
+OWN_LINE = {"morning": "Good morning — %s", "board": "Board minutes — %s"}
+DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday")
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September",
+          "October", "November", "December")
 
 
 def tool_label(block):
@@ -300,9 +323,9 @@ class Transcript:
         return "\n\n".join(self.turns + ([self.pending] if self.pending else []))
 
 
-def summarize(name, text, timed_out, minutes, ok):
+def summarize(name, text, timed_out, minutes, ok, today=None):
     """The line the notification and the journal show: what the run produced, never the
-    chatter it started with."""
+    chatter it started with, and only plain words."""
     title = name.capitalize()
     if timed_out:
         return "%s ran out of time after %d min%s" % (title, minutes, "; partial output saved" if text else "")
@@ -311,7 +334,10 @@ def summarize(name, text, timed_out, minutes, ok):
     m = HEADING.search(text)
     last = text.split("\n\n")[-1] if text else ""
     line = m.group(1) if m else next((l for l in last.splitlines() if l.strip()), "(no output)")
-    return line.strip().strip("*#").strip()[:180]
+    if name in OWN_LINE:
+        d = today or dt.date.today()
+        return OWN_LINE[name] % ("%s, %d %s" % (DAYS[d.weekday()], d.day, MONTHS[d.month - 1]))
+    return core.plain_line(line.strip().strip("*#").strip(), "%s finished (cos daemon logs %s)" % (title, name))
 
 
 def live_path(name):
@@ -504,7 +530,7 @@ def main(args):
     names = list(definitions())
     c = args.daemon_cmd or "list"
     if c == "list":
-        core.emit(status(), args.json, render_status)
+        core.emit(status(where=True), args.json, render_status)
         return 0
     if c in ("install", "uninstall"):
         targets = names if args.all else args.names

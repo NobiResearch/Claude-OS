@@ -14,7 +14,8 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
-- Nothing open. Done: the sandbox for model-written tests is deny-by-default (Apple Events,
+- Done: the sandbox for model-written tests runs any Xcode in `/Applications` that's
+  selected, under whatever name (friction #24). It's deny-by-default (Apple Events,
   LaunchServices, the home folder and the parent's environment are out of reach) and has no
   network: the tests' servers listen on Unix sockets in the run's own folder. The morning
   merge queue is moot since 0013: Claude merges green pull requests as they're ready.
@@ -24,6 +25,8 @@ what, where, and how we'll know it works.
 - **The name** ([research](research/the-name.md)): can a downloadable app be called
   "Claude OS"? Probably not without Anthropic's permission; the human decides before the first
   public release.
+- **Growing the project** ([research](research/growing-the-project.md)): what Hermes Agent
+  did that a small project can copy. The name comes first; every public step is the human's.
 - Nothing else open. Answered: [a daily mix without an LLM](research/daily-mix.md) (Apple's own
   personal mixes through MusicKit: one fixed `claude-os://music/mix`), [Time Machine's last
   backup date](research/time-machine-last-backup.md) (`defaults export` reads it without Full
@@ -36,12 +39,28 @@ what, where, and how we'll know it works.
 - Focus modes via Shortcuts (`cos focus work|off`).
 - Time Machine's last backup age, once it can be read without Full Disk Access or mounting
   (0005, 0012; `cos backup` covers setting it up).
-- **Morning station** (0012, Steward): a Today card that starts a radio seeded from a song
-  the human played or liked this week, one click, no LLM. A full daily mix needs a queue in
-  the player, and must never be picked in a run that reads feeds (Guardian).
+- **A daily mix**: Apple's own personal mixes through MusicKit, one fixed `claude-os://music/mix`
+  ([research](research/daily-mix.md)). Waits until the human asks (0012); never picked in a
+  run that reads feeds (Guardian).
 - `cos power`: what keeps the Mac or display awake (`pmset -g assertions`), once friction
   asks; deliberate keepers (caffeinate, keep-awake apps) mustn't become nightly signals.
 - Photo library duplicate report (read-only).
+- **A community skills catalog** ([research](research/growing-the-project.md)): one
+  `catalog/<name>.yaml` per pull request, pinned to an exact commit and installed by `cos`;
+  the Guardian scans each one, and a human merges it. Board first, after 0017: an installed
+  skill is code Claude runs.
+- **Say what we want from contributors**: in CONTRIBUTING.md, a ranked list of wanted work,
+  "skill, syscall or daemon?" and what we turn down even when it's well built; an
+  `AI_POLICY.md` (say which tool wrote it, a human understands every line, a summary written
+  by a human). Board first: it's policy.
+- **Credit contributors**: when a maintainer finishes someone's pull request in a new one, keep
+  them as `Co-authored-by:` and say so on the original; release notes name every contributor.
+- **A Homebrew tap** ([research](research/growing-the-project.md)): `brew install --cask
+  <owner>/tap/<name>` once there's a release; no `auto_updates` (the app only links to new
+  versions), `arch: :arm64`, a `zap` that leaves `~/.claude-os` alone. Creating the tap's
+  repository is the human's call; Homebrew's main repository waits for 30 days and 75 stars.
+- **Trust first in the README**: a short threat model in plain words (read-only by default,
+  `--yes`, the journal, no Full Disk Access or Accessibility, what merges on its own).
 - Mail triage. Privacy-heavy: board review first.
 
 ## Done
@@ -59,4 +78,6 @@ what, where, and how we'll know it works.
 - Since v0.7 (Unreleased): the night shift's pull requests and merges (0006), the board and
   daemons live on the desktop (0007), `cos security` and the firewall switch (0008), `/music`
   `/tidy` `/update` `/startup` in any folder through skill links rather than a plugin (0009),
-  the Guardian on pull request text, and Night shift turned on only in the app's own dialog.
+  the Guardian on pull request text, Night shift turned on only in the app's own dialog, and
+  Today's Radio chip: one click to a radio from a song you've been playing (0012's "morning
+  station").

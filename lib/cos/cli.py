@@ -331,7 +331,12 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
     ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
-    ("net", "--speed"), ("backup", "setup")}
+    ("net", "--speed"), ("backup", "setup"),
+    # A background run may log friction (law 4), but closing it would hide real friction.
+    ("friction", "close"),
+    # Its words could be a feed item's: no voice in the room, no notification posing as the Mac,
+    # no note in the journal evolve and the board read. The daemons notify from their own code.
+    ("say",), ("notify",), ("log", "add")}
 
 
 def daemon_refused(args):
@@ -347,6 +352,10 @@ def daemon_refused(args):
         key = ("net", "--speed") if args.speed else None
     elif args.cmd == "backup":
         key = ("backup", args.backup_cmd)
+    elif args.cmd == "friction":
+        key = ("friction", args.friction_cmd)
+    elif args.cmd == "log":
+        key = ("log", args.log_cmd)
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None

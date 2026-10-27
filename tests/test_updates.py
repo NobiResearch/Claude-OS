@@ -25,6 +25,11 @@ class TestParsers(unittest.TestCase):
         self.assertFalse(items[1]["restart"])
         self.assertTrue(items[1]["recommended"])
 
+    def test_a_macos_update_names_its_version_once(self):
+        self.assertEqual(updates.macos_name({"title": "macOS 27.2", "version": "27.2"}), "macOS 27.2")
+        self.assertEqual(updates.macos_name({"title": "Safari", "version": "27.1"}), "Safari 27.1")
+        self.assertEqual(updates.macos_name({"label": "Command Line Tools", "version": None}), "Command Line Tools")
+
     def test_softwareupdate_nothing(self):
         self.assertEqual(updates.parse_softwareupdate("No new software available.\n"), [])
 
@@ -112,6 +117,24 @@ class TestUnchecked(unittest.TestCase):
         self.assertEqual(updates.parse_npm_outdated(0, "{}"), [], "really up to date")
         rows = updates.parse_npm_outdated(1, json.dumps({"gh-axi": {"current": "0.1.35", "latest": "0.1.43"}}))
         self.assertEqual([r["name"] for r in rows], ["gh-axi"], "exit 1 with packages is normal")
+
+    def test_npm_refused_by_a_proxy_is_not_up_to_date(self):
+        # npm skips a package whose lookup comes back 403 without a word, then prints {} and exits 0
+        refused = ("npm http fetch GET 403 https://registry.npmjs.org/gh-axi 4ms\n"
+                   "npm http fetch GET 403 https://registry.npmjs.org/npm 3ms\n")
+        self.assertIsNone(updates.parse_npm_outdated(0, "{}", refused))
+        answered = refused + "npm http fetch GET 200 https://registry.npmjs.org/corepack 80ms (cache revalidated)\n"
+        self.assertEqual(updates.parse_npm_outdated(0, "{}", answered), [], "the registry answered: a private package's 403")
+        cached = refused + "npm http cache https://registry.npmjs.org/corepack 2ms (cache hit)\n"
+        self.assertEqual(updates.parse_npm_outdated(0, "{}", cached), [])
+        linked = "npm http fetch GET 404 https://registry.npmjs.org/my-tool 9ms\n"
+        self.assertEqual(updates.parse_npm_outdated(0, "{}", linked), [], "not on the registry is npm's own answer")
+        from unittest import mock
+        from cos import core
+        with mock.patch.object(updates.core, "which", return_value="/usr/bin/npm"), \
+                mock.patch.object(updates.core, "run", return_value=core.Result(0, "{}", refused)) as run:
+            self.assertEqual(updates.check_npm(), {"items": [], "error": "couldn't check"})
+        self.assertIn("--loglevel=http", run.call_args[0][0])
 
     def test_an_unchecked_source_never_says_up_to_date(self):
         import io

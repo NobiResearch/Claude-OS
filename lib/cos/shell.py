@@ -88,6 +88,19 @@ def _evolve_line():
     return "  evolve: %d branch(es) awaiting review: %s (cos evolve)" % (len(waiting), named)
 
 
+def _friction_line():
+    """Open friction, and the latest one's text, unless a background run logged it: that text
+    could come from a feed item, and the banner puts it in front of every session."""
+    from . import mem
+    open_f = [f for f in mem.frictions() if f["status"] == "open"]
+    if not open_f:
+        return None
+    last = open_f[-1]
+    latest = ("#%d, from the %s run (cos friction)" % (last["id"], last["headless"]) if last.get("headless")
+              else last["text"][:90])
+    return "  friction: %d open (cos friction) — latest: %s" % (len(open_f), latest)
+
+
 def boot():
     from . import status, mem, daemon, system
     try:
@@ -109,10 +122,7 @@ def boot():
     n = _music_now()
     if n and n.get("track"):
         lines.append("  music: %s %s — %s" % ("▶" if n.get("state") == "playing" else "❚❚", n["track"], n.get("artist") or ""))
-    open_f = [f for f in mem.frictions() if f["status"] == "open"]
-    if open_f:
-        lines.append("  friction: %d open (cos friction) — latest: %s" % (len(open_f), open_f[-1]["text"][:90]))
-    for line in (_caught_up_line(), _catch_up_line()):
+    for line in (_friction_line(), _caught_up_line(), _catch_up_line()):
         if line:
             lines.append(line)
     line = _evolve_line()
