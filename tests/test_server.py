@@ -426,6 +426,15 @@ if __name__ == "__main__":
 
 
 class TestDemoMode(TempHome):
+    def test_the_demo_counts_its_own_updates(self):
+        """Screenshots show the count and the list side by side: they have to agree."""
+        from cos import demo
+        n = sum(len(src["items"]) for src in demo.UPDATES["sources"].values())
+        self.assertEqual(demo.UPDATES["total"], n)
+        self.assertIn("%d updates available" % n, demo.STATUS["signals"][0]["msg"])
+        self.assertIn("**Updates:** %d waiting" % n, demo.BRIEF["text"])
+        self.assertTrue(any("%d updates available" % n in line for line in demo.BOOT))
+
     def test_demo_never_reads_or_changes_the_real_machine(self):
         from cos import demo
         app = server.App("t", demo=True)

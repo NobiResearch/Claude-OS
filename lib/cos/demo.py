@@ -27,7 +27,7 @@ STATUS = {
         "memory": [{"name": "Xcode", "cpu": 38.0, "rss": 3 * GB}, {"name": "Simulator", "cpu": 3.0, "rss": int(2.2 * GB)},
                    {"name": "Safari", "cpu": 12.0, "rss": GB}, {"name": "claude", "cpu": 9.0, "rss": GB // 2}],
     },
-    "signals": [{"level": "note", "msg": "23 updates available (checked 2h ago)"},
+    "signals": [{"level": "note", "msg": "8 updates available (checked 2h ago)"},
                 {"level": "note", "msg": "41.2 GB safely reclaimable (scanned 1h ago)"}],
 }
 
@@ -56,7 +56,7 @@ CLEAN = {"deep": False, "seconds": 6.8, "safe_bytes": int(41.2 * GB),
              _t("homebrew", "Homebrew downloads & old versions", "safe", 1.7, "Old formula versions and cached downloads.", action="cmd"),
          ]}
 
-UPDATES = {"total": 23, "fetched": True, "missing_tools": [], "sources": {
+UPDATES = {"total": 8, "fetched": True, "missing_tools": [], "sources": {
     "macos": {"items": [], "error": None},
     "brew": {"error": None, "items": [
         {"name": "node", "kind": "formula", "installed": "24.9.0", "latest": "25.1.0", "major": True, "pinned": False},
@@ -124,7 +124,7 @@ DAEMONS = [
 
 BRIEF = {"file": "demo.md", "ts": NOW - 3 * 3600, "text": """# Good morning — Saturday 24 October
 
-**Mac:** 412 GB free, all quiet. **Updates:** 23 waiting; Node 25 is a major bump, so look first.
+**Mac:** 412 GB free, all quiet. **Updates:** 8 waiting; Node 25 is a major bump, so look first.
 
 ## Worth your time
 - **The quiet comeback of the airship** — cargo routes where runways don't reach. https://example.com/
@@ -137,7 +137,7 @@ One evolve branch waiting: *brief: link to articles instead of comment threads*.
 BOOT = ["◆ Claude OS (demo) · a fictional Mac, for screenshots",
         "  Mac16,8 · macOS 27.0.1 · Apple M4 Pro · up 3d 2h",
         "  disk 412 GB free (41.4%) · memory 21.4 GB/48.0 GB · battery 81% charging",
-        "  signals: 23 updates available · 41.2 GB safely reclaimable",
+        "  signals: 8 updates available · 41.2 GB safely reclaimable",
         "  music: ▶ Weightless — Marconi Union",
         "  daemons: pulse ●  morning ●  evolve ●  board –",
         "  memory: 3 things you've taught me"]
