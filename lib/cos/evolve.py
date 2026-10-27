@@ -588,9 +588,10 @@ def main(args):
         touched = safety_files(args.branch)
         if touched is None:
             core.die("couldn't list what %s changes; not merging" % args.branch)
-        # Decision 0020: the human's yes to this command (its card, or the desktop's Merge
-        # dialog) is the review of an evolve branch; one that changes the safety files also
-        # gets a guardian agent's, and says so with --reviewed.
+        # Decision 0020: this shows no card in a conversation (0013), so Claude runs it only
+        # after the human's yes there or a guardian agent's review of the branch; the desktop's
+        # Merge dialog is the human's yes. One that changes the safety files says so with
+        # --reviewed.
         review = ("%s changes Ovenbird's safety files (%s). Decisions 0013 and 0020: a guardian agent reviews it "
                   "first, then merge with --reviewed." % (args.branch, ", ".join(touched[:4]))) if touched else ""
         if not args.yes:

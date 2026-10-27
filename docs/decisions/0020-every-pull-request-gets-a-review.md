@@ -32,10 +32,11 @@ leave gaps.
   files the change touches, which the review reads first, and prints the exact merge command.
 - **`PROTECTED` and everything it shows the human stay as they are.** It now means "look here
   first", not "the only files that get a review".
-- **An evolve branch merges through `cos evolve merge <branch> --yes`.** That command always
-  asks the human (its Allow card, or the desktop's Merge dialog), and their yes is that
-  branch's review. A branch that changes the safety files also gets a guardian agent's review
-  and says so with `--reviewed`, as before.
+- **An evolve branch merges through `cos evolve merge <branch> --yes`, which shows no card in a
+  conversation** (0013 removed its ask rule). So Claude runs it only after the human's yes in
+  this conversation, or after a guardian agent has reviewed that branch's diff, like any other
+  pull request. The desktop's Merge dialog is the human's yes. A branch that changes the safety
+  files also says so with `--reviewed`, as before.
 
 ## Consequences
 
