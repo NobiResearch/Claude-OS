@@ -14,10 +14,15 @@ jobs:
     # A run takes about two minutes; a hung test would otherwise hold the runner for six hours.
     timeout-minutes: 20
     steps:
-      # v5 and later run on Node 24; nothing after this step needs the token.
-      - uses: actions/checkout@v7
+      # v5 and later run on Node 24; nothing after this step needs the token. Pinned to a
+      # commit, not a tag that can move (Fable's review, F11): v7.0.1.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           persist-credentials: false
+      # Before the tests, so none of them can change the tree it checks (guard.py itself is a
+      # safety file: a change to it gets an independent review).
+      - name: Guard (no private data in the tree)
+        run: /usr/bin/python3 bin/cos guard --all
       - name: Unit tests (system Python)
         run: /usr/bin/python3 -m unittest discover -s tests -v
       # The nightly evolve check runs them like this: no network, no home folder, nothing from
@@ -32,8 +37,6 @@ jobs:
           print(r.out[-4000:], r.err[-4000:], sep="\n")
           sys.exit(0 if r.ok else 1)
           EOF
-      - name: Guard (no private data in the tree)
-        run: /usr/bin/python3 bin/cos guard --all
       - name: Swift tests
         run: swift test --package-path app
       - name: Build Ovenbird.app
