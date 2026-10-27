@@ -49,10 +49,6 @@ what, where, and how we'll know it works.
   `catalog/<name>.yaml` per pull request, pinned to an exact commit and installed by `cos`;
   the Guardian scans each one, and a human merges it. Board first, after 0017: an installed
   skill is code Claude runs.
-- **Say what we want from contributors**: in CONTRIBUTING.md, a ranked list of wanted work,
-  "skill, syscall or daemon?" and what we turn down even when it's well built; an
-  `AI_POLICY.md` (say which tool wrote it, a human understands every line, a summary written
-  by a human). Board first: it's policy.
 - **Credit contributors**: when a maintainer finishes someone's pull request in a new one, keep
   them as `Co-authored-by:` and say so on the original; release notes name every contributor.
 - **A Homebrew tap** ([research](research/growing-the-project.md)): `brew install --cask

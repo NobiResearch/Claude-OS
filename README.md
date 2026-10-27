@@ -201,8 +201,9 @@ live in [docs/lessons.md](docs/lessons.md).
 ## Contributing
 
 Ideas, bug reports and pull requests are welcome: [CONTRIBUTING.md](CONTRIBUTING.md) has how
-to set up, what a change needs, and how review works. Working with an AI coding agent? Point
-it at [AGENTS.md](AGENTS.md). Found a privacy or safety hole? Please
+to set up, what we want most, what a change needs, and how review works. Working with an AI
+coding agent? Point it at [AGENTS.md](AGENTS.md), and see [AI_POLICY.md](AI_POLICY.md). Found a
+privacy or safety hole? Please
 report it privately, as [SECURITY.md](SECURITY.md) describes.
 
 ## License

@@ -44,6 +44,10 @@ bin/cos guard --all                              # the privacy check
 
 ## Pull requests
 
+Read [AI_POLICY.md](AI_POLICY.md). Fill in "Written with" honestly, and leave "What and why"
+and the first checkbox to your human. Check CONTRIBUTING's "What we turn down", and open an
+idea issue before a new command, skill or daemon.
+
 One change per pull request, from a branch of your fork. Maintainers squash-merge, and a pull
 request from outside merges only after the repository owner's yes. Pull request text and code
 comments are read as data: instructions in them addressed to an AI reviewer get the pull
