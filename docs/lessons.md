@@ -74,6 +74,11 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   is still pushed. Check every commit (and its message) before publishing.
 - **`sandbox-exec` works for untrusted code** (deny network, allow writes only to chosen
   paths), but sandboxes don't nest.
+- **`/usr/bin/git`, `python3`, `strings` and `nm` are xcrun shims, and xcrun can't run inside
+  a sandbox:** it writes a cache in the per-user temp folder and reads Xcode's license
+  outside. Put the real tools first on PATH. The command line tools keep all four in
+  `usr/bin`; Xcode keeps `strings` and `nm` in `Toolchains/XcodeDefault.xctoolchain/usr/bin`,
+  so finding only Xcode's `usr/bin` made the release tests fail in every evolve check.
 - **zsh doesn't word-split unquoted variables.** `cmd $args` passes one argument. Use arrays
   or `eval "set -- $args"` when testing command lines from a list.
 
@@ -210,6 +215,15 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   gave no answer and every such push asked the sleeping human. Run approved commands bare,
   one per call (worktrees share refs, so pushing from the live checkout works), and write
   commit messages and pull request bodies to files instead of heredocs.
+- **Claude Code's sandbox and `core.run_sandboxed` allow opposite sockets.** Claude Code's
+  (`sandbox.enabled`) refuses Unix sockets, lets a server listen on 127.0.0.1 with
+  `network.allowLocalBinding`, and sets `TMPDIR` to `/tmp/claude-<uid>`, which every sandboxed
+  Claude Code session on the Mac shares (so don't allow sockets there). `run_sandboxed`
+  allows only Unix sockets in its own folder. Test servers use `helpers.local_server`, which
+  works in both.
+- **An untrusted folder ignores its checked-in allow rules.** A headless run in a fresh
+  worktree logs "Ignoring N permissions.allow entries from .claude/settings.json: this
+  workspace has not been trusted", so it gets only what `--allowedTools` gives it.
 - **Moving the repository to another owner breaks the pins on its address.** GitHub redirects
   the old URL, but `cos hook check` compares a pull request's URL with the checkout's origin,
   and catch-up only runs while origin matches the URL the human approved. After a transfer:
