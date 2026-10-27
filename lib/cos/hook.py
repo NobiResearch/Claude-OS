@@ -360,6 +360,112 @@ def permission():
     return 0
 
 
+# ---------------------------------------------------------------- cos hook pretool (0017)
+#
+# Claude Code matches permission rules against a command as it's written, so `cos  clean apply`
+# (two spaces) or `cos 'clean' apply` slips past the ask for `cos clean apply*`, while cos
+# itself reads the same argv. Before every Bash call, this reads the command the way a shell
+# would, writes each cos call the canonical way, and asks the human when that matches one of
+# the checked-in ask rules. It only ever adds a card.
+
+OPERATORS = {";", "&&", "||", "|", "&", "(", ")", "|&", ";;"}
+ASK = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask"}}
+
+
+def _is_cos(token):
+    return token in ("cos", "bin/cos", "./bin/cos") or token.endswith("/bin/cos")
+
+
+PLAIN = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _tokens(text, posix):
+    lex = shlex.shlex(text, posix=posix, punctuation_chars=";&|()")
+    lex.whitespace_split = True
+    lex.commenters = ""  # `#` in a word isn't a comment to a shell, and mustn't hide what follows
+    return list(lex)
+
+
+def cos_calls(command):
+    """Every cos call in a shell command -> [(canonical, words)]: "cos clean apply x --yes", and
+    the leading subcommand words as written, up to the first that isn't a plain word (a quote,
+    a redirection, `$…`, braces). None when the command runs cos and can't be read for sure."""
+    text = str(command or "")
+    if not re.search(r"(^|[^\w-])cos\b", text):
+        return []
+    text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
+    # A cos call anywhere in the text, inside `$( )`, backticks or quotes too.
+    runs_cos = any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
+    try:
+        cooked, raw = _tokens(text, True), _tokens(text, False)
+    except ValueError:
+        return None if runs_cos else []
+    if len(cooked) != len(raw):
+        return None
+    calls = []
+    for i, token in enumerate(cooked):
+        if not _is_cos(token):
+            continue
+        argv, plain = [], []
+        for c, r in zip(cooked[i + 1:], raw[i + 1:]):
+            if c in OPERATORS:
+                break
+            argv.append(c)
+            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
+                plain.append(r)
+        calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
+    if runs_cos and ("`" in text or "$(" in text or "<(" in text):
+        return None
+    return calls
+
+
+def ask_patterns(root=None):
+    """The checked-in ask rules for cos, as glob patterns over "cos …"."""
+    try:
+        with open(os.path.join(str(root or core.ROOT), ".claude", "settings.json")) as f:
+            asks = json.load(f)["permissions"]["ask"]
+    except Exception:
+        return None
+    return [a[len("Bash("):-1] for a in asks if a.startswith("Bash(cos ") and a.endswith(")")]
+
+
+def pretool_decision(command, patterns):
+    """-> why to ask, or None for no opinion."""
+    import fnmatch
+    calls = cos_calls(command)
+    if calls is None:
+        return "Claude OS can't read this command for sure, and it runs cos"
+    if calls and patterns is None:
+        return "Claude OS couldn't read its own ask rules"
+    for call, plain, odd in calls:
+        if any(fnmatch.fnmatchcase(call, p) for p in patterns):
+            return "`%s` changes something" % call[:120]
+        if odd:
+            # A word that isn't plain where a subcommand could still be chosen: it might become one.
+            prefix = " ".join(["cos"] + plain)
+            literal = [p.split("*", 1)[0].rstrip() for p in patterns]
+            if any(l == prefix or l.startswith(prefix + " ") for l in literal):
+                return "`%s …` is written in a way Claude OS can't read for sure" % prefix[:120]
+    return None
+
+
+def pretool():
+    """The PreToolUse hook: print an ask, or nothing. Any error is no opinion: the normal rules
+    still apply, and they ask for the canonical spellings."""
+    try:
+        request = json.loads(sys.stdin.read() or "{}")
+        if request.get("tool_name") != "Bash":
+            return 0
+        why = pretool_decision((request.get("tool_input") or {}).get("command"), ask_patterns())
+        if why:
+            out = json.loads(json.dumps(ASK))
+            out["hookSpecificOutput"]["permissionDecisionReason"] = why
+            print(json.dumps(out))
+    except BaseException:  # noqa: B036
+        pass
+    return 0
+
+
 # ---------------------------------------------------------------- cos hook check
 
 def merge_command(number, sha):
@@ -414,6 +520,8 @@ def render_waiting(rows):
 def main(args):
     if args.hook_cmd == "permission":
         return permission()
+    if args.hook_cmd == "pretool":
+        return pretool()
     target = args.target
     if target is None:
         rows = waiting(os.getcwd())

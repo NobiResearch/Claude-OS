@@ -41,6 +41,16 @@ runs code from any folder. A download's `settings.local.json` denies `gh` and `g
   whatever the switch said, which for a stranger's clone would have meant `gh` without a card.
   The owner never needed that: their own `gh *` allow means the hook doesn't fire for them.
 - **`cos app` on its own** (it builds and installs the app) asks, like `cos app install`.
+- **A cos call that changes something gets a card even when it's oddly written.** A
+  PreToolUse hook (`cos hook pretool`) reads each Bash command the way a shell would, writes
+  every cos call in it the canonical way, and asks when that matches one of the checked-in
+  `ask` rules. `cos  clean apply` (two spaces), `cos 'clean' apply`, a full path to `bin/cos`,
+  a `#` or a line continuation no longer slip past them. Where a subcommand could still be
+  chosen, a word that isn't plain (a redirection, `$…`, braces) asks, and so does a command
+  that runs cos with backticks, `$( )` or an open quote in it. It only ever adds a card, and an
+  error is no opinion. It never runs in a background job: the checked-in command line skips it
+  when `CLAUDE_OS_DAEMON` is set (a daemon's project is its own workspace clone, whose `bin/cos`
+  the model can edit, and hooks run outside the sandbox), and so does the night shift's hook.
 - **A test holds the line.** `test_security.TestStrangerSafeSettings` fails if the checked-in
   settings allow anything outside a vetted list, and in particular any `git`, `gh`, `python`,
   `sh`, `bash` or `curl` rule.
@@ -55,11 +65,16 @@ runs code from any folder. A download's `settings.local.json` denies `gh` and `g
 
 ## Known gaps, before the first public release
 
-- `Bash(cos *)` allows every `cos` command, and the mutating ones are caught by `ask` rules,
-  a deny list over an open door. Claude Code matches rule strings as written, so an odd
-  spelling (two spaces, quotes around a word) might slip past an `ask` (not verified).
-  Replace it with an allowlist of read-only subcommands, or a PreToolUse hook that sends any
-  mutating `cos` to a card.
+- `Bash(cos *)` still allows every `cos` command, and the mutating ones ask through the `ask`
+  rules and the PreToolUse hook. A mutation missing from the `ask` list would run without a
+  card; `test_security` checks that every one in `cli.MUTATING` is there. The hook reads
+  shell syntax with Python's shlex, which isn't zsh: spellings neither of them anticipated may
+  remain.
+- Closed since (#93, #94): the evolve run could edit its workspace's settings, its hooks ran
+  code it could edit outside the sandbox, and its bare Edit/Write allows reached any path. It
+  now runs with `disableAllHooks`, may not edit the settings files, and edits only inside its
+  workspace (acceptEdits). The morning and board runs still load hooks: the brief reads the
+  boot banner.
 - In a stranger's clone, `cos evolve merge <branch> --yes` pushes, opens a pull request and
   merges through its own subprocesses (an evolve branch has to exist first).
 - `cos remember` can carry injected text into every boot banner.
