@@ -259,7 +259,7 @@ def ask(question):
     if not core.which("claude"):
         core.die("Claude Code isn't installed")
     core.journal("ask", question)
-    cmd = ["claude", "-p", "--setting-sources", core.SETTING_SOURCES]
+    cmd = ["claude", "-p", "--permission-mode", "manual", "--setting-sources", core.SETTING_SOURCES]
     denies = core.local_denies()
     cmd += (["--disallowedTools"] + denies if denies else []) + ["--", question]
     return subprocess.call(cmd, cwd=str(core.ROOT))

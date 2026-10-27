@@ -455,7 +455,8 @@ def claude_command(spec, capped=True):
         cmd += ["--allowedTools"] + spec["allowed_tools"]
     if spec.get("sandbox"):
         cmd += ["--settings", json.dumps(SANDBOX_SETTINGS)]
-    cmd += ["--disallowedTools"] + spec.get("disallowed_tools", []) + ALWAYS_DENIED
+    denied = spec.get("disallowed_tools", []) + ALWAYS_DENIED
+    cmd += ["--disallowedTools"] + denied + [r for r in core.local_denies() if r not in denied]
     return cmd
 
 

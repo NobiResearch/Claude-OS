@@ -121,7 +121,9 @@ class TestDaemons(TempHome):
         self.addCleanup(lambda: __import__("shutil").rmtree(root, ignore_errors=True))
         os.makedirs(os.path.join(root, ".claude"))
         with open(os.path.join(root, ".claude", "settings.local.json"), "w") as f:
-            json.dump({"permissions": {"allow": ["Bash(git *)"], "deny": ["Bash(rm *)", 3]}}, f)
+            json.dump({"permissions": {"allow": ["Bash(git *)"],
+                                       "deny": ["Bash(rm *)", 3, "--permission-mode=bypassPermissions", "", "-x"]}}, f)
+        specs = {n: daemon.definitions()[n] for n in ("morning", "board")}  # read from the real ROOT
         with mock.patch.object(core, "ROOT", __import__("pathlib").Path(root)):
             for downloaded, expected in ((False, ["Bash(rm *)"]), (True, ["Bash(rm *)"] + core.DOWNLOAD_DENY)):
                 with mock.patch.object(core, "downloaded", return_value=downloaded):
@@ -136,6 +138,17 @@ class TestDaemons(TempHome):
                     self.assertEqual(argv[argv.index("--setting-sources") + 1], core.SETTING_SOURCES)
                     self.assertEqual(argv[-2:], ["--", "-p is a flag, not a question"])
                     self.assertEqual(argv[argv.index("--disallowedTools") + 1:-2], expected)
+                    self.assertEqual(argv[argv.index("--permission-mode") + 1], "manual")
+                    # The background runs that read feeds keep the person's denies too.
+                    for name, spec in specs.items():
+                        denied = daemon.claude_command(spec)
+                        denied = denied[denied.index("--disallowedTools") + 1:]
+                        for rule in expected:
+                            self.assertIn(rule, denied, name)
+                    # Only rule-shaped entries reach a command line: none can become a flag.
+                    self.assertFalse([a for a in cmd + argv[:-1] if a.startswith("-") and a not in (
+                        "-p", "--input-format", "--output-format", "--verbose", "--include-partial-messages",
+                        "--permission-prompt-tool", "--permission-mode", "--setting-sources", "--disallowedTools", "--")])
 
     def test_cos_ask_refuses_inside_the_apps_chat(self):
         # It would start a second Claude that answers to no Allow card (the guardian on #118).

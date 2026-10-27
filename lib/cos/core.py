@@ -459,14 +459,19 @@ def downloaded():
 SETTING_SOURCES = "user,project"
 
 
+# What a permission rule looks like: a tool name, then maybe its pattern in brackets. Nothing
+# else from that file reaches a command line, so no entry can become a flag (`--permission-mode…`).
+RULE = re.compile(r"[A-Za-z][\w.-]*(\(.*\))?")
+
+
 def local_denies():
     """The deny rules no choice of setting sources may drop, for --disallowedTools: whatever
     the person denied in .claude/settings.local.json, and a downloaded copy's DOWNLOAD_DENY,
-    which lives in that same file (0015)."""
+    which lives in that same file (0015). That file can only take power away here."""
     d = load_json(ROOT / ".claude" / "settings.local.json", {})
     perms = d.get("permissions") if isinstance(d, dict) else None
     deny = perms.get("deny") if isinstance(perms, dict) else None
-    rules = [r for r in deny if isinstance(r, str) and r] if isinstance(deny, list) else []
+    rules = [r for r in deny if isinstance(r, str) and RULE.fullmatch(r)] if isinstance(deny, list) else []
     if downloaded():
         rules += [r for r in DOWNLOAD_DENY if r not in rules]
     return rules
