@@ -14,10 +14,8 @@ what, where, and how we'll know it works.
 
 ## Hardening
 
-- The sandbox for model-written tests only knows `/Applications/Xcode.app` and the command
-  line tools: with an Xcode under another name selected, its git and python3 are shims that
-  can't run inside (friction #24).
-- Done: the sandbox for model-written tests is deny-by-default (Apple Events,
+- Done: the sandbox for model-written tests runs any Xcode in `/Applications` that's
+  selected, under whatever name (friction #24). It's deny-by-default (Apple Events,
   LaunchServices, the home folder and the parent's environment are out of reach) and has no
   network: the tests' servers listen on Unix sockets in the run's own folder. The morning
   merge queue is moot since 0013: Claude merges green pull requests as they're ready.
