@@ -52,6 +52,10 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   even when nothing is available.
 - **`brew outdated` is fast without auto-update.** Set `HOMEBREW_NO_AUTO_UPDATE=1`;
   `brew update` is the slow, networked step, so make it opt-in (`--fetch`).
+- **`npm outdated` skips a package whose registry lookup comes back 403**, with no message
+  (it takes a 403 for a private package). Behind a proxy or sandbox that refuses the registry,
+  every lookup is a 403, so it prints `{}` and exits 0, which looks just like "up to date".
+  `--loglevel=http` writes each lookup's status to stderr (`npm http fetch GET 403 <url>`).
 
 ## Git, files and shells
 

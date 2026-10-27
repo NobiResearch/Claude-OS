@@ -101,15 +101,28 @@ def check_brew(fetch=False):
 UNCHECKED = "couldn't check"
 
 
-def parse_npm_outdated(rc, out):
-    """`npm outdated -g --json` -> items, or None if npm couldn't check. Exit 1 with packages
-    is normal (something is outdated); an "error" object, or a failure with nothing listed, is
-    npm not reaching its registry (offline, sandboxed), which isn't "up to date"."""
+# npm's http log (stderr): "npm http fetch GET 403 <url> 12ms", or "npm http cache <url> …"
+NPM_HTTP = re.compile(r"\bhttp (?:fetch [A-Z]+ (\d{3}) |cache )")
+
+
+def npm_refused(err):
+    """Did the registry refuse everything npm asked it (403s, and no answer)? `npm outdated`
+    skips a package whose lookup comes back 403 without a word, taking it for a private one,
+    so behind a proxy or firewall that refuses the registry it prints {} and exits 0."""
+    answers = NPM_HTTP.findall(err or "")
+    return "403" in answers and not any(a == "" or int(a) < 400 for a in answers)
+
+
+def parse_npm_outdated(rc, out, err=""):
+    """`npm outdated -g --json --loglevel=http` -> items, or None if npm couldn't check. Exit 1
+    with packages is normal (something is outdated); an "error" object, a failure with nothing
+    listed, or a registry that refused every lookup is npm not reaching its registry (offline,
+    sandboxed, behind a proxy), which isn't "up to date"."""
     try:
         data = json.loads(out or "{}")
     except ValueError:
         return None
-    if not isinstance(data, dict) or "error" in data or (rc != 0 and not data):
+    if not isinstance(data, dict) or "error" in data or (rc != 0 and not data) or npm_refused(err):
         return None
     return [_classify({"name": name, "kind": "npm", "installed": v.get("current"), "latest": v.get("latest")})
             for name, v in data.items() if isinstance(v, dict)]
@@ -118,8 +131,8 @@ def parse_npm_outdated(rc, out):
 def check_npm():
     if not core.which("npm"):
         return None
-    r = core.run(["npm", "outdated", "-g", "--json"], timeout=90)
-    items = parse_npm_outdated(r.rc, r.out)
+    r = core.run(["npm", "outdated", "-g", "--json", "--loglevel=http", "--color=false"], timeout=90)
+    items = parse_npm_outdated(r.rc, r.out, r.err)
     return {"items": items or [], "error": None if items is not None else UNCHECKED}
 
 
