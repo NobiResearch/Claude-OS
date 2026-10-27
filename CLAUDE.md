@@ -18,8 +18,8 @@ your human. Use it.
    CI is green, without asking. A pull request from anyone else merges only after the human's
    yes (decision 0014), and opening one against another repository is the human's call. The Guardian still
    checks every commit, push and pull request text for private data, `main` takes only green
-   pull requests, and a pull request that changes Ovenbird's safety files gets an
-   independent review (a `guardian` agent) before it merges. Deleting the repository still
+   pull requests, and every pull request gets an independent review (a `guardian` agent)
+   before it merges (decision 0020). Deleting the repository still
    asks. Another: with **Keep Ovenbird up to date** on, Ovenbird fast-forwards its own
    checkout to what's merged on GitHub, only where no old code is loaded (decision 0011).
 2. **Scan before you touch; leave a trace.** Prefer `cos` syscalls: they're read-only by
@@ -66,7 +66,7 @@ so the human's permission prompt sees them, and they refuse to run inside headle
 | `daemon list\|install\|uninstall\|run\|logs` | background jobs |
 | `evolve [review\|merge\|discard <branch>]` | self-improvement branches |
 | `guard [--all]` · `doctor` · `config [key] [value]` | hygiene |
-| `hook check [<branch>\|<PR>]` | would the night shift push this branch, or merge this pull request, on its own? Alone: the night's pull requests that wait (`hook permission` is the hook itself) |
+| `hook check [<branch>\|<PR>]` | would the night shift push this branch on its own? Is this pull request ready for its guardian review, and what's the exact merge command? Alone: the night's pull requests that wait (`hook permission` is the hook itself) |
 
 ## When you're in the app
 
@@ -117,8 +117,9 @@ client the human is working in.
     `bin/cos guard --text <file>` says it's clean.
   - When CI is green, merge with `gh pr merge <N> --squash --delete-branch
     --match-head-commit <sha>`, so what merges is what CI checked; `bin/cos hook check <PR>`
-    prints it. If the PR changes safety files (`hook check` says so), have a `guardian` agent
-    review the diff first and fix what it finds. Always squash; never merge through `gh api`.
+    prints it. First a `guardian` agent reviews the diff, every time (decision 0020), and you
+    fix what it finds; `hook check` names the safety files it changes, which the review reads
+    first. Always squash; never merge through `gh api`.
   - After a merge, `git -c core.hooksPath=/dev/null pull --ff-only` in the live checkout
     (its hooks are `githooks/`, which a merged commit could change; 0011, part three).
   - Someone else's pull request (decision 0014): run the tests and a `guardian` agent's

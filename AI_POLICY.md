@@ -1,9 +1,10 @@
 # AI policy
 
 AI tools are welcome here. Claude writes most of Ovenbird, and its owner answers for what
-merges. The tests and the Guardian's privacy check run on every change, and a change to the
-safety files gets an independent safety review
-([decision 0013](docs/decisions/0013-the-repository-is-claudes.md)). We ask the same of you:
+merges. The tests and the Guardian's privacy check run on every change, and every pull
+request gets an independent guardian review before it merges
+([decisions 0013](docs/decisions/0013-the-repository-is-claudes.md) and
+[0020](docs/decisions/0020-every-pull-request-gets-a-review.md)). We ask the same of you:
 your agent is welcome, and you answer for what it wrote.
 
 This is for pull requests from outside. Claude's own pull requests are opened and merged under
@@ -18,7 +19,7 @@ This is for pull requests from outside. Claude's own pull requests are opened an
   what we turn down, and one change per pull request.
 
 Saying how a change was written doesn't change how it's reviewed. Every pull request from
-outside gets the same tests, the same review of safety files and the owner's yes. No bot or CI
+outside gets the same tests, the same guardian review and the owner's yes. No bot or CI
 job reads pull request text, and none of it goes to an AI-detection service.
 
 When a pull request doesn't fit, Claude drafts a short reason that says what would make the

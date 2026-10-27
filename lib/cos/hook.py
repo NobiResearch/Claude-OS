@@ -36,7 +36,10 @@ ALLOW = {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision"
 COMMAND = re.compile(r"[A-Za-z0-9._/ -]+")  # no quotes, $, ;, &, |, <, >, globs, :, +, @, ~ or newlines
 BRANCH = re.compile(r"night/[A-Za-z0-9._-]+")
 SHA = re.compile(r"[0-9a-f]{40}")
-GITHUB = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
+# Every pull request gets a guardian agent's review before it merges (decision 0020), so the
+# hook never merges one on its own: at best it's ready for that review.
+READY = "ready once a guardian agent has reviewed it (0020)"
+GITHUB =re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
 # A night shift can't widen its own powers: this hook never merges changes here (they get a
 # guardian review first, 0013). That
 # includes the code this hook leans on (core, cli, evolve's guard_branch), the server that
@@ -306,13 +309,12 @@ def decide_merge(number, sha, facts):
         return False, "#%d's checks aren't all green yet" % number
     if facts.get("paths") is None:
         return False, "couldn't list what #%d changes" % number
-    touched = [p for p in facts["paths"] if protected(p)]
-    if touched:
-        return False, ("changes Ovenbird's safety files (%s): the hook never merges that; have a guardian agent "
-                       "review it first (0013)" % ", ".join(touched[:3]))
     if facts.get("problems"):
         return False, "the Guardian found %d problem(s)" % len(facts["problems"])
-    return True, "merged #%d (%s at %s)" % (number, head, sha[:8])
+    touched = [p for p in facts["paths"] if protected(p)]
+    where = ("; it changes Ovenbird's safety files (%s), so the review looks there first" % ", ".join(touched[:3])
+             if touched else "")
+    return False, READY + where
 
 
 def decide(request, cfg, look=inspect, look_pr=inspect_pr):
@@ -473,7 +475,9 @@ def merge_command(number, sha):
 
 
 def check_pr(number, cwd=None):
-    """Would the night shift merge #number on its own? -> (approve, why, the exact command)."""
+    """Is #number ready for its guardian review and merge? -> (ready, why, the exact command).
+    The pull request is judged whatever the Night shift switch says (0020): the switch only
+    decides whether the hook may run git and gh for a clone's Claude."""
     view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid"], cwd=cwd or os.getcwd(), timeout=15)
     try:
         sha = json.loads(view.out).get("headRefOid") if view.ok else None
@@ -482,8 +486,10 @@ def check_pr(number, cwd=None):
     if not sha or not SHA.fullmatch(sha):
         return False, "couldn't read pull request #%d" % number, None
     command = merge_command(number, sha)
-    approve, why = decide({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd or os.getcwd()}, core.config())
-    return approve, why, command
+    cfg = core.config()
+    cfg["autonomy"] = dict(cfg.get("autonomy") or {}, night_shift=True)
+    _, why = decide({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd or os.getcwd()}, cfg)
+    return why.startswith(READY), why, command
 
 
 def waiting(cwd=None):
@@ -506,7 +512,7 @@ def waiting(cwd=None):
             continue
         approve, why, command = check_pr(pr["number"], cwd)
         rows.append({"number": pr["number"], "title": pr.get("title"), "branch": pr["headRefName"], "url": pr.get("url"),
-                     "merges_on_its_own": approve, "why": why, "command": command})
+                     "ready": approve, "why": why, "command": command})
     return rows
 
 
@@ -517,7 +523,7 @@ def render_waiting(rows):
         print("No night shift pull requests are open.")
     for r in rows or []:
         print("#%d %s (%s)\n    %s\n    %s" % (r["number"], r["title"], r["branch"],
-                                          "ready to merge on its own" if r["merges_on_its_own"] else "waits: " + r["why"], r["url"]))
+                                          r["why"] if r["ready"] else "waits: " + r["why"], r["url"]))
 
 
 def main(args):
@@ -535,7 +541,7 @@ def main(args):
     if target.isdigit():
         approve, why, command = check_pr(int(target))
         core.emit({"pr": int(target), "approve": approve, "why": why, "command": command}, args.json,
-                  lambda d: print(("✓ would merge on its own: " + d["command"]) if d["approve"] else "✗ would ask the human: " + d["why"]))
+                  lambda d: print(("✓ %s: %s" % (d["why"], d["command"])) if d["approve"] else "✗ waits: " + d["why"]))
         return 0 if approve else 1
     approve, why = decide({"tool_name": "Bash", "tool_input": {"command": "git push -u origin %s" % target},
                            "cwd": os.getcwd()}, core.config())

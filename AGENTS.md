@@ -38,9 +38,9 @@ bin/cos guard --all                              # the privacy check
 - A change people will notice gets its own file in `changes/` (see `changes/README.md`).
   Never edit `CHANGELOG.md`.
 - A design change gets a decision record in `docs/decisions/`.
-- Changes to safety files (`lib/cos/hook.py`, `guard.py`, `evolve.py`, `server.py`, `core.py`,
-  `.claude/`, `.github/`, `CLAUDE.md`, `app/` and the rest of `hook.PROTECTED`) get an
-  independent safety review before they merge.
+- Every pull request gets an independent guardian review before it merges (decision 0020).
+  It looks hardest at the safety files (`lib/cos/hook.py`, `guard.py`, `evolve.py`, `server.py`,
+  `core.py`, `.claude/`, `.github/`, `CLAUDE.md`, `app/` and the rest of `hook.PROTECTED`).
 
 ## Pull requests
 
