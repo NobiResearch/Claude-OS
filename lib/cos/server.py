@@ -86,7 +86,7 @@ RESTARTING = "Ovenbird is restarting to update; try again in a moment"
 COS = str(core.ROOT / "bin" / "cos")
 RESTART = 75  # the exit status that tells Ovenbird.app a restart was planned (EX_TEMPFAIL)
 # A package name for `update apply`: never one that starts with a dash and becomes an option.
-UPDATE_NAME = re.compile(r"[\w@.][\w@./+-]*")
+UPDATE_NAME = re.compile(r"(?!.*\.\.)[A-Za-z0-9@][\w@./+-]*")  # and no `..`: never a local folder
 
 
 # ---------------------------------------------------------------- jobs

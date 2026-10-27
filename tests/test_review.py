@@ -57,10 +57,20 @@ class TestReviewFindings(TempHome):
         self.assertEqual(cfg["extra"], 3)  # a section with no default is kept as written
 
     def test_f17_a_package_name_never_starts_with_a_dash(self):
-        for ok in ("node", "@scope/pkg", "python@3.14", "a.b+c-d", "_x"):
+        for ok in ("node", "@scope/pkg", "python@3.14", "a.b+c-d", "3to2"):
             self.assertTrue(server.UPDATE_NAME.fullmatch(ok), ok)
-        for bad in ("-g", "--force", "", "a b", "x;y", "-"):
-            self.assertFalse(server.UPDATE_NAME.fullmatch(bad), bad)
+        for bad in ("-g", "--force", "", "a b", "x;y", "-", "../x", ".hidden", "_x", "a/../b"):
+            self.assertFalse(server.UPDATE_NAME.fullmatch(bad), bad)  # nor a local folder (the guardian on #120)
+
+    def test_f16_cos_config_refuses_to_write_a_section_as_a_plain_value(self):
+        for argv in (["config", "notify", "false"], ["config", "music", "on"]):
+            with self.assertRaises(SystemExit) as e, redirect_stdout(io.StringIO()):
+                cli.main(argv)
+            self.assertEqual(e.exception.code, 2, argv)
+        self.assertEqual(core.load_json(core.home("config.json"), {}) or {}, {})  # nothing was written
+        with redirect_stdout(io.StringIO()):
+            cli.main(["config", "notify.enabled", "false"])
+        self.assertFalse(core.config()["notify"]["enabled"])
 
     def test_f12_background_runs_are_denied_everything_cos_refuses_them(self):
         for key in cli.MUTATING | cli.DAEMON_REFUSED:
@@ -88,7 +98,17 @@ class TestReviewFindings(TempHome):
         found = lambda text: sorted(why.split(": ", 1)[1] for _, why in guard.check_text("f", text, pats))
         self.assertEqual(found("adalove@Adas-MacBook-Pro ~ % ls"), ["your Mac's network name", "your login name"])
         self.assertEqual(found("Ada’s MacBook Pro"), ["your Mac's name"])
-        self.assertEqual(found("adaloveliness"), [])  # whole words only
+        self.assertEqual(found("ls ~adalove/notes"), ["your login name"])
+        self.assertEqual(found("cd /home/adalove"), ["your login name"])
+        # Only where it names someone (the guardian on #120): not a word, not a noreply address.
+        for text in ("adaloveliness", "adalove alone", "12345+adalove@users.noreply.github.com",
+                     "adalove-tools", "notes.adalove@x"):
+            self.assertEqual(found(text), [], text)
+        # A Mac renamed "Home" or "Studio" isn't a person: no pattern that would block half the tree.
+        for computer in ("Home", "Studio", "Pi", "Office Mac"):
+            with mock.patch.object(guard, "login_name", return_value=""), \
+                    mock.patch.object(core, "run", side_effect=lambda argv, **kw: core.Result(0, computer, "")):
+                self.assertFalse([w for w, _ in guard.personal_patterns() if "Mac" in w], computer)
         # A model name is not a person: never a pattern.
         for name in ("MacBook Pro", "Mac-mini-2", "MacBook-Air.local", "iMac (2)"):
             self.assertTrue(guard.generic_mac_name(name), name)

@@ -45,18 +45,28 @@ def personal_patterns():
     for line in (core.load_json(core.home("guard.json"), {}) or {}).get("extra", []):
         pats.append(("a private term from ~/.claude-os/guard.json", re.compile(re.escape(line), re.I)))
     # A pasted prompt (`name@host %`) or log line carries these without the home path
-    # (Fable's review, F10). Whole words only, and never a name everyone has.
+    # (Fable's review, F10). The login only where it names someone (`login@`, `~login`, a
+    # `/login` folder), never in a GitHub noreply address, and never a word everyone uses.
     login = login_name()
     if login:
-        pats.append(("your login name", re.compile(r"(?<![A-Za-z0-9])%s(?![A-Za-z0-9])" % re.escape(login), re.I)))
-    for what, key in (("your Mac's name", "ComputerName"), ("your Mac's network name", "LocalHostName")):
-        name = core.run(["scutil", "--get", key], timeout=5).out.strip()
-        if name and not generic_mac_name(name):
-            pats.append((what, re.compile(re.escape(name), re.I)))
+        w = re.escape(login)
+        pats.append(("your login name", re.compile(
+            r"(?<![\w.+-])%s@(?!users\.noreply\.github\.com)|~%s(?![\w-])|/%s(?![\w.-])" % (w, w, w), re.I)))
+    # The Mac's names only when they're the "Ada's MacBook Pro" kind macOS makes from a person's
+    # name; "Home" or "Studio" would block half the repository.
+    computer = core.run(["scutil", "--get", "ComputerName"], timeout=5).out.strip()
+    if re.search(r"\w['’]s\s", computer) and not generic_mac_name(computer):
+        local = core.run(["scutil", "--get", "LocalHostName"], timeout=5).out.strip()
+        for what, name in (("your Mac's name", computer), ("your Mac's network name", local)):
+            if name and not generic_mac_name(name):
+                pats.append((what, re.compile(r"(?<![\w-])%s(?![\w-])" % re.escape(name), re.I)))
     return pats
 
 
-COMMON_LOGINS = {"root", "admin", "administrator", "user", "guest", "test", "runner", "dev", "mac", "staff"}
+# Logins that are also everyday words or folder names: as a pattern they'd block half the tree.
+COMMON_LOGINS = {"root", "admin", "administrator", "user", "users", "guest", "test", "runner", "dev", "mac",
+                 "staff", "home", "code", "data", "music", "work", "claude", "apps", "docs", "share", "local",
+                 "private", "shared", "build", "tools", "projects"}
 
 
 def login_name():

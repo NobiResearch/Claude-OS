@@ -14,8 +14,9 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos cal --json`: today's events and due reminders, if they've connected the calendar.
 - `bin/cos update --json` (cached data is fine; don't `--fetch` here).
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
-- `bin/cos friction` and `bin/cos evolve`: what the OS itself needs, including the night
-  shift's open pull requests and what each waits for.
+- `bin/cos friction` and `bin/cos evolve`: what the OS itself needs. Headless, `cos evolve`
+  doesn't list the night shift's pull requests (a background run never asks GitHub); the
+  night's merges are in the journal below.
 - `bin/cos log --days 1 --kind action`: what the night shift pushed and merged ("night shift: …").
 - `bin/cos daemon logs evolve`: only whether last night's run ended with `Couldn't record:`,
   and only when that run is from last night (its file in `~/.claude-os/runs/evolve/` is named

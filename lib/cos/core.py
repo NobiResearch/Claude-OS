@@ -529,7 +529,9 @@ def config():
     user = load_json(home("config.json"), {}) or {}
     for section, values in user.items():
         if isinstance(cfg.get(section), dict):
-            if isinstance(values, dict):  # a hand-edited `"autonomy": true` keeps the defaults (off)
+            # A section written as a plain value (a hand edit like `"autonomy": true`) is ignored
+            # and keeps its defaults; `cos config` refuses to write one.
+            if isinstance(values, dict):
                 cfg[section].update(values)
         else:
             cfg[section] = values
