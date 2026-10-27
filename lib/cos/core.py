@@ -214,8 +214,11 @@ def _other_xcode(developer, applications="/Applications"):
     if (not app.endswith(".app") or os.path.dirname(app) != os.path.realpath(applications)
             or real != os.path.join(app, "Contents", "Developer") or (app + "/").startswith(SANDBOX_BIN)):
         return ()
+    info = os.path.join(app, "Contents", "Info.plist")
+    if not os.path.isfile(info):  # a FIFO there would hang the read
+        return ()
     try:
-        with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f:
+        with open(info, "rb") as f:
             bundle = plistlib.load(f).get("CFBundleIdentifier")
     except Exception:  # unreadable or not a plist: not an Xcode we can vouch for
         return ()
@@ -247,9 +250,8 @@ def run_sandboxed(cmd, cwd, timeout=600):
     home_dir = os.path.realpath(os.path.expanduser("~"))
     private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
     developer = run(["xcode-select", "-p"], timeout=5).out.strip()
+    developer = os.path.realpath(developer) if developer else ""  # the sandbox sees real paths
     xcode = _other_xcode(developer)
-    if xcode:
-        developer = os.path.realpath(developer)
     path = _sandbox_path(os.environ.get("PATH", ""), developer, xcode)
     # Under /private/tmp: a Unix socket's path has to fit in 104 bytes.
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-", dir="/private/tmp") as tmp:
@@ -271,6 +273,27 @@ def run_sandboxed(cmd, cwd, timeout=600):
                "CLAUDE_OS_DAEMON": "sandboxed-tests"}
         argv = ["/usr/bin/env", "-i"] + ["%s=%s" % kv for kv in sorted(env.items())]
         return run(argv + ["sandbox-exec", "-p", profile] + list(cmd), timeout=timeout, cwd=real)
+
+
+# Model text that could carry a command or a link to a notification: backticks, $, pipes, links.
+LINK_OR_COMMAND = re.compile(r"[`$|]|://|www\.", re.I)
+
+
+def plain_line(text, fallback, limit=180):
+    """One line of model-written text, fit for a notification or the journal: compatibility
+    forms folded (a fullwidth colon is a colon), no control, format or line-separator
+    characters (bidi overrides, U+2028), and the fallback instead if it carries a command or a
+    link."""
+    import unicodedata
+    out = []
+    for c in unicodedata.normalize("NFKC", text or ""):
+        cat = unicodedata.category(c)
+        if cat in ("Zl", "Zp") or c in "\r\n\t":
+            out.append(" ")
+        elif not cat.startswith("C"):
+            out.append(c)
+    line = " ".join("".join(out).split())[:limit]
+    return fallback if not line or LINK_OR_COMMAND.search(line) else line
 
 
 def osascript(script, timeout=10):
@@ -502,6 +525,11 @@ def config_set(dotted, value):
 
 REPOSITORY = "github.com/NobiResearch/Claude-OS"
 RELEASES = "https://%s/releases" % REPOSITORY
+# What a downloaded copy's Claude may never do on its own (decision 0015): the repository isn't
+# the person's. Claude OS.app writes these into the copy's .claude/settings.local.json when it
+# downloads it (FirstLaunch.localSettings, the same list), and system.keep_download_settings
+# puts them back if they go missing.
+DOWNLOAD_DENY = ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)", "Bash(git * push*)"]
 # The oldest Claude OS.app this code works with (decision 0015, step 6). Raise it when the
 # server needs something only a newer app does, and a downloaded app that's older says so.
 APP_NEEDED = "0.7.0"

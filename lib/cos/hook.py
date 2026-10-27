@@ -12,10 +12,11 @@ the human has "Night shift" on in Settings, it approves two things and nothing e
   leaves Claude OS's safety files alone. A merge is where code starts to run, so a pull
   request that touches the gate waits for the human's merge.
 
-It also lets read-only `gh api <path>` calls through, which the merge rules otherwise ask
-about, and pull request text (`gh pr create|edit|comment` with a title and a body) once the
-Guardian has read it, whatever the switch says: that's a check, not a grant. Anything else, any doubt, any error: it prints nothing and the human's normal prompt
-appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
+While the switch is on, it also lets read-only `gh api <path>` calls through, which the merge
+rules otherwise ask about, and pull request text (`gh pr create|edit|comment` with a title and
+a body) once the Guardian has read it. With the switch off, or in a downloaded copy, it
+approves nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any
+doubt, any error: it prints nothing and the human's normal prompt appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
 human's own GitHub login, and decision 0006 lists the spellings these rules don't catch.
 
 `cos hook check <branch|PR>` answers the same question without acting, so a night shift
@@ -321,15 +322,15 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
     if request.get("tool_name") != "Bash":
         return False, "not a shell command"
     command = (request.get("tool_input") or {}).get("command")
-    if parse_api_read(command):
-        return True, "a read-only gh api call"
-    pr_text = parse_pr_text(command)
-    if pr_text:  # a safety check, not a grant: clean text passes whatever the switch says
-        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     if not (cfg.get("autonomy") or {}).get("night_shift"):
         return False, "night shift is off"
     if core.downloaded():
         return False, "a downloaded Claude OS doesn't push or merge (decision 0015)"
+    if parse_api_read(command):
+        return True, "a read-only gh api call"
+    pr_text = parse_pr_text(command)
+    if pr_text:
+        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     cwd = request.get("cwd") or str(core.ROOT)
     branch = parse_push(command)
     if branch:
@@ -355,6 +356,112 @@ def permission():
         if approve:
             print(json.dumps(ALLOW))
     except BaseException:  # noqa: B036 — any doubt falls through to the human's prompt
+        pass
+    return 0
+
+
+# ---------------------------------------------------------------- cos hook pretool (0017)
+#
+# Claude Code matches permission rules against a command as it's written, so `cos  clean apply`
+# (two spaces) or `cos 'clean' apply` slips past the ask for `cos clean apply*`, while cos
+# itself reads the same argv. Before every Bash call, this reads the command the way a shell
+# would, writes each cos call the canonical way, and asks the human when that matches one of
+# the checked-in ask rules. It only ever adds a card.
+
+OPERATORS = {";", "&&", "||", "|", "&", "(", ")", "|&", ";;"}
+ASK = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "ask"}}
+
+
+def _is_cos(token):
+    return token in ("cos", "bin/cos", "./bin/cos") or token.endswith("/bin/cos")
+
+
+PLAIN = re.compile(r"[A-Za-z0-9._-]+")
+
+
+def _tokens(text, posix):
+    lex = shlex.shlex(text, posix=posix, punctuation_chars=";&|()")
+    lex.whitespace_split = True
+    lex.commenters = ""  # `#` in a word isn't a comment to a shell, and mustn't hide what follows
+    return list(lex)
+
+
+def cos_calls(command):
+    """Every cos call in a shell command -> [(canonical, words)]: "cos clean apply x --yes", and
+    the leading subcommand words as written, up to the first that isn't a plain word (a quote,
+    a redirection, `$…`, braces). None when the command runs cos and can't be read for sure."""
+    text = str(command or "")
+    if not re.search(r"(^|[^\w-])cos\b", text):
+        return []
+    text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
+    # A cos call anywhere in the text, inside `$( )`, backticks or quotes too.
+    runs_cos = any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
+    try:
+        cooked, raw = _tokens(text, True), _tokens(text, False)
+    except ValueError:
+        return None if runs_cos else []
+    if len(cooked) != len(raw):
+        return None
+    calls = []
+    for i, token in enumerate(cooked):
+        if not _is_cos(token):
+            continue
+        argv, plain = [], []
+        for c, r in zip(cooked[i + 1:], raw[i + 1:]):
+            if c in OPERATORS:
+                break
+            argv.append(c)
+            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
+                plain.append(r)
+        calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
+    if runs_cos and ("`" in text or "$(" in text or "<(" in text):
+        return None
+    return calls
+
+
+def ask_patterns(root=None):
+    """The checked-in ask rules for cos, as glob patterns over "cos …"."""
+    try:
+        with open(os.path.join(str(root or core.ROOT), ".claude", "settings.json")) as f:
+            asks = json.load(f)["permissions"]["ask"]
+    except Exception:
+        return None
+    return [a[len("Bash("):-1] for a in asks if a.startswith("Bash(cos ") and a.endswith(")")]
+
+
+def pretool_decision(command, patterns):
+    """-> why to ask, or None for no opinion."""
+    import fnmatch
+    calls = cos_calls(command)
+    if calls is None:
+        return "Claude OS can't read this command for sure, and it runs cos"
+    if calls and patterns is None:
+        return "Claude OS couldn't read its own ask rules"
+    for call, plain, odd in calls:
+        if any(fnmatch.fnmatchcase(call, p) for p in patterns):
+            return "`%s` changes something" % call[:120]
+        if odd:
+            # A word that isn't plain where a subcommand could still be chosen: it might become one.
+            prefix = " ".join(["cos"] + plain)
+            literal = [p.split("*", 1)[0].rstrip() for p in patterns]
+            if any(l == prefix or l.startswith(prefix + " ") for l in literal):
+                return "`%s …` is written in a way Claude OS can't read for sure" % prefix[:120]
+    return None
+
+
+def pretool():
+    """The PreToolUse hook: print an ask, or nothing. Any error is no opinion: the normal rules
+    still apply, and they ask for the canonical spellings."""
+    try:
+        request = json.loads(sys.stdin.read() or "{}")
+        if request.get("tool_name") != "Bash":
+            return 0
+        why = pretool_decision((request.get("tool_input") or {}).get("command"), ask_patterns())
+        if why:
+            out = json.loads(json.dumps(ASK))
+            out["hookSpecificOutput"]["permissionDecisionReason"] = why
+            print(json.dumps(out))
+    except BaseException:  # noqa: B036
         pass
     return 0
 
@@ -413,6 +520,8 @@ def render_waiting(rows):
 def main(args):
     if args.hook_cmd == "permission":
         return permission()
+    if args.hook_cmd == "pretool":
+        return pretool()
     target = args.target
     if target is None:
         rows = waiting(os.getcwd())

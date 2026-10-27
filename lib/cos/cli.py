@@ -134,6 +134,7 @@ def build_parser():
     hk = cmd("hook", "Claude Code hooks (night shift pushes and merges, decision 0006)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
+    hk_sub.add_parser("pretool", help="PreToolUse hook: a card for any cos call that changes something, however it's spelled")
     hk_check = hk_sub.add_parser("check", help="would the night shift push this branch, or merge this pull request, "
                                                "on its own? With nothing: the night's pull requests that wait")
     hk_check.add_argument("target", nargs="?", help="a night/* branch or a pull request number")
@@ -330,7 +331,12 @@ MUTATING = {("clean", "apply"), ("update", "apply"), ("daemon", "install"), ("da
 DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "next", "prev", "stop", "vol",
                                          "playlist", "shuffle", "like", "unlike", "radio")} | {
     ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
-    ("net", "--speed"), ("backup", "setup")}
+    ("net", "--speed"), ("backup", "setup"),
+    # A background run may log friction (law 4), but closing it would hide real friction.
+    ("friction", "close"),
+    # Its words could be a feed item's: no voice in the room, no notification posing as the Mac,
+    # no note in the journal evolve and the board read. The daemons notify from their own code.
+    ("say",), ("notify",), ("log", "add")}
 
 
 def daemon_refused(args):
@@ -346,6 +352,10 @@ def daemon_refused(args):
         key = ("net", "--speed") if args.speed else None
     elif args.cmd == "backup":
         key = ("backup", args.backup_cmd)
+    elif args.cmd == "friction":
+        key = ("friction", args.friction_cmd)
+    elif args.cmd == "log":
+        key = ("log", args.log_cmd)
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None
@@ -483,6 +493,12 @@ def main(argv=None):
                 os.environ["COS_CAUGHT_UP"] = "1"
                 os.execv(sys.executable, [sys.executable, str(core.ROOT / "bin" / "cos")] + argv)
         evolve.wait_for_moves()
+        if not args.demo:
+            from . import system
+            try:
+                system.keep_download_settings()  # before the app's chat can start a Claude (0015)
+            except Exception:
+                pass
         args.serving = evolve.hold_serving()  # held for the server's life: boot and pulse see it
         args.head = evolve.git("rev-parse", "HEAD").out  # what's about to be loaded
         from . import server

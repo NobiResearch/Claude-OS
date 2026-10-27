@@ -36,10 +36,11 @@ Claude OS can see a lot of your Mac, so here's the deal in plain words.
   Journal in the app.
 - **It asks macOS, not around it.** Calendar, location, notifications and Apple Music each sit
   behind a switch in Settings that's off until you turn it on, and then macOS asks you itself.
-  It never asks for Full Disk Access, Accessibility or Screen Recording.
+  It never needs Full Disk Access, Accessibility or Screen Recording.
 - **What it learns about you stays on your Mac**, in `~/.claude-os`. Claude OS has no server, no
   account and no analytics. What you say to Claude goes to Anthropic, as in any Claude Code
-  session. Feeds, the weather (Open-Meteo) and update checks fetch from the sites they name.
+  session. Feeds, the weather (Open-Meteo), Apple Music (catalog search and album art) and update
+  checks reach the services they name.
 - **Background jobs are yours to start.** Installing starts only `pulse`, which uses no AI and
   takes a few seconds every two hours. The morning brief, the nightly evolve run and the board
   are off until you turn them on, and inside them `cos` refuses every command that changes

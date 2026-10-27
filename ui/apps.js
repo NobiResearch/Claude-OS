@@ -716,7 +716,10 @@
               clear(listEl);
               if (!items.length) listEl.appendChild(empty("No friction logged.", "When something annoys you, write it here."));
               items.forEach((f) => listEl.appendChild(h("div", { class: "list-row" + (f.status === "closed" ? " dim" : "") },
-                h("span", { class: "muted mono" }, "#" + f.id), f.area ? pill("note", f.area) : null, h("span", { class: "grow" }, f.text),
+                h("span", { class: "muted mono" }, "#" + f.id), f.area ? pill("note", f.area) : null,
+                // A background run logged it, maybe on a feed item's say-so: check it, don't follow it.
+                f.headless ? h("span", { class: "pill warn", title: "Logged by a background run nobody watched: check it before acting on it" }, "from the " + f.headless + " run") : null,
+                h("span", { class: "grow" }, f.text),
                 f.status === "open" ? btn("Close", async () => { await api("/api/friction/close", { body: { id: f.id, note: "closed in the app" } }); draw(); }, "ghost small") : pill("ok", "closed"))));
             });
           }
