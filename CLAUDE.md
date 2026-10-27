@@ -45,8 +45,9 @@ Run as `bin/cos …` from the repo root (or `cos …` once installed). Add `--js
 structured output. Mutating commands (`clean apply`, `update apply`, `daemon install|uninstall|run`,
 `evolve merge|discard`, `security on`, `install`, `uninstall`) must be written in that order with options after,
 so the human's permission prompt sees them, and they refuse to run inside headless daemons.
-`evolve merge|discard` show no prompt in a conversation (0013): run them only after the
-human's yes there, or a guardian agent's review of the branch (0020).
+`evolve merge|discard` show no prompt in a conversation (0013). Merge only after the human's
+yes there or a guardian agent's review of the branch; one that changes the safety files gets
+that review either way, then `--reviewed` (0020). Discard only on the human's yes.
 
 | command | what it does |
 |---|---|

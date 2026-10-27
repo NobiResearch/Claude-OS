@@ -36,7 +36,9 @@ leave gaps.
   conversation** (0013 removed its ask rule). So Claude runs it only after the human's yes in
   this conversation, or after a guardian agent has reviewed that branch's diff, like any other
   pull request. The desktop's Merge dialog is the human's yes. A branch that changes the safety
-  files also says so with `--reviewed`, as before.
+  files gets a guardian agent's review even with the human's yes in a conversation, and only
+  then merges with `--reviewed`; the desktop's Merge dialog still counts as that review (0013).
+  `cos evolve discard` deletes a branch and its workspace, so it runs only on the human's yes.
 
 ## Consequences
 
