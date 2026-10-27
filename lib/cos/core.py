@@ -214,8 +214,11 @@ def _other_xcode(developer, applications="/Applications"):
     if (not app.endswith(".app") or os.path.dirname(app) != os.path.realpath(applications)
             or real != os.path.join(app, "Contents", "Developer") or (app + "/").startswith(SANDBOX_BIN)):
         return ()
+    info = os.path.join(app, "Contents", "Info.plist")
+    if not os.path.isfile(info):  # a FIFO there would hang the read
+        return ()
     try:
-        with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f:
+        with open(info, "rb") as f:
             bundle = plistlib.load(f).get("CFBundleIdentifier")
     except Exception:  # unreadable or not a plist: not an Xcode we can vouch for
         return ()
@@ -247,9 +250,8 @@ def run_sandboxed(cmd, cwd, timeout=600):
     home_dir = os.path.realpath(os.path.expanduser("~"))
     private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
     developer = run(["xcode-select", "-p"], timeout=5).out.strip()
+    developer = os.path.realpath(developer) if developer else ""  # the sandbox sees real paths
     xcode = _other_xcode(developer)
-    if xcode:
-        developer = os.path.realpath(developer)
     path = _sandbox_path(os.environ.get("PATH", ""), developer, xcode)
     # Under /private/tmp: a Unix socket's path has to fit in 104 bytes.
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-", dir="/private/tmp") as tmp:
