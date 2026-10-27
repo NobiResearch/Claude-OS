@@ -27,6 +27,25 @@ class UnixHTTPServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer)
         return request, ("local", 0)  # BaseHTTPRequestHandler wants an address pair
 
 
+class LocalHTTPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    daemon_threads = True
+
+
+_ON_TCP = {}  # socket path -> the 127.0.0.1 port its server listens on instead
+
+
+def local_server(path, handler):
+    """An HTTP server on a Unix socket at `path`. The nightly evolve session runs in Claude
+    Code's sandbox, which refuses Unix sockets but lets a server listen on 127.0.0.1, so
+    there it listens on a free port instead and local_connection(path) finds it."""
+    try:
+        return UnixHTTPServer(path, handler)
+    except PermissionError:
+        httpd = LocalHTTPServer(("127.0.0.1", 0), handler)
+        _ON_TCP[path] = httpd.server_address[1]
+        return httpd
+
+
 class UnixHTTPConnection(http.client.HTTPConnection):
     def __init__(self, path, timeout=10):
         super().__init__("localhost", timeout=timeout)
@@ -36,6 +55,12 @@ class UnixHTTPConnection(http.client.HTTPConnection):
         self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
         self.sock.settimeout(self.timeout)
         self.sock.connect(self.socket_path)
+
+
+def local_connection(path, timeout=10):
+    if path in _ON_TCP:
+        return http.client.HTTPConnection("127.0.0.1", _ON_TCP[path], timeout=timeout)
+    return UnixHTTPConnection(path, timeout=timeout)
 
 
 class TempHome(unittest.TestCase):

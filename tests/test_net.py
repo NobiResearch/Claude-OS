@@ -299,17 +299,17 @@ class TestNetworkCard(TempHome):
 
     def test_the_route_runs_the_check_and_writes_nothing(self):
         from cos import server
-        from helpers import UnixHTTPConnection, UnixHTTPServer
+        from helpers import local_connection, local_server
         app = server.App("t")
         sock = os.path.join(self.tmp, "net.sock")
-        httpd = UnixHTTPServer(sock, server.make_handler(app))
+        httpd = local_server(sock, server.make_handler(app))
         app.port = 7357
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(httpd.server_close)
         self.addCleanup(httpd.shutdown)
         before = sorted(p for p in core.home().rglob("*"))
         with mock.patch.object(net, "check", return_value=self.FULL) as check:
-            conn = UnixHTTPConnection(sock)
+            conn = local_connection(sock)
             conn.request("GET", "/api/net", headers={"Host": "127.0.0.1:7357", "X-COS-Token": "t"})
             res = conn.getresponse()
             body = json.loads(res.read())
