@@ -11,6 +11,8 @@ permissions:
 jobs:
   test:
     runs-on: macos-latest
+    # A run takes about two minutes; a hung test would otherwise hold the runner for six hours.
+    timeout-minutes: 20
     steps:
       # v5 and later run on Node 24; nothing after this step needs the token.
       - uses: actions/checkout@v7
@@ -18,6 +20,18 @@ jobs:
           persist-credentials: false
       - name: Unit tests (system Python)
         run: /usr/bin/python3 -m unittest discover -s tests -v
+      # The nightly evolve check runs them like this: no network, no home folder, nothing from
+      # the environment. A test that needs any of those breaks that check, so catch it here.
+      - name: Unit tests (inside evolve's sandbox)
+        run: |
+          /usr/bin/python3 - <<'EOF'
+          import sys
+          sys.path.insert(0, "lib")
+          from cos import evolve
+          r = evolve.run_tests(".")
+          print(r.out[-4000:], r.err[-4000:], sep="\n")
+          sys.exit(0 if r.ok else 1)
+          EOF
       - name: Guard (no private data in the tree)
         run: /usr/bin/python3 bin/cos guard --all
       - name: Swift tests
