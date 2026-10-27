@@ -25,8 +25,30 @@ center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 - **"Is it the Wi-Fi or the internet?"** One verdict in a few seconds. Also: what starts with
   your Mac, its security switches, today's calendar and the weather, once you turn them on.
 
-It asks before it changes anything, writes down what it did, and remembers what you tell it.
-What it learns about you stays on your Mac, in `~/.claude-os`.
+## What it will and won't do
+
+Claude OS can see a lot of your Mac, so here's the deal in plain words.
+
+- **It looks before it touches.** Every `cos` command only reads until you name what to change
+  and add `--yes`. In the app, a change is an **Allow / Deny** card with the exact command, and
+  your click is the answer.
+- **It writes down what it did.** Every change goes in a journal you can read: `cos log`, or
+  Journal in the app.
+- **It asks macOS, not around it.** Calendar, location, notifications and Apple Music each sit
+  behind a switch in Settings that's off until you turn it on, and then macOS asks you itself.
+  It never asks for Full Disk Access, Accessibility or Screen Recording.
+- **What it learns about you stays on your Mac**, in `~/.claude-os`. Claude OS has no server, no
+  account and no analytics. What you say to Claude goes to Anthropic, as in any Claude Code
+  session. Feeds, the weather (Open-Meteo) and update checks fetch from the sites they name.
+- **Background jobs are yours to start.** Installing starts only `pulse`, which uses no AI and
+  takes a few seconds every two hours. The morning brief, the nightly evolve run and the board
+  are off until you turn them on, and inside them `cos` refuses every command that changes
+  something.
+- **It doesn't rewrite itself behind your back.** The nightly evolve run works on a branch, in
+  a sandbox, and reaches your copy only when you merge it. **Keep Claude OS up to date** (off
+  until you confirm it in the app) only brings in what's merged on GitHub. The **night shift**,
+  which lets Claude push and merge its own pull requests in your own fork, also turns on only in
+  the app's own dialog, and a downloaded copy has none.
 
 ## The desktop
 
@@ -169,13 +191,11 @@ over the whole tree. Details in [docs/architecture.md](docs/architecture.md#priv
 
 ## Safety
 
-Claude OS can see a lot of your Mac, so it's built to be boring about changing it:
-mutations need named targets plus `--yes`, Claude Code asks you before running them, and
-everything is journaled (`cos log`). Inside headless daemons, `cos` refuses every
-mutating command outright. Evolve works in a sandbox (writes only to its worktree, no
-network), and nothing it writes reaches `main` until the guard and the tests pass again
-at merge time.
-Hard-won macOS lessons live in [docs/lessons.md](docs/lessons.md).
+The short version is [above](#what-it-will-and-wont-do). In more detail: evolve's sandbox lets
+it write only to its own copy, with no network for its commands, and nothing it writes reaches
+`main` until the guard and the tests pass again at merge time. A pull request that changes
+Claude OS's safety files gets an independent review before it merges. Hard-won macOS lessons
+live in [docs/lessons.md](docs/lessons.md).
 
 ## Contributing
 
