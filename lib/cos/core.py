@@ -527,8 +527,9 @@ def config_set(dotted, value):
 
 REPOSITORY = "github.com/NobiResearch/Ovenbird"
 # Its name until decision 0019. GitHub sends the old address on to the new one, and a copy
-# cloned from it is still a copy of this repository. Never create a repository at that path:
-# that would end the redirect.
+# cloned from it is still a copy of this repository. This is trusted forever, so never rename
+# or delete the NobiResearch organization, and never create a repository named Claude-OS in
+# it: either would let someone else serve code at the old address.
 FORMER_REPOSITORIES = ("github.com/NobiResearch/Claude-OS",)
 RELEASES = "https://%s/releases" % REPOSITORY
 # What a downloaded copy's Claude may never do on its own (decision 0015): the repository isn't

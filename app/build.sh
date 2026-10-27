@@ -312,6 +312,15 @@ if [ "$INSTALL" = 1 ]; then
     DEST="$HOME/Applications/Ovenbird.app"
     echo "==> installing to ~/Applications/Ovenbird.app"
     mkdir -p "$HOME/Applications"
+    # Replace only our own app (like core._is_claude_os_app): "Ovenbird" is a common word.
+    if [ -e "$DEST" ]; then
+        exe=$(/usr/libexec/PlistBuddy -c "Print :CFBundleExecutable" "$DEST/Contents/Info.plist" 2>/dev/null || true)
+        scheme=$(/usr/libexec/PlistBuddy -c "Print :CFBundleURLTypes:0:CFBundleURLSchemes:0" "$DEST/Contents/Info.plist" 2>/dev/null || true)
+        if [ "$exe" != "ClaudeOS" ] || [ "$scheme" != "claude-os" ]; then
+            echo "✗ ~/Applications/Ovenbird.app is another app, not this one: move it elsewhere and run again" >&2
+            exit 1
+        fi
+    fi
     rm -rf "$DEST"
     ditto "$APP" "$DEST"
     TARGET="$DEST"

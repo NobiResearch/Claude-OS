@@ -40,14 +40,17 @@ builds its own home and keeps working on it.
   `AppConfig.repository` name it. The old name stays in `core.FORMER_REPOSITORIES` and
   `AppConfig.formerRepositories`, so a copy cloned from the old address still counts as this
   repository and stays locked down (`downloaded()`, 0015/0017).
+- **Two standing rules, because the old address is trusted forever: never rename or delete the
+  NobiResearch organization, and never create a repository named Claude-OS in it.** Either
+  would let someone else serve code at github.com/NobiResearch/Claude-OS, which a release
+  would then run.
 
 ## The switch, in order
 
-1. The owner renames the repository on GitHub (Settings › Repository name). They don't rename
-   the organization. GitHub sends the old address on to the new one only while nothing exists
-   at the old path, so **never create a repository named Claude-OS in NobiResearch again.**
-2. This change merges, and the live checkout's `origin` is set to the new address. Worktrees
-   share it.
+1. The owner renames the repository on GitHub (Settings › Repository name), and only the
+   repository (the standing rules above).
+2. The live checkout's `origin` is set to the new address right away (worktrees share it), and
+   this change merges.
 3. The owner turns **Keep Ovenbird up to date** back on, because it remembers the exact
    address it follows (0011), so the new `origin` stops it until then.
 4. `app/build.sh --install` puts Ovenbird.app in ~/Applications. The owner moves the old

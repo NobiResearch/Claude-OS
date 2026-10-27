@@ -31,7 +31,8 @@ struct AppConfig {
     /// The repository a release runs code from, and nothing else.
     static let repository = "github.com/NobiResearch/Ovenbird"
     /// Its name until decision 0019: GitHub sends it on to `repository`, and a copy cloned from
-    /// it is still this repository. Like core.FORMER_REPOSITORIES.
+    /// it is still this repository. Like core.FORMER_REPOSITORIES, it's trusted forever: never
+    /// rename or delete the NobiResearch organization, and never create Claude-OS in it again.
     static let formerRepositories = ["github.com/NobiResearch/Claude-OS"]
     /// Where a release's first launch puts Ovenbird when there's no checkout yet.
     static let installFolder = "Library/Application Support/Ovenbird"
