@@ -338,6 +338,8 @@ class TestSandbox(TempHome):
             os.makedirs(os.path.join(cli, "usr", "bin"))
             self.assertEqual(core._sandbox_path("/usr/bin:/bin", cli), "%s/usr/bin:/usr/bin:/bin" % cli)
         self.assertEqual(core._sandbox_path("/usr/bin:/bin", ""), "/usr/bin:/bin")
+        self.assertEqual(core._sandbox_path("/usr/bin:/bin", xcode), "/usr/bin:/bin",
+                         "a developer folder outside SANDBOX_BIN isn't used")
 
     @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
     def test_no_network_only_its_own_sockets(self):
