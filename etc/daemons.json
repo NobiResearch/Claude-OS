@@ -21,6 +21,9 @@
       "Read",
       "Grep",
       "Glob"
+    ],
+    "disallowed_tools": [
+      "Bash(git *)"
     ]
   },
   "evolve": {
@@ -87,6 +90,9 @@
       "Grep",
       "Glob",
       "Agent"
+    ],
+    "disallowed_tools": [
+      "Bash(git *)"
     ]
   }
 }

@@ -454,6 +454,24 @@ def downloaded():
     return not origin.ok or same_repository(origin.out)  # an origin git can't read counts as ours
 
 
+# A Claude started for someone other than the owner at their own terminal (the app's chat,
+# `cos ask`) doesn't load .claude/settings.local.json: its allows are the owner's alone (0013).
+SETTING_SOURCES = "user,project"
+
+
+def local_denies():
+    """The deny rules no choice of setting sources may drop, for --disallowedTools: whatever
+    the person denied in .claude/settings.local.json, and a downloaded copy's DOWNLOAD_DENY,
+    which lives in that same file (0015)."""
+    d = load_json(ROOT / ".claude" / "settings.local.json", {})
+    perms = d.get("permissions") if isinstance(d, dict) else None
+    deny = perms.get("deny") if isinstance(perms, dict) else None
+    rules = [r for r in deny if isinstance(r, str) and r] if isinstance(deny, list) else []
+    if downloaded():
+        rules += [r for r in DOWNLOAD_DENY if r not in rules]
+    return rules
+
+
 def load_json(path, default=None):
     try:
         with open(path) as f:

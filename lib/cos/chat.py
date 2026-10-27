@@ -26,10 +26,13 @@ IDLE_SECONDS = 4 * 3600
 def claude_command():
     """The app's chat reads feeds and pages for the human, so it gets an Allow card for
     anything not pre-allowed: not the owner's own .claude/settings.local.json (git, gh and more
-    with no card, 0013), and the manual permission mode whatever their global default is."""
-    return ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
-            "--verbose", "--include-partial-messages", "--permission-prompt-tool", "stdio",
-            "--permission-mode", "manual", "--setting-sources", "user,project"]
+    with no card, 0013), and the manual permission mode whatever their global default is. That
+    file's deny rules (a downloaded copy's among them) come along on the command line."""
+    cmd = ["claude", "-p", "--input-format", "stream-json", "--output-format", "stream-json",
+           "--verbose", "--include-partial-messages", "--permission-prompt-tool", "stdio",
+           "--permission-mode", "manual", "--setting-sources", core.SETTING_SOURCES]
+    denies = core.local_denies()
+    return cmd + (["--disallowedTools"] + denies if denies else [])
 
 
 class Session:

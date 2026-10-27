@@ -443,15 +443,12 @@ def on_subscription():
     return r.ok and parse_auth(r.out)
 
 
-# The owner's .claude/settings.local.json allows git, gh and more with no card (0013, 0017):
-# fine at their own terminal, not in a run that reads feeds with nobody watching. A git alias
-# alone runs any command. So background runs load the user's and the project's settings only.
-SETTING_SOURCES = "user,project"
-
-
 def claude_command(spec, capped=True):
+    # The owner's .claude/settings.local.json allows git, gh and more with no card (0013): fine
+    # at their own terminal, not in a run that reads feeds with nobody watching (a git alias
+    # alone runs any command), so background runs don't load it (core.SETTING_SOURCES).
     cmd = ["claude", "-p", "--output-format", "stream-json", "--verbose",
-           "--permission-mode", spec.get("permission_mode", "dontAsk"), "--setting-sources", SETTING_SOURCES]
+           "--permission-mode", spec.get("permission_mode", "dontAsk"), "--setting-sources", core.SETTING_SOURCES]
     if capped and spec.get("budget_usd"):
         cmd += ["--max-budget-usd", str(spec["budget_usd"])]
     if spec.get("allowed_tools"):
