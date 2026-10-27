@@ -332,7 +332,10 @@ DAEMON_REFUSED = {("music", c) for c in ("play", "pause", "resume", "toggle", "n
     ("remember",), ("memory", "--forget"), ("ask",), ("serve",), ("app", "build"), ("startup", "--full"),
     ("net", "--speed"), ("backup", "setup"),
     # A background run may log friction (law 4), but closing it would hide real friction.
-    ("friction", "close")}
+    ("friction", "close"),
+    # Its words could be a feed item's: no voice in the room, no notification posing as the Mac,
+    # no note in the journal evolve and the board read. The daemons notify from their own code.
+    ("say",), ("notify",), ("log", "add")}
 
 
 def daemon_refused(args):
@@ -350,6 +353,8 @@ def daemon_refused(args):
         key = ("backup", args.backup_cmd)
     elif args.cmd == "friction":
         key = ("friction", args.friction_cmd)
+    elif args.cmd == "log":
+        key = ("log", args.log_cmd)
     else:
         key = (args.cmd,)
     return key if key in DAEMON_REFUSED else None

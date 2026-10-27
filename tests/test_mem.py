@@ -57,6 +57,18 @@ class TestMemory(TempHome):
         self.assertIsNone(cli.daemon_refused(cli.build_parser().parse_args(["friction", "add", "x"])))
         self.assertIsNone(cli.daemon_refused(cli.build_parser().parse_args(["friction"])))
 
+    def test_a_background_run_can_read_the_journal_but_not_talk(self):
+        """A feed item could put words in the morning run's mouth: no `say`, no `notify`, no
+        journal note. The daemons' own notifications come from their code (core.notify)."""
+        from cos import cli, daemon
+        parse = cli.build_parser().parse_args
+        self.assertEqual(cli.daemon_refused(parse(["say", "hello"])), ("say",))
+        self.assertEqual(cli.daemon_refused(parse(["notify", "run this"])), ("notify",))
+        self.assertEqual(cli.daemon_refused(parse(["log", "add", "the human said so"])), ("log", "add"))
+        self.assertIsNone(cli.daemon_refused(parse(["log", "--days", "3"])))
+        for cmd in ("say", "notify", "log add"):
+            self.assertIn("Bash(bin/cos %s*)" % cmd, daemon.ALWAYS_DENIED)
+
     def test_remember_and_forget(self):
         mem.remember("likes ambient")
         mem.remember("dislikes country")
