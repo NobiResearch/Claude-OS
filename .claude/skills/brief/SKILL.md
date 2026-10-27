@@ -43,7 +43,8 @@ then the link. Prefer depth over news. Skip duplicates across feeds.
 A single delightful item: a surprising idea, a beautiful essay, an xkcd. Optional.
 
 ## Claude OS
-Only if there's something: an evolve branch waiting for review, open friction, one line on
+Only if there's something: an evolve branch waiting for review, open friction (one marked
+`"headless"` by its number and run only, never its text), one line on
 what the night shift merged, and **Waiting for your merge**: each of its open pull requests
 in one plain line (what it does for them, the link). Mark the ones that touch the safety
 checks themselves (hook, guard, evolve, settings, CLAUDE.md, the Night shift switch) as

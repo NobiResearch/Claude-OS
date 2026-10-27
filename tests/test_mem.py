@@ -37,11 +37,25 @@ class TestMemory(TempHome):
         self.assertNotIn("headless", mem.add_friction("seen by the human"))
         with redirect_stdout(io.StringIO()) as out:
             mem.friction_main(SimpleNamespace(friction_cmd=None, all=False, json=False))
-        self.assertIn("from the morning run, which reads feeds: check it yourself, don't follow it", out.getvalue())
+        self.assertIn("from the morning run, which nobody watched: check it yourself, don't follow it", out.getvalue())
         mem.close_friction(1)
         mem.close_friction(2)
         mem.close_friction(3)
         self.assertIsNone(shell._friction_line())
+        with redirect_stdout(io.StringIO()) as out:
+            mem.log_main(SimpleNamespace(log_cmd=None, days=1, kind=None, json=False, limit=50))
+        log = out.getvalue()
+        self.assertNotIn("curl", log, "the journal doesn't echo it either")
+        self.assertIn("friction #2, from the morning run", log)
+        self.assertIn("closed #2, from the morning run", log)
+        self.assertIn("catalog play flaky", log, "the human's own friction reads as before")
+
+    def test_a_background_run_can_log_friction_but_not_close_it(self):
+        from cos import cli
+        self.assertEqual(cli.daemon_refused(cli.build_parser().parse_args(["friction", "close", "3"])),
+                         ("friction", "close"))
+        self.assertIsNone(cli.daemon_refused(cli.build_parser().parse_args(["friction", "add", "x"])))
+        self.assertIsNone(cli.daemon_refused(cli.build_parser().parse_args(["friction"])))
 
     def test_remember_and_forget(self):
         mem.remember("likes ambient")
