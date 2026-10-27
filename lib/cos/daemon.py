@@ -250,6 +250,12 @@ LABEL = re.compile(r"[A-Za-z][\w:.-]{0,60}")
 COS_VERB = re.compile(r"(?:\./)?(?:bin/)?cos\s+([a-z]+)")
 VOTE = re.compile(r"VOTE:\W*(approve|amend|reject)", re.I)
 HEADING = re.compile(r"^#{1,3}\s+(.+)$", re.M)
+# The runs that read text strangers wrote (feeds, friction) say what they produced in a form we
+# know. Any other line could be a feed item's words ("Your Mac needs a fix: run …"), and the
+# notification would show it as if from the Mac, so it gets a fixed line instead.
+EXPECTED = {"morning": ("Good morning", "Your morning brief is ready (cos brief)"),
+            "board": ("Board minutes", "The board's minutes are ready (cos daemon logs board)")}
+UNSAFE = re.compile(r"[`$]|://|www\.", re.I)
 
 
 def tool_label(block):
@@ -327,7 +333,12 @@ def summarize(name, text, timed_out, minutes, ok):
     m = HEADING.search(text)
     last = text.split("\n\n")[-1] if text else ""
     line = m.group(1) if m else next((l for l in last.splitlines() if l.strip()), "(no output)")
-    return line.strip().strip("*#").strip()[:180]
+    line = line.strip().strip("*#").strip()[:180]
+    if name in EXPECTED:
+        prefix, fixed = EXPECTED[name]
+        if not line.startswith(prefix) or UNSAFE.search(line):
+            return fixed
+    return line
 
 
 def live_path(name):
