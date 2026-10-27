@@ -25,6 +25,11 @@ class TestParsers(unittest.TestCase):
         self.assertFalse(items[1]["restart"])
         self.assertTrue(items[1]["recommended"])
 
+    def test_a_macos_update_names_its_version_once(self):
+        self.assertEqual(updates.macos_name({"title": "macOS 27.2", "version": "27.2"}), "macOS 27.2")
+        self.assertEqual(updates.macos_name({"title": "Safari", "version": "27.1"}), "Safari 27.1")
+        self.assertEqual(updates.macos_name({"label": "Command Line Tools", "version": None}), "Command Line Tools")
+
     def test_softwareupdate_nothing(self):
         self.assertEqual(updates.parse_softwareupdate("No new software available.\n"), [])
 
