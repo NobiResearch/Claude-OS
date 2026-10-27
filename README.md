@@ -9,7 +9,7 @@ who you are, and a nightly habit of making itself a little better.
 It comes two ways: **Claude OS.app**, a desktop with windows, a dock and Claude at the
 center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
-![Claude OS: the desktop, with Claude asking before it cleans up](docs/screenshots/desktop.png)
+![A tour of Claude OS: Claude answers "Do I need to clean up my Mac?", asks before it cleans, then Storage, Updates, the board and Music](docs/screenshots/tour.gif)
 
 <sub>Screenshots come from `cos serve --demo`, a fictional Mac. No real machine is ever shown.</sub>
 
