@@ -130,10 +130,16 @@ class TestMerge(TempHome):
                     "gh pr merge https://github.com/x/y/pull/31 --squash --delete-branch --match-head-commit " + SHA1, "", None):
             self.assertIsNone(hook.parse_merge(cmd), repr(cmd))
 
-    def test_merges_a_green_night_pr_that_leaves_the_gate_alone(self):
+    def test_a_green_night_pr_is_ready_for_its_review_and_never_merged_by_the_hook(self):
+        # Every pull request gets a guardian agent's review first (0020): the hook says it's ready.
         ok, why = self.decide()
-        self.assertTrue(ok, why)
-        self.assertEqual(why, "merged #31 (night/x at aaaaaaaa)")
+        self.assertFalse(ok, why)
+        self.assertEqual(why, hook.READY)
+        why = self.decide(look_pr=pr_looking(paths=["lib/cos/cli.py", "docs/x.md"]))[1]
+        self.assertTrue(why.startswith(hook.READY), why)
+        self.assertIn("safety files (lib/cos/cli.py)", why)
+        # A change outside them still waits for its review; it's just not singled out.
+        self.assertEqual(self.decide(look_pr=pr_looking(paths=["lib/cos/clean.py"]))[1], hook.READY)
 
     def test_everything_else_waits_for_the_human(self):
         cases = {
@@ -162,7 +168,23 @@ class TestMerge(TempHome):
                 kw = dict(look_pr=lambda n, s, c: dict(GOOD_PR, pr=None))
             ok, why = self.decide(**kw)
             self.assertFalse(ok, name)
-        self.assertIn("guardian agent review it first", self.decide(look_pr=pr_looking(paths=["lib/cos/server.py"]))[1])
+        self.assertIn("safety files (lib/cos/server.py)", self.decide(look_pr=pr_looking(paths=["lib/cos/server.py"]))[1])
+
+    def test_cos_hook_check_judges_the_pr_whatever_the_switch(self):
+        # With Night shift off, it used to stop at "night shift is off" and name no safety files.
+        sha = "a" * 40
+        seen = {}
+
+        def fake_decide(request, cfg):
+            seen["night_shift"] = cfg["autonomy"]["night_shift"]
+            return False, hook.READY + "; it changes Ovenbird's safety files (lib/cos/clean.py), so the review looks there first"
+        with mock.patch.object(hook.core, "run", return_value=core.Result(0, json.dumps({"headRefOid": sha}), "")), \
+                mock.patch.object(hook, "decide", side_effect=fake_decide):
+            ready, why, command = hook.check_pr(31)
+        self.assertTrue(seen["night_shift"])
+        self.assertTrue(ready)
+        self.assertIn("lib/cos/clean.py", why)
+        self.assertEqual(command, hook.merge_command(31, sha))
 
     def test_read_only_api_calls_pass_and_writes_ask(self):
         for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files"):
@@ -173,15 +195,16 @@ class TestMerge(TempHome):
                     "gh api repos/x/y/pulls/31/merge --input f", "gh api", "gh-axi api repos/x/y"):
             self.assertFalse(hook.decide(request(cmd), ON)[0], cmd)
 
-    def test_merges_are_journaled(self):
+    def test_what_it_approves_is_journaled(self):
+        # It never merges (0020); what it approves is a push, and that goes in the journal.
         out = io.StringIO()
         with mock.patch.object(hook.core, "config", return_value=ON), \
-                mock.patch.object(hook, "decide", lambda r, c: (True, "merged #31 (night/x at aaaaaaaa)")), \
-                mock.patch("sys.stdin", io.StringIO(json.dumps(request(MERGE)))), redirect_stdout(out):
+                mock.patch.object(hook, "decide", lambda r, c: (True, "night/x at aaaaaaaa")), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(request("git push -u origin night/x")))), redirect_stdout(out):
             hook.permission()
         self.assertTrue(json.loads(out.getvalue()))
         lines = TestHookEntry.journal_lines(self)
-        self.assertTrue(any("night shift: merged #31" in l for l in lines))
+        self.assertTrue(any("night shift: pushed night/x" in l for l in lines))
 
 
 class TestPullRequestText(TempHome):

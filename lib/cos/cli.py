@@ -131,12 +131,13 @@ def build_parser():
     nt = cmd("net", "is it the Wi-Fi, the router or the internet? (read-only)")
     nt.add_argument("--speed", action="store_true",
                     help="measure throughput with macOS's networkQuality (about 20 seconds; uses data)")
-    hk = cmd("hook", "Claude Code hooks (night shift pushes and merges, decision 0006)")
+    hk = cmd("hook", "Claude Code hooks (night shift pushes, 0006; every merge waits for a guardian's review, 0020)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
     hk_sub.add_parser("pretool", help="PreToolUse hook: a card for any cos call that changes something, however it's spelled")
-    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch, or merge this pull request, "
-                                               "on its own? With nothing: the night's pull requests that wait")
+    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch on its own? Is this pull request "
+                                               "ready for its guardian review, and what merges it? With nothing: the "
+                                               "night's pull requests and what each waits for")
     hk_check.add_argument("target", nargs="?", help="a night/* branch or a pull request number")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
