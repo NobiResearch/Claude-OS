@@ -202,15 +202,37 @@ SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/
                "/Library/Developer/CommandLineTools/", "/Applications/Xcode.app/")
 
 
-def _sandbox_path(path, developer):
+def _other_xcode(developer, applications="/Applications"):
+    """The selected developer folder's Xcode, when it's in /Applications under another name
+    (Xcode-beta.app, CI's Xcode_26.6.app, or Xcode.app as a link to Xcode-26.app): one more
+    folder the sandbox may read and run from. () for anything else, and for Xcode.app and the
+    command line tools, which are always in. Only a real Xcode right in /Applications counts,
+    after links: the sandbox sees real paths, and a link out to the home folder stays out."""
+    import plistlib
+    real = os.path.realpath(developer) if developer else ""
+    app = os.path.dirname(os.path.dirname(real))
+    if (not app.endswith(".app") or os.path.dirname(app) != os.path.realpath(applications)
+            or real != os.path.join(app, "Contents", "Developer") or (app + "/").startswith(SANDBOX_BIN)):
+        return ()
+    try:
+        with open(os.path.join(app, "Contents", "Info.plist"), "rb") as f:
+            bundle = plistlib.load(f).get("CFBundleIdentifier")
+    except Exception:  # unreadable or not a plist: not an Xcode we can vouch for
+        return ()
+    return (app,) if bundle == "com.apple.dt.Xcode" else ()
+
+
+def _sandbox_path(path, developer, xcode=()):
     """The human's PATH, cut to the toolchains, with the developer folder's real tools ahead of
     /usr/bin. /usr/bin/git, python3, strings and nm are xcrun shims, and xcrun keeps a cache in
     the shared per-user temp folder; the sandbox mustn't write there. The command line tools
-    keep all four in usr/bin; Xcode keeps strings and nm in its default toolchain."""
-    keep = [p for p in path.split(":") if p.startswith(SANDBOX_BIN)] or ["/usr/bin", "/bin"]
+    keep all four in usr/bin; Xcode keeps strings and nm in its default toolchain. `xcode` is
+    _other_xcode's folder, if any."""
+    allowed = SANDBOX_BIN + tuple(x + "/" for x in xcode)
+    keep = [p for p in path.split(":") if p.startswith(allowed)] or ["/usr/bin", "/bin"]
     folders = [os.path.join(developer, "usr", "bin"),
                os.path.join(developer, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin")] if developer else []
-    tools = [t for t in folders if t.startswith(SANDBOX_BIN) and os.path.isdir(t)]
+    tools = [t for t in folders if t.startswith(allowed) and os.path.isdir(t)]
     rest = [p for p in keep if p not in tools]
     at = rest.index("/usr/bin") if "/usr/bin" in rest else 0
     return ":".join(rest[:at] + tools + rest[at:])
@@ -224,11 +246,15 @@ def run_sandboxed(cmd, cwd, timeout=600):
     real = os.path.realpath(cwd)
     home_dir = os.path.realpath(os.path.expanduser("~"))
     private = " ".join("(subpath %s)" % json.dumps(os.path.join(home_dir, p)) for p in PRIVATE_DIRS)
-    path = _sandbox_path(os.environ.get("PATH", ""), run(["xcode-select", "-p"], timeout=5).out.strip())
+    developer = run(["xcode-select", "-p"], timeout=5).out.strip()
+    xcode = _other_xcode(developer)
+    if xcode:
+        developer = os.path.realpath(developer)
+    path = _sandbox_path(os.environ.get("PATH", ""), developer, xcode)
     # Under /private/tmp: a Unix socket's path has to fit in 104 bytes.
     with tempfile.TemporaryDirectory(prefix="cos-sandbox-", dir="/private/tmp") as tmp:
         tmp = os.path.realpath(tmp)
-        readable = " ".join("(subpath %s)" % json.dumps(p) for p in SANDBOX_READ + (real, tmp))
+        readable = " ".join("(subpath %s)" % json.dumps(p) for p in SANDBOX_READ + xcode + (real, tmp))
         # stat() on the way down to its own folders, which may be inside the home folder.
         steps = {real, tmp}
         for p in (real, tmp):

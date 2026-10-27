@@ -319,9 +319,10 @@ class TestSandbox(TempHome):
         self.assertNotIn("Finder", r.out, "LaunchServices (and so `open <url>`) is out of reach")
         r = core.run_sandboxed(["git", "--version"], cwd=work)
         self.assertTrue(r.ok, "git works inside: %s" % r.err)
-        # The release scan's tests use these. Only where the sandbox has the developer folder:
-        # an Xcode under another name (CI's Xcode_26.6.app) isn't readable inside.
-        if core.run(["xcode-select", "-p"], timeout=5).out.strip().startswith(core.SANDBOX_READ):
+        # The release scan's tests use these, so they work with any Xcode in /Applications
+        # (CI's is Xcode_26.6.app) and with the command line tools.
+        developer = core.run(["xcode-select", "-p"], timeout=5).out.strip()
+        if developer.startswith(core.SANDBOX_READ) or core._other_xcode(developer):
             for tool in ("strings", "nm"):
                 r = core.run_sandboxed([tool, "-a", "/bin/ls"], cwd=work)
                 self.assertTrue(r.ok, "%s works inside: %s" % (tool, r.err))
@@ -343,6 +344,35 @@ class TestSandbox(TempHome):
         self.assertEqual(core._sandbox_path("/usr/bin:/bin", ""), "/usr/bin:/bin")
         self.assertEqual(core._sandbox_path("/usr/bin:/bin", xcode), "/usr/bin:/bin",
                          "a developer folder outside SANDBOX_BIN isn't used")
+
+    def test_an_xcode_under_another_name_is_let_in(self):
+        """Xcode-beta.app or CI's Xcode_26.6.app, when it's the selected developer folder, is one
+        more folder the sandbox reads and runs from. Not an app that isn't Xcode, not one
+        outside /Applications, and not a link that leads out of it."""
+        import plistlib
+        apps = os.path.realpath(os.path.join(self.tmp, "Applications"))
+
+        def app(name, bundle, where=apps):
+            os.makedirs(os.path.join(where, name, "Contents", "Developer", "usr", "bin"))
+            with open(os.path.join(where, name, "Contents", "Info.plist"), "wb") as f:
+                plistlib.dump({"CFBundleIdentifier": bundle}, f)
+            return os.path.join(where, name, "Contents", "Developer")
+
+        beta = app("Xcode-beta.app", "com.apple.dt.Xcode")
+        self.assertEqual(core._other_xcode(beta, apps), (os.path.join(apps, "Xcode-beta.app"),))
+        self.assertEqual(core._other_xcode(app("Other.app", "com.example.other"), apps), ())
+        elsewhere = os.path.join(self.tmp, "Downloads")
+        self.assertEqual(core._other_xcode(app("Xcode.app", "com.apple.dt.Xcode", elsewhere), apps), ())
+        os.symlink(os.path.join(elsewhere, "Xcode.app"), os.path.join(apps, "Xcode-link.app"))
+        self.assertEqual(core._other_xcode(os.path.join(apps, "Xcode-link.app", "Contents", "Developer"), apps), (),
+                         "a link out of /Applications stays out")
+        self.assertEqual(core._other_xcode(os.path.join(beta, "usr"), apps), ())
+        self.assertEqual(core._other_xcode("", apps), ())
+        self.assertEqual(core._other_xcode("/Applications/Xcode.app/Contents/Developer"), (),
+                         "Xcode.app is always in")
+        xcode = (os.path.join(apps, "Xcode-beta.app"),)
+        self.assertEqual(core._sandbox_path("/usr/bin:/bin", beta, xcode), "%s/usr/bin:/usr/bin:/bin" % beta)
+        self.assertEqual(core._sandbox_path("/usr/bin:/bin", beta), "/usr/bin:/bin")
 
     @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
     def test_no_network_only_its_own_sockets(self):
