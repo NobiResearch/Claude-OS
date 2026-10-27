@@ -12,10 +12,11 @@ the human has "Night shift" on in Settings, it approves two things and nothing e
   leaves Claude OS's safety files alone. A merge is where code starts to run, so a pull
   request that touches the gate waits for the human's merge.
 
-It also lets read-only `gh api <path>` calls through, which the merge rules otherwise ask
-about, and pull request text (`gh pr create|edit|comment` with a title and a body) once the
-Guardian has read it, whatever the switch says: that's a check, not a grant. Anything else, any doubt, any error: it prints nothing and the human's normal prompt
-appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
+While the switch is on, it also lets read-only `gh api <path>` calls through, which the merge
+rules otherwise ask about, and pull request text (`gh pr create|edit|comment` with a title and
+a body) once the Guardian has read it. With the switch off, or in a downloaded copy, it
+approves nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any
+doubt, any error: it prints nothing and the human's normal prompt appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
 human's own GitHub login, and decision 0006 lists the spellings these rules don't catch.
 
 `cos hook check <branch|PR>` answers the same question without acting, so a night shift
@@ -321,15 +322,15 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
     if request.get("tool_name") != "Bash":
         return False, "not a shell command"
     command = (request.get("tool_input") or {}).get("command")
-    if parse_api_read(command):
-        return True, "a read-only gh api call"
-    pr_text = parse_pr_text(command)
-    if pr_text:  # a safety check, not a grant: clean text passes whatever the switch says
-        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     if not (cfg.get("autonomy") or {}).get("night_shift"):
         return False, "night shift is off"
     if core.downloaded():
         return False, "a downloaded Claude OS doesn't push or merge (decision 0015)"
+    if parse_api_read(command):
+        return True, "a read-only gh api call"
+    pr_text = parse_pr_text(command)
+    if pr_text:
+        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
     cwd = request.get("cwd") or str(core.ROOT)
     branch = parse_push(command)
     if branch:

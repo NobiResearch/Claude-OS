@@ -2,6 +2,7 @@
 
 import os
 import sys
+import time
 
 from . import __version__, core
 
@@ -64,6 +65,35 @@ def unlink_skills():
             os.remove(path)
             removed += 1
     return removed
+
+
+def keep_download_settings():
+    """A downloaded copy's deny rules live in its gitignored .claude/settings.local.json, which
+    `git clean -X` would delete: put back what's missing whenever Claude OS starts (decision
+    0015). Rules the person added stay. -> True when it wrote the file."""
+    if not core.downloaded():
+        return False
+    path = core.ROOT / ".claude" / "settings.local.json"
+    if os.path.islink(str(path)):
+        return False  # someone's own arrangement: never replaced by a plain file
+    d = core.load_json(path, None) if path.exists() else {}
+    if not isinstance(d, dict):
+        # Not JSON we can read (a hand edit with a trailing comma, say): keep it, beside.
+        aside = path.with_name("settings.local.json.broken-%d-%d" % (int(time.time()), os.getpid()))
+        os.replace(str(path), str(aside))
+        core.journal("action", "moved a downloaded copy's unreadable settings.local.json aside to %s" % aside.name)
+        d = {}
+    perms = d.get("permissions") if isinstance(d.get("permissions"), dict) else {}
+    deny = perms.get("deny") if isinstance(perms.get("deny"), list) else []
+    missing = [rule for rule in core.DOWNLOAD_DENY if rule not in deny]
+    if not missing:
+        return False
+    perms["deny"] = deny + missing
+    d["permissions"] = perms
+    path.parent.mkdir(exist_ok=True)
+    core.save_json(path, d)
+    core.journal("action", "put back a downloaded copy's deny rules: %s" % ", ".join(missing))
+    return True
 
 
 def install(args):

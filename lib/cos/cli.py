@@ -492,6 +492,12 @@ def main(argv=None):
                 os.environ["COS_CAUGHT_UP"] = "1"
                 os.execv(sys.executable, [sys.executable, str(core.ROOT / "bin" / "cos")] + argv)
         evolve.wait_for_moves()
+        if not args.demo:
+            from . import system
+            try:
+                system.keep_download_settings()  # before the app's chat can start a Claude (0015)
+            except Exception:
+                pass
         args.serving = evolve.hold_serving()  # held for the server's life: boot and pulse see it
         args.head = evolve.git("rev-parse", "HEAD").out  # what's about to be loaded
         from . import server

@@ -16,6 +16,7 @@ enum Remover {
               let record = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               record["kind"] as? String == "download", record["root"] as? String == install.path,
               !isLink(install), !isLink(install.appendingPathComponent("bin/cos")),
+              !isLink(install.appendingPathComponent("lib/cos")),
               sameFolder(install, config.root)
         else { return nil }
         return install
@@ -67,7 +68,7 @@ enum Remover {
 
         // The journal and memory: only the usual ~/.claude-os, and only on its own yes, last of all.
         var trashData = false
-        if AppURL.base.standardizedFileURL.path == home + "/.claude-os" {
+        if AppURL.base.standardizedFileURL.path == home + "/.claude-os", !isLink(AppURL.base) {
             let data = NSAlert()
             data.messageText = "Also move your Claude OS journal and memory to the Trash?"
             data.informativeText = "~/.claude-os holds Claude OS's journal, what it learned about you, and its settings. "

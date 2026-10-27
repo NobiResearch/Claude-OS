@@ -525,6 +525,11 @@ def config_set(dotted, value):
 
 REPOSITORY = "github.com/NobiResearch/Claude-OS"
 RELEASES = "https://%s/releases" % REPOSITORY
+# What a downloaded copy's Claude may never do on its own (decision 0015): the repository isn't
+# the person's. Claude OS.app writes these into the copy's .claude/settings.local.json when it
+# downloads it (FirstLaunch.localSettings, the same list), and system.keep_download_settings
+# puts them back if they go missing.
+DOWNLOAD_DENY = ["Bash(gh *)", "Bash(gh-axi *)", "Bash(git push*)", "Bash(git * push*)"]
 # The oldest Claude OS.app this code works with (decision 0015, step 6). Raise it when the
 # server needs something only a newer app does, and a downloaded app that's older says so.
 APP_NEEDED = "0.7.0"
