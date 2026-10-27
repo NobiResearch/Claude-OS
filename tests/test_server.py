@@ -3,8 +3,9 @@ import os
 import threading
 import time
 import unittest
+from unittest import mock
 
-from helpers import TempHome, UnixHTTPConnection, UnixHTTPServer
+from helpers import TempHome, local_connection, local_server
 
 from cos import chat, server
 
@@ -48,12 +49,33 @@ class TestChanges(TempHome):
         self.assertIn("## Unreleased\n\n- newer", server.with_changes("# Changelog\n", folder))
 
 
+class TestLocalServer(TempHome):
+    def test_falls_back_to_localhost_where_unix_sockets_are_refused(self):
+        """Claude Code's sandbox (the nightly evolve session's) refuses Unix sockets; the
+        server tests still have to run there, or the run can't tell its failures apart."""
+        import helpers
+        app = server.App("t")
+        sock = os.path.join(self.tmp, "refused.sock")
+        with mock.patch.object(helpers, "UnixHTTPServer", side_effect=PermissionError(1, "Operation not permitted")):
+            httpd = local_server(sock, server.make_handler(app))
+        self.addCleanup(httpd.server_close)
+        self.assertEqual(httpd.server_address[0], "127.0.0.1")
+        self.assertFalse(os.path.exists(sock))
+        app.port = 7357
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(httpd.shutdown)
+        conn = local_connection(sock)
+        conn.request("GET", "/api/status", headers={"Host": "127.0.0.1:7357", "X-COS-Token": "t"})
+        self.assertEqual(conn.getresponse().status, 200)
+        conn.close()
+
+
 class TestServerSecurity(TempHome):
     def setUp(self):
         super().setUp()
         self.app = server.App("test-token")
         self.socket = os.path.join(self.tmp, "http.sock")
-        self.httpd = UnixHTTPServer(self.socket, server.make_handler(self.app))
+        self.httpd = local_server(self.socket, server.make_handler(self.app))
         self.app.port = 7357  # what the Host header has to name
         threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
 
@@ -63,7 +85,7 @@ class TestServerSecurity(TempHome):
         super().tearDown()
 
     def request(self, method, path, body=None, token="test-token", host=None):
-        conn = UnixHTTPConnection(self.socket)
+        conn = local_connection(self.socket)
         headers = {"Host": host or "127.0.0.1:%d" % self.app.port}
         if token:
             headers["X-COS-Token"] = token
@@ -408,12 +430,12 @@ class TestDemoMode(TempHome):
         from cos import demo
         app = server.App("t", demo=True)
         sock = os.path.join(self.tmp, "demo.sock")
-        httpd = UnixHTTPServer(sock, server.make_handler(app))
+        httpd = local_server(sock, server.make_handler(app))
         app.port = 7357
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         try:
             def call(method, path, body=None):
-                conn = UnixHTTPConnection(sock)
+                conn = local_connection(sock)
                 conn.request(method, path, body=json.dumps(body) if body is not None else None,
                              headers={"Host": "127.0.0.1:%d" % app.port, "X-COS-Token": "t", "Content-Type": "application/json"})
                 res = conn.getresponse()
