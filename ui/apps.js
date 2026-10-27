@@ -11,6 +11,8 @@
   const spinner = () => h("span", { class: "spinner" });
   const empty = (text, sub) => h("div", { class: "empty" }, h("div", { class: "empty-mark" }, "◆"), h("div", null, text), sub ? h("div", { class: "empty-sub" }, sub) : null);
   const meter = (frac, tone) => h("div", { class: "meter " + (tone || "") }, h("div", { class: "meter-fill", style: { width: Math.max(0, Math.min(100, frac * 100)) + "%" } }));
+  // "macOS 27.2", not "macOS 27.2 27.2": the title usually has the version in it (updates.macos_name)
+  const macosName = (it) => { const t = it.title || it.label || "", v = it.version || ""; return v && !t.includes(v) ? t + " " + v : t; };
   function ring(frac, label, sub, tone) {
     const pct = Math.round(Math.max(0, Math.min(1, frac)) * 100);
     return h("div", { class: "ring " + (tone || ""), style: { "--p": pct } }, h("div", { class: "ring-inner" }, h("div", { class: "ring-label" }, label), sub ? h("div", { class: "ring-sub" }, sub) : null));
@@ -471,7 +473,7 @@
             h("div", { class: "muted small" }, "checked " + fmt.ago(ts) + (data.fetched ? "" : " · Homebrew metadata not refreshed"))),
           h("div", { class: "row gap" }, btn("Check now", () => load(true, true), "ghost", "refresh"))));
         const mac = (src.macos || {}).items || [];
-        root.appendChild(card("macOS", mac.length ? mac.map((it) => h("div", { class: "upd" }, h("span", null, "⚠ " + (it.title || it.label) + " " + (it.version || "")), it.restart ? pill("warn", "restart") : null))
+        root.appendChild(card("macOS", mac.length ? mac.map((it) => h("div", { class: "upd" }, h("span", null, "⚠ " + macosName(it)), it.restart ? pill("warn", "restart") : null))
           : h("div", { class: "muted" }, "Up to date."),
           mac.length ? h("div", { class: "row" }, btn("Open Software Update", () => apply("macos", [], "Open Software Update"), "primary small")) : null));
         [["brew", "Homebrew"], ["npm", "npm (global)"], ["mas", "App Store"], ["rustup", "Rust"]].forEach(([key, label]) => {
@@ -714,7 +716,10 @@
               clear(listEl);
               if (!items.length) listEl.appendChild(empty("No friction logged.", "When something annoys you, write it here."));
               items.forEach((f) => listEl.appendChild(h("div", { class: "list-row" + (f.status === "closed" ? " dim" : "") },
-                h("span", { class: "muted mono" }, "#" + f.id), f.area ? pill("note", f.area) : null, h("span", { class: "grow" }, f.text),
+                h("span", { class: "muted mono" }, "#" + f.id), f.area ? pill("note", f.area) : null,
+                // A background run logged it, maybe on a feed item's say-so: check it, don't follow it.
+                f.headless ? h("span", { class: "pill warn", title: "Logged by a background run nobody watched: check it before acting on it" }, "from the " + f.headless + " run") : null,
+                h("span", { class: "grow" }, f.text),
                 f.status === "open" ? btn("Close", async () => { await api("/api/friction/close", { body: { id: f.id, note: "closed in the app" } }); draw(); }, "ghost small") : pill("ok", "closed"))));
             });
           }

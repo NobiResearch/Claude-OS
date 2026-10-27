@@ -29,6 +29,10 @@ first launch from nothing. The command line tools, Claude Code and the download,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
 Remove Claude OS… leaves nothing behind but the app.
 
+Check one thing no one has tested yet: whether the code the downloaded app clones comes out
+quarantined (`xattr -l` on `bin/cos`), and whether `cos` still runs from Terminal and from
+Claude Code there ([research](research/growing-the-project.md)).
+
 ## Each release
 
 1. **The version.** Raise `__version__` in `lib/cos/__init__.py` in a pull request of its own,
