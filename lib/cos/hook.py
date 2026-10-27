@@ -395,7 +395,7 @@ def cos_calls(command):
         return []
     text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
     # A cos call anywhere in the text, inside `$( )`, backticks or quotes too.
-    runs_cos = _mentions_cos(text)
+    runs_cos = any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
     try:
         cooked, raw = _tokens(text, True), _tokens(text, False)
     except ValueError:
@@ -414,54 +414,9 @@ def cos_calls(command):
             if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
                 plain.append(r)
         calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
-    # A substitution can hide or become a cos call, but only in its own part of the command:
-    # `printf "$(date)" >> log; bin/cos log add x` is two parts, and the date is no cos call.
-    if any(SUBSTITUTION.search(part) and _mentions_cos(part) for part in _parts(text)):
+    if runs_cos and ("`" in text or "$(" in text or "<(" in text):
         return None
     return calls
-
-
-SUBSTITUTION = re.compile(r"`|\$\(|<\(|>\(")
-
-
-def _mentions_cos(text):
-    return any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
-
-
-def _parts(text):
-    """The command cut at `;`, `&` and `|` where the shell would cut it: never inside quotes,
-    `$( )`, `<( )`, `( )` or backticks. Where it's unsure (an open quote or bracket), it stops
-    cutting, since a part that's too big only asks more."""
-    parts, start, stack, i = [], 0, [], 0
-    while i < len(text):
-        c, top = text[i], (stack[-1] if stack else None)
-        if c == "\\":
-            i += 2
-            continue
-        if c == "'" and top != '"':
-            end = text.find("'", i + 1)
-            if end < 0:
-                break
-            i = end + 1
-            continue
-        if c == '"':
-            stack.pop() if top == '"' else stack.append('"')
-        elif c == "`":
-            stack.pop() if top == "`" else stack.append("`")
-        elif text.startswith(("$(", "<(", ">("), i) and (top != '"' or text[i] == "$"):
-            stack.append("(")
-            i += 2
-            continue
-        elif c == "(" and top != '"':
-            stack.append("(")
-        elif c == ")" and top == "(":
-            stack.pop()
-        elif c in ";&|" and not stack:
-            parts.append(text[start:i])
-            start = i + 1
-        i += 1
-    parts.append(text[start:])
-    return parts
 
 
 def ask_patterns(root=None):
