@@ -204,14 +204,16 @@ SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/
 
 def _sandbox_path(path, developer):
     """The human's PATH, cut to the toolchains, with the developer folder's real tools ahead of
-    /usr/bin. /usr/bin/git and python3 are xcrun shims, and xcrun keeps a cache in the shared
-    per-user temp folder; the sandbox mustn't write there."""
+    /usr/bin. /usr/bin/git, python3, strings and nm are xcrun shims, and xcrun keeps a cache in
+    the shared per-user temp folder; the sandbox mustn't write there. The command line tools
+    keep all four in usr/bin; Xcode keeps strings and nm in its default toolchain."""
     keep = [p for p in path.split(":") if p.startswith(SANDBOX_BIN)] or ["/usr/bin", "/bin"]
-    tools = os.path.join(developer, "usr", "bin") if developer else ""
-    if not tools.startswith(SANDBOX_BIN) or not os.path.isdir(tools):
-        return ":".join(keep)
-    at = keep.index("/usr/bin") if "/usr/bin" in keep else 0
-    return ":".join(keep[:at] + [tools] + [p for p in keep[at:] if p != tools])
+    folders = [os.path.join(developer, "usr", "bin"),
+               os.path.join(developer, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin")] if developer else []
+    tools = [t for t in folders if t.startswith(SANDBOX_BIN) and os.path.isdir(t)]
+    rest = [p for p in keep if p not in tools]
+    at = rest.index("/usr/bin") if "/usr/bin" in rest else 0
+    return ":".join(rest[:at] + tools + rest[at:])
 
 
 def run_sandboxed(cmd, cwd, timeout=600):

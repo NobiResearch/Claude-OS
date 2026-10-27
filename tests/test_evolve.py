@@ -319,6 +319,30 @@ class TestSandbox(TempHome):
         self.assertNotIn("Finder", r.out, "LaunchServices (and so `open <url>`) is out of reach")
         r = core.run_sandboxed(["git", "--version"], cwd=work)
         self.assertTrue(r.ok, "git works inside: %s" % r.err)
+        # The release scan's tests use these. Only where the sandbox has the developer folder:
+        # an Xcode under another name (CI's Xcode_26.6.app) isn't readable inside.
+        if core.run(["xcode-select", "-p"], timeout=5).out.strip().startswith(core.SANDBOX_READ):
+            for tool in ("strings", "nm"):
+                r = core.run_sandboxed([tool, "-a", "/bin/ls"], cwd=work)
+                self.assertTrue(r.ok, "%s works inside: %s" % (tool, r.err))
+
+    def test_developer_tools_come_before_the_shims(self):
+        """Xcode keeps git and python3 in its usr/bin and strings and nm in its toolchain; the
+        shims in /usr/bin can't run inside, so both folders go ahead of them."""
+        xcode = os.path.join(self.tmp, "Xcode.app", "Contents", "Developer")
+        bins = [os.path.join(xcode, "usr", "bin"),
+                os.path.join(xcode, "Toolchains", "XcodeDefault.xctoolchain", "usr", "bin")]
+        for b in bins:
+            os.makedirs(b)
+        with mock.patch.object(core, "SANDBOX_BIN", core.SANDBOX_BIN + (self.tmp,)):
+            path = core._sandbox_path("/opt/homebrew/bin:/usr/bin:/bin:%s:/Users/x/bin" % bins[0], xcode)
+            self.assertEqual(path.split(":"), ["/opt/homebrew/bin"] + bins + ["/usr/bin", "/bin"])
+            cli = os.path.join(self.tmp, "CommandLineTools")
+            os.makedirs(os.path.join(cli, "usr", "bin"))
+            self.assertEqual(core._sandbox_path("/usr/bin:/bin", cli), "%s/usr/bin:/usr/bin:/bin" % cli)
+        self.assertEqual(core._sandbox_path("/usr/bin:/bin", ""), "/usr/bin:/bin")
+        self.assertEqual(core._sandbox_path("/usr/bin:/bin", xcode), "/usr/bin:/bin",
+                         "a developer folder outside SANDBOX_BIN isn't used")
 
     @unittest.skipUnless(_can_sandbox(), "needs sandbox-exec outside any other sandbox")
     def test_no_network_only_its_own_sockets(self):
