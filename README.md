@@ -9,9 +9,9 @@ who you are, and a nightly habit of making itself a little better.
 It comes two ways: **Claude OS.app**, a desktop with windows, a dock and Claude at the
 center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
-![A tour of Claude OS: Claude answers "Do I need to clean up my Mac?", asks before it cleans, then Storage, Updates, the board and Music](docs/screenshots/tour.gif)
+![A tour of the Claude OS desktop in demo mode: a scripted chat about cleaning up, the Allow card before anything is cleaned, then Storage, Updates, the board and Music](docs/screenshots/tour.gif)
 
-<sub>Screenshots come from `cos serve --demo`, a fictional Mac. No real machine is ever shown.</sub>
+<sub>The tour and screenshots come from `cos serve --demo`: a fictional Mac and a scripted chat. No real machine is ever shown.</sub>
 
 ## What it does for you
 
