@@ -457,93 +457,170 @@ def pretool_decision(command, patterns):
 # one runs before every Bash call: it reads what a gh command would publish and denies it when
 # the Guardian finds a problem. A deny goes back to Claude, never to a card.
 
-GH_TEXT = {("pr", "create"), ("pr", "edit"), ("pr", "comment"), ("pr", "review"), ("issue", "create"),
-           ("issue", "edit"), ("issue", "comment"), ("release", "create"), ("release", "edit")}
-TEXT_FLAGS = {"--title", "-t", "--body", "-b", "--notes", "-n"}
-FILE_FLAGS = {"--body-file", "-F", "--notes-file"}
-API_FIELDS = {"-f", "--raw-field", "-F", "--field"}
-# Where a body file may come from: the repository (or a worktree) and the temp folder.
-TEMP_DIRS = ("/private/tmp", "/private/var/folders", "/tmp", "/var/folders")
-READABLE = "write it as gh … --title \"…\" --body-file <file>, so Ovenbird can read what it publishes"
-_START = r"(?:^|[;&|(]\s*|\n\s*)(?:\w+=\S*\s+)*gh(?:-axi)?\s+"
-GH_AT_START = re.compile(_START + r"(?:pr|issue|release|api)\b")
-# A gh command that publishes text, at a command's start: these can be denied as unreadable.
-GH_TEXT_AT_START = re.compile(_START + r"(?:pr\s+(?:create|edit|comment|review)|issue\s+(?:create|edit|comment)"
-                              r"|release\s+(?:create|edit)|api\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X)\b)")
+PUBLISHES = {(s, v) for s in ("pr", "issue") for v in ("create", "edit", "comment", "close", "reopen")} | {
+    ("pr", "review"), ("pr", "merge"), ("release", "create"), ("release", "edit"),
+    ("discussion", "create"), ("discussion", "edit"), ("discussion", "comment")}
+REFUSED = {("gist", "create"), ("gist", "edit")}  # uploads files: those are the human's to publish
+LONG_TEXT = {"--title", "--body", "--notes", "--subject", "--comment", "--author-email"}
+LONG_FILE = {"--body-file", "--notes-file", "--recover"}
+SHORT_TEXT = {"-t", "-b", "-n", "-c", "-A"}
+SHORT_FILE = {"-F"}
+API_FIELD = {"-f", "-F", "--field", "--raw-field"}
+API_WRITES = API_FIELD | {"--input", "-X", "--method"}
+GLOBAL_VALUE = {"-R", "--repo", "--hostname"}  # before the subcommand; their values aren't text
+# Short flags whose value isn't text: skipped with it, unless the next word is itself a flag.
+SHORT_VALUE = {"-R", "-B", "-H", "-a", "-l", "-m", "-p", "-r", "-T", "-X", "-q", "-j"}
+SESSION_TEMP = "/private/tmp/claude-%d" % os.getuid()  # Claude Code's own temp: the session scratchpad
+EXTRA_BODY_PLACES = []  # tests add their temp folder
+READABLE = ("run gh on its own and write the text plainly: --title \"…\" --body-file <file> (for gh api, "
+            "-F key=@<file> or --input <file>), so Ovenbird can read what it publishes")
+MENTIONS_GH = re.compile(r"(?<![\w-])gh(?:-axi)?(?![\w-])")
+NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|edit|comment|review|close|reopen|merge)\b"
+                              r"|\brelease\s+(?:create|edit)\b|\bgist\s+(?:create|edit)\b"
+                              r"|\bapi\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X|--method)\b")
+HIDES = re.compile(r"`|\$\(|<\(|>\(|\b(?:ba|z)?sh\s+-c\b|\beval\b")
+REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
+
+
+def _is_gh(word):
+    return word in ("gh", "gh-axi") or word.endswith(("/gh", "/gh-axi"))
 
 
 def gh_calls(command):
-    """Every gh or gh-axi call at a command's start -> [(raw words, cooked words)], or None
+    """Every place a gh or gh-axi word is followed (past -R/--repo/--hostname) by something that
+    publishes -> [(subcommand, verb, raw args, cooked args, cooked words before it)]. Found
+    wherever it sits, so `env gh`, `command gh`, `xargs gh` and `{ gh …; }` count too. None
     when the command can't be read."""
     text = str(command or "").replace("\\\n", "").replace("\n", " ; ")
+    text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), text)
     try:
         cooked, raw = _tokens(text, True), _tokens(text, False)
     except ValueError:
         return None
     if len(cooked) != len(raw):
         return None
-    calls, start = [], True
-    for i, c in enumerate(cooked):
-        if c in OPERATORS:
-            start = True
+    calls = []
+    for i, word in enumerate(cooked):
+        if not _is_gh(word):
             continue
-        if start and re.fullmatch(r"\w+=.*", c):  # FOO=1 gh …
-            continue
-        if start and c in ("gh", "gh-axi"):
-            j = i + 1
-            while j < len(cooked) and cooked[j] not in OPERATORS:
-                j += 1
-            calls.append((raw[i + 1:j], cooked[i + 1:j]))
-        start = False
+        j = i + 1
+        while j < len(cooked) and (cooked[j] in GLOBAL_VALUE or cooked[j].startswith(("-R", "--repo=", "--hostname="))):
+            j += 1 if "=" in cooked[j] or (cooked[j].startswith("-R") and len(cooked[j]) > 2) else 2
+        pair = tuple(cooked[j:j + 2])
+        if pair in PUBLISHES or pair in REFUSED or (pair[:1] == ("api",) and any(
+                w.split("=", 1)[0] in API_WRITES or w[:2] in ("-f", "-F", "-X") for w in cooked[j + 1:])):
+            end = j
+            while end < len(cooked) and cooked[end] not in OPERATORS:
+                end += 1
+            sub, verb = (pair + ("",))[:2] if pair[:1] != ("api",) else ("api", "")
+            start = j + (1 if sub == "api" else 2)
+            calls.append((sub, verb, raw[start:end], cooked[start:end], cooked[:i]))
     return calls
 
 
+def _under(path, places):
+    return any(path == p or path.startswith(p.rstrip("/") + "/") for p in places)
+
+
 def _body_file_ok(path, cwd):
+    """The body file's real path when it may be published, or None: only from the repository,
+    one of its worktrees or the session's temp folder, and never a private folder outside them
+    (wherever the home folder is: a sandbox puts it under /private/tmp)."""
     real = os.path.realpath(os.path.join(cwd, os.path.expanduser(path)))
     top = core.run(["git", "-C", cwd, "rev-parse", "--show-toplevel"], timeout=5).out.strip()
-    places = [os.path.realpath(top)] if top else []
-    places += [os.path.realpath(p) for p in TEMP_DIRS] + [os.path.realpath(os.path.expanduser("~/.claude-os/dev"))]
-    return real if any(real == p or real.startswith(p.rstrip("/") + "/") for p in places) else None
+    trees = [l.split(" ", 1)[1] for l in core.run(["git", "-C", cwd, "worktree", "list", "--porcelain"],
+                                                     timeout=5).out.splitlines() if l.startswith("worktree ")]
+    ours = [os.path.realpath(p) for p in ([top] if top else []) + trees]
+    if not _under(real, ours + [os.path.realpath(p) for p in [SESSION_TEMP] + EXTRA_BODY_PLACES]):
+        return None
+    home = os.path.realpath(os.path.expanduser("~"))
+    if _under(real, [os.path.join(home, p) for p in core.PRIVATE_DIRS]) and not _under(real, ours):
+        return None
+    return real
 
 
-def _gh_text(raw, cooked, cwd):
-    """One gh call -> (texts, None) or (None, why it's denied); ([], None) when it publishes no text."""
-    if len(cooked) >= 2 and (cooked[0], cooked[1]) in GH_TEXT:
-        sub = cooked[1]
-    elif cooked[:1] == ["api"] and any(w.split("=", 1)[0] in API_FIELDS | {"--input", "-X", "--method"}
-                                       for w in cooked[1:]):
-        sub = "api"  # an api call that writes; a read (`gh api … --jq '…'`) publishes nothing
-    else:
-        return [], None
-    if any(re.search(r"[$`]|<\(|>\(", r) for r in raw):
+def _unquoted(raw):
+    return re.sub(r"'[^']*'", "''", raw)  # single quotes expand nothing
+
+
+WRITERS = {"tee", "cp", "mv", "install", "rsync", "ln", "dd", "touch", "truncate"}
+
+
+def _written(before):
+    """The files a command writes before its gh call: redirection targets, and what tee, cp, mv
+    and the like are given. Reading a file first (`cos guard --text f`) is fine."""
+    out, k = set(), 0
+    while k < len(before):
+        w = before[k]
+        if w in (">", ">>", ">|") and k + 1 < len(before):
+            out.add(before[k + 1])
+        elif re.match(r"\d*>>?\|?\S", w):
+            out.add(re.sub(r"^\d*>>?\|?", "", w))
+        elif w in WRITERS:
+            j = k + 1
+            while j < len(before) and before[j] not in OPERATORS:
+                if not before[j].startswith("-"):
+                    out.add(before[j])
+                j += 1
+        k += 1
+    return out
+
+
+def _gh_text(sub, verb, raw, cooked, before, cwd):
+    """One publishing gh call -> (texts, None) or (None, why it's denied)."""
+    if (sub, verb) in REFUSED:
+        return None, "gh gist uploads files: those are for the human to publish"
+    if any(w.startswith("--attach") for w in cooked):
+        return None, "attachments (pictures, files) are for the human to publish, not Claude"
+    if any(re.search(r"[$`]|<\(|>\(", _unquoted(r)) for r in raw):
         return None, "this gh command's text has a `$`, backticks or a substitution: " + READABLE
     texts, files, i = [], [], 0
     while i < len(cooked):
         w = cooked[i]
-        flag, value = (w.split("=", 1) + [None])[:2] if w.startswith("--") and "=" in w else (w, None)
-        takes = flag in TEXT_FLAGS | FILE_FLAGS | (API_FIELDS if sub == "api" else set()) | {"--input"}
-        if takes and value is None:
-            value = cooked[i + 1] if i + 1 < len(cooked) else None
-            i += 1
         i += 1
-        if not takes or value is None:
+        if w.startswith("--"):
+            flag, eq, value = w.partition("=")
+            kinds = LONG_TEXT | LONG_FILE | ({"--input"} | API_FIELD if sub == "api" else set())
+            if flag not in kinds:
+                continue
+            if not eq:
+                value, i = (cooked[i] if i < len(cooked) else None), i + 1
+        elif w.startswith("-") and len(w) > 1:
+            if len(w) > 2:  # -bX, -b=X, -F/path, -cb: gh's flag parser reads these more ways than one
+                return None, "write each short flag on its own, with its value after a space: " + READABLE
+            if w in SHORT_VALUE and w not in (API_FIELD if sub == "api" else ()):
+                if i < len(cooked) and not cooked[i].startswith("-"):
+                    i += 1
+                continue
+            if w not in SHORT_TEXT | SHORT_FILE and not (sub == "api" and w in API_FIELD):
+                continue
+            flag, value, i = w, (cooked[i] if i < len(cooked) else None), i + 1
+        else:
             continue
-        if sub == "api" and flag in API_FIELDS:
-            key, _, val = value.partition("=")
-            if flag in ("-F", "--field") and val.startswith("@"):
-                files.append(val[1:])
-            else:
-                texts.append(("field", val))
-        elif flag in FILE_FLAGS or flag == "--input":
+        if value is None:
+            continue
+        if sub == "api":
+            if flag in ("-F", "--field") and value.partition("=")[2].startswith("@"):
+                files.append(value.partition("=")[2][1:])
+            elif flag == "--input":
+                files.append(value)
+            texts.append(("field", value))  # its key as well as its value
+        elif flag in LONG_FILE | SHORT_FILE:
             files.append(value)
         else:
-            texts.append(("title" if flag in ("--title", "-t") else "body", value))
+            texts.append(("title" if flag in ("--title", "-t", "--subject") else "body", value))
     for path in files:
         if path == "-":
             return None, "a body from stdin can't be checked: " + READABLE
+        if not path.startswith(("/", "~")) and any(w in ("cd", "pushd") for w in before):
+            return None, "after a cd, give the body file's full path: what's checked must be what's sent"
+        written = _written(before)
+        if path in written or os.path.realpath(os.path.join(cwd, os.path.expanduser(path))) in {
+                os.path.realpath(os.path.join(cwd, os.path.expanduser(w))) for w in written}:
+            return None, "the body file is written in the same command, so what's checked isn't what's sent: write it first"
         real = _body_file_ok(path, cwd)
         if not real:
-            return None, "the body file isn't in this repository or the temp folder (never a private folder)"
+            return None, "the body file isn't in this repository, a worktree of it or the session's temp folder"
         if not os.path.isfile(real):
             return None, "couldn't read the body file"
         if os.path.getsize(real) > 256 * 1024:
@@ -554,18 +631,21 @@ def _gh_text(raw, cooked, cwd):
 
 
 def gh_text_decision(command, cwd):
-    """-> why to deny, or None. Only commands that publish text through gh are judged; an error
+    """-> why to deny, or None. Only commands that publish through gh are judged; an error
     while judging one denies, and any other command gets no opinion."""
-    from . import guard
-    if not GH_AT_START.search(str(command or "")):
+    text = str(command or "")
+    if not MENTIONS_GH.search(text):
         return None
-    publishes = bool(GH_TEXT_AT_START.search(str(command or "")))
+    publishes = bool(NAMES_PUBLISHING.search(text))
     try:
-        calls = gh_calls(command)
+        from . import guard
+        if publishes and HIDES.search(_unquoted(text)):
+            return "this command publishes through gh and also has a substitution, backticks, sh -c or eval: " + READABLE
+        calls = gh_calls(text)
         if calls is None:
             return ("Ovenbird can't read this command, and it publishes text through gh: " + READABLE) if publishes else None
-        for raw, cooked in calls:
-            texts, why = _gh_text(raw, cooked, cwd)
+        for sub, verb, raw, cooked, before in calls:
+            texts, why = _gh_text(sub, verb, raw, cooked, before, cwd)
             if why:
                 return why
             problems = guard.text_problems(texts) if texts else []
