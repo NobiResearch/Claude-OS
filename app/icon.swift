@@ -11,7 +11,6 @@ import AppKit
 import CoreGraphics
 import ImageIO
 
-let canvas: CGFloat = 1024
 let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
 
 func rgb(_ hex: UInt32, _ alpha: CGFloat = 1) -> CGColor {

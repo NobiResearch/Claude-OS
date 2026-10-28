@@ -2,7 +2,8 @@
 
 - **Status:** accepted
 - **Date:** 2026-10-28
-- **Decided by:** the board (all four seats), confirmed by the owner
+- **Decided by:** the board (the marks unanimously, Outfit 3 to 1), confirmed by the owner, who
+  also chose to reserve the names and marks
 - **Follows:** 0019 ("a mark of its own is a separate decision")
 
 ## Context
@@ -46,5 +47,8 @@ Nest's own dome.
   replaces the hard-coded coral in `ui/style.css` with tokens and the terminal's coral (ANSI 173).
 - The GitHub social preview and the organization's avatar are repository settings: the owner
   uploads them from `docs/brand/`.
-- The mark is the designer's original work, under the repository's MIT license; Outfit's credit
-  and license are in `docs/brand/`.
+- **The files are MIT, the names and marks are reserved.** Anyone may use and change the files,
+  like the rest of the repository, but the names Ovenbird and Nobi Research and these marks say
+  where a copy came from: a fork or another product ships under a name and mark of its own. That's
+  how Rust, Firefox and Homebrew do it, and it's the owner's choice. Outfit's credit and license
+  are in `docs/brand/`.

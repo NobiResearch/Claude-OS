@@ -194,3 +194,10 @@ The app interface keeps Apple's system font; SF Pro is not used in any logo file
 - **GitHub social preview:** upload `ovenbird-social-preview-1280x640.png`. The lockup and tagline sit inside the central 1000 × 300 safe area.
 - **Favicons:** `<link rel="icon" href="ovenbird-favicon.svg" type="image/svg+xml">`, with the 32 and 16 PNGs as fallbacks and `<link rel="apple-touch-icon" href="ovenbird-apple-touch-icon-180.png">`. Same pattern with the `nobi-` files on nobiresearch.com.
 - **Org avatar:** upload `nobi-avatar-1024.png`.
+
+## Using the names and marks
+
+The files are MIT, like the rest of the repository. The names Ovenbird and Nobi Research and
+these marks aren't: they tell people where a copy came from. Use them to talk about Ovenbird (an
+article, a talk, a "works with Ovenbird" note), but a fork or another product needs a name and
+mark of its own (decision 0021).
