@@ -116,10 +116,13 @@ $ cos
 ## Boot it
 
 **Not a developer?** [Download Ovenbird.app](https://github.com/NobiResearch/Ovenbird/releases/latest)
-for a Mac with Apple silicon and macOS 14 or later. Unzip it, move it to Applications and open
-it: the first launch shows what your Mac still needs (Claude Code with a Claude plan, Apple's
-command line tools) and installs nothing until you click. It's early, so far tried on only a few
-Macs; if something breaks, [tell us](https://github.com/NobiResearch/Ovenbird/issues/141).
+for a Mac with Apple silicon and macOS 14 or later: under **Assets**, the file named
+`Ovenbird-<version>.zip`, not "Source code". Unzip it (Safari may do that for you), move
+Ovenbird.app to Applications and open it. The first launch shows the three things your Mac
+still needs: Apple's command line tools, Claude Code with a Claude plan, and Ovenbird's own code,
+downloaded from this repository into your Library. Nothing is installed until you click. It's
+early, so far tried on only a few Macs; if something breaks,
+[tell us](https://github.com/NobiResearch/Ovenbird/issues/141).
 
 **From source**, for developers, and the only way on an Intel Mac (where nobody has tried it
 yet):
