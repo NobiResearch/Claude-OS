@@ -156,6 +156,7 @@ the MusicKit service for your bundle id (`COS_BUNDLE_ID`), and its provisioning 
 
 ```
 cos status                       vitals, security posture, top processes, signals
+cos security                     FileVault, SIP, firewall, Gatekeeper, and how to turn each on
 cos clean [--deep]               reclaimable space with safety levels · clean apply <id>… --yes
 cos update [--fetch]             macOS, Homebrew, npm, mas, rustup · update apply <source> --yes
 cos music play "weightless"      library first, then the Apple Music catalog (cos music setup)
@@ -167,10 +168,11 @@ cos power                        what keeps the Mac or display awake (read-only)
 cos backup [setup]               Time Machine, and which connected disk could hold your backups
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes
-cos remember "…"                 teach Ovenbird about you; shown to Claude at every boot
+cos remember "…" · memory        teach Ovenbird about you; shown to Claude at every boot
 cos daemon list|install|run      background jobs via launchd
 cos evolve [review|merge]        see what Ovenbird changed about itself
 cos guard · doctor · notify · say · log · brief · config
+cos hook check [<branch>|<PR>]   is this pull request ready for its guardian review, and the merge command
 ```
 
 ### The board
