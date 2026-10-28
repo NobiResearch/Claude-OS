@@ -174,8 +174,8 @@ struct AppConfig {
 }
 
 enum Theme {
-    /// #1a1714, the desktop's dark warm gray.
-    static let background = NSColor(srgbRed: 0x1a / 255.0, green: 0x17 / 255.0, blue: 0x14 / 255.0, alpha: 1)
+    /// Night, #15120e: the desktop's background (ui/style.css --bg), so loading shows no seam.
+    static let background = NSColor(srgbRed: 0x15 / 255.0, green: 0x12 / 255.0, blue: 0x0e / 255.0, alpha: 1)
 }
 
 /// Diagnostics go to the app's stderr only (never the unified log), and never include the token.
