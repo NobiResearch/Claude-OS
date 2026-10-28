@@ -11,6 +11,10 @@ what, where, and how we'll know it works.
    are shortcuts worth running.
 3. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
+4. **A light and dark app icon** (0022): docs/brand has both variants as Icon Composer layers,
+   but following macOS's appearance needs an `.icon` compiled by Xcode's `actool`, which the
+   build doesn't use yet (it needs only the Command Line Tools). Take a second look at the light
+   icon's likeness to Reminders first.
 
 ## Hardening
 

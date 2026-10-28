@@ -2,11 +2,11 @@
 //   swift app/icon.swift <out.iconset>
 //   iconutil -c icns <out.iconset> -o AppIcon.icns
 //
-// Design: the Nest (decision 0021; every number is from docs/brand/README.md). On the macOS
-// icon grid (1024 canvas, a continuous-corner 824 x 824 body at a 100 inset): an olive-to-night
-// gradient, a faint Crown glow under the doorway, a Moss ground line, a cream dome taller than
-// a half circle, and its diamond doorway in Crown. Each size is drawn from vectors rather than
-// downscaled; 16 and 32 px use the designer's hand-drawn shapes on whole pixels.
+// Design: Courses, the dark variant (decision 0022; every number is from docs/brand/README.md).
+// On the macOS icon grid (1024 canvas, a continuous-corner 824 x 824 body at a 100 inset): a flat
+// #0F0F0F body and the oven-nest's dome as four round-ended courses, the top one in Crown, the
+// doorway a gap in the lower two. Each size is drawn from vectors rather than downscaled; 16 and
+// 32 px use the designer's hand-drawn bars on whole pixels.
 import AppKit
 import CoreGraphics
 import ImageIO
@@ -48,91 +48,65 @@ func squircle(_ rect: CGRect, radius: CGFloat) -> CGPath {
     return path
 }
 
-/// One drawing of the Nest, in its own grid's units with y down, as in the brand note's SVGs.
-struct Nest {
+/// One drawing of the mark (Courses), in its own grid's units with y down, as in the brand note's SVGs.
+/// Every course is a bar with fully rounded ends: a rect whose corner radius is half its height
+/// (on the master, the note's round-capped stroke of 88 around each centre line).
+struct Mark {
     let grid: CGFloat
     let body: CGRect
     let radius: CGFloat
-    let ground: CGRect  // the ground line as a bar (round-capped on the master)
-    let dome: [CGFloat]  // M x y, C x y x y x y, C x y x y x y
-    let door: [CGFloat]  // the diamond: top, right, bottom, left
-    let handDrawn: Bool  // whole pixels: plain corners, no shadow, no glow
+    let courses: [CGRect]  // top to bottom; the first is the Crown course
+    let handDrawn: Bool    // whole pixels: plain corners, no shadow
 }
 
-let master = Nest(grid: 1024, body: CGRect(x: 100, y: 100, width: 824, height: 824), radius: 185.4,
-                  ground: CGRect(x: 184, y: 748, width: 656, height: 24),
-                  dome: [232, 760, 232, 462, 316, 280, 512, 280, 708, 280, 792, 462, 792, 760],
-                  door: [620, 460, 720, 610, 620, 760, 520, 610], handDrawn: false)
-let at32 = Nest(grid: 32, body: CGRect(x: 3, y: 3, width: 26, height: 26), radius: 6,
-                ground: CGRect(x: 6, y: 23, width: 20, height: 1),
-                dome: [7, 24, 7, 14.7, 9.7, 9, 16, 9, 22.3, 9, 25, 14.7, 25, 24],
-                door: [19, 16, 22, 20, 19, 24, 16, 20], handDrawn: true)
-let at16 = Nest(grid: 16, body: CGRect(x: 1, y: 1, width: 14, height: 14), radius: 3,
-                ground: CGRect(x: 2, y: 12, width: 12, height: 1),
-                dome: [3, 13, 3, 8, 4.5, 5, 8, 5, 11.5, 5, 13, 8, 13, 13],
-                door: [9, 7, 11, 10, 9, 13, 7, 10], handDrawn: true)
-
-func point(_ v: [CGFloat], _ i: Int) -> CGPoint { CGPoint(x: v[i], y: v[i + 1]) }
+let master = Mark(grid: 1024, body: CGRect(x: 100, y: 100, width: 824, height: 824), radius: 185.4, courses: [
+    CGRect(x: 380, y: 270, width: 264, height: 88),
+    CGRect(x: 281, y: 402, width: 462, height: 88),
+    CGRect(x: 226, y: 534, width: 385, height: 88), CGRect(x: 699, y: 534, width: 99, height: 88),
+    CGRect(x: 204, y: 666, width: 407, height: 88), CGRect(x: 699, y: 666, width: 121, height: 88),
+], handDrawn: false)
+let at32 = Mark(grid: 32, body: CGRect(x: 3, y: 3, width: 26, height: 26), radius: 6, courses: [
+    CGRect(x: 13, y: 8, width: 6, height: 3),
+    CGRect(x: 10, y: 13, width: 12, height: 3),
+    CGRect(x: 8, y: 18, width: 10, height: 3), CGRect(x: 22, y: 18, width: 3, height: 3),
+    CGRect(x: 7, y: 23, width: 11, height: 3), CGRect(x: 22, y: 23, width: 4, height: 3),
+], handDrawn: true)
+let at16 = Mark(grid: 16, body: CGRect(x: 1, y: 1, width: 14, height: 14), radius: 3, courses: [
+    CGRect(x: 6, y: 3, width: 4, height: 2),
+    CGRect(x: 4, y: 6, width: 8, height: 2),
+    CGRect(x: 3, y: 9, width: 6, height: 2), CGRect(x: 11, y: 9, width: 2, height: 2),
+    CGRect(x: 3, y: 12, width: 6, height: 2), CGRect(x: 11, y: 12, width: 2, height: 2),
+], handDrawn: true)
 
 func drawIcon(_ ctx: CGContext, pixels: Int) {
-    let nest = pixels == 16 ? at16 : pixels == 32 ? at32 : master
-    let s = CGFloat(pixels) / nest.grid
+    let icon = pixels == 16 ? at16 : pixels == 32 ? at32 : master
+    let s = CGFloat(pixels) / icon.grid
     ctx.scaleBy(x: s, y: s)  // note: shadow offset/blur ignore the CTM, so they're scaled by hand
-    ctx.translateBy(x: 0, y: nest.grid)
+    ctx.translateBy(x: 0, y: icon.grid)
     ctx.scaleBy(x: 1, y: -1)  // y down, like the SVGs
     ctx.setShouldAntialias(true)
-    ctx.interpolationQuality = .high
 
-    let shape = nest.handDrawn
-        ? CGPath(roundedRect: nest.body, cornerWidth: nest.radius, cornerHeight: nest.radius, transform: nil)
-        : squircle(nest.body, radius: nest.radius)
+    let shape = icon.handDrawn
+        ? CGPath(roundedRect: icon.body, cornerWidth: icon.radius, cornerHeight: icon.radius, transform: nil)
+        : squircle(icon.body, radius: icon.radius)
 
-    // The body's own drop shadow, as in Apple's icon template.
-    if !nest.handDrawn {
-        ctx.saveGState()
-        ctx.setShadow(offset: CGSize(width: 0, height: -10 * s), blur: 24 * s, color: rgb(0x000000, 0.30))
-        ctx.addPath(shape)
-        ctx.setFillColor(rgb(0x27241A))
-        ctx.fillPath()
-        ctx.restoreGState()
-    }
-
-    // Olive at the top to night at the bottom, and a faint Crown glow under the doorway.
+    // The dark body, flat (no gradient, no glow), with its drop shadow as in Apple's icon template.
     ctx.saveGState()
-    ctx.addPath(shape)
-    ctx.clip()
-    let night = CGGradient(colorsSpace: srgb, colors: [rgb(0x4F4B34), rgb(0x27241A)] as CFArray, locations: [0, 1])!
-    ctx.drawLinearGradient(night, start: CGPoint(x: 0, y: nest.body.minY), end: CGPoint(x: 0, y: nest.body.maxY), options: [])
-    if !nest.handDrawn {
-        let glow = CGGradient(colorsSpace: srgb, colors: [rgb(0xE0912F, 0.22), rgb(0xE0912F, 0)] as CFArray,
-                              locations: [0, 1])!
-        ctx.drawRadialGradient(glow, startCenter: CGPoint(x: 620, y: 700), startRadius: 0,
-                               endCenter: CGPoint(x: 620, y: 700), endRadius: 260, options: [])
+    if !icon.handDrawn {
+        ctx.setShadow(offset: CGSize(width: 0, height: -10 * s), blur: 24 * s, color: rgb(0x000000, 0.30))
     }
+    ctx.addPath(shape)
+    ctx.setFillColor(rgb(0x0F0F0F))
+    ctx.fillPath()
     ctx.restoreGState()
 
-    // The ground line in Moss, then the cream dome on it, then the doorway in Crown.
-    let cap = nest.handDrawn ? 0 : nest.ground.height / 2
-    ctx.addPath(CGPath(roundedRect: nest.ground, cornerWidth: cap, cornerHeight: cap, transform: nil))
-    ctx.setFillColor(rgb(0x8F8A5A))
-    ctx.fillPath()
-
-    let d = nest.dome
-    let dome = CGMutablePath()
-    dome.move(to: point(d, 0))
-    dome.addCurve(to: point(d, 6), control1: point(d, 2), control2: point(d, 4))
-    dome.addCurve(to: point(d, 12), control1: point(d, 8), control2: point(d, 10))
-    dome.closeSubpath()
-    ctx.addPath(dome)
-    ctx.setFillColor(rgb(0xF3EADA))
-    ctx.fillPath()
-
-    let door = CGMutablePath()
-    door.addLines(between: stride(from: 0, to: 8, by: 2).map { point(nest.door, $0) })
-    door.closeSubpath()
-    ctx.addPath(door)
-    ctx.setFillColor(rgb(0xE0912F))
-    ctx.fillPath()
+    // The courses: Crown on top, white below, the doorway the gap in the lower two.
+    for (i, bar) in icon.courses.enumerated() {
+        let r = bar.height / 2
+        ctx.addPath(CGPath(roundedRect: bar, cornerWidth: r, cornerHeight: r, transform: nil))
+        ctx.setFillColor(i == 0 ? rgb(0xE0912F) : rgb(0xFFFFFF))
+        ctx.fillPath()
+    }
 }
 
 func render(pixels: Int) -> CGImage {

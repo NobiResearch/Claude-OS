@@ -1,6 +1,6 @@
 # 0021 — The Nest: Ovenbird's mark, and Nobi Research's
 
-- **Status:** accepted
+- **Status:** accepted; its mark superseded by [0022](0022-courses.md)
 - **Date:** 2026-10-28
 - **Decided by:** the board (the marks unanimously, Outfit 3 to 1), confirmed by the owner, who
   also chose to reserve the names and marks
