@@ -101,7 +101,7 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 
 ```
 $ cos
-◆ Ovenbird 0.1.0 · Saturday 24 Oct 2026, 08:02
+◆ Ovenbird 0.8.0 · Saturday 24 Oct 2026, 08:02
   Mac16,8 · macOS 27.0.1 · Apple M4 Pro · up 3d 2h
   disk 412.3 GB free (44.5%) · memory 21.4 GB/48.0 GB · battery 81% charging
   signals: 23 updates available (checked 2h ago) · 41.2 GB safely reclaimable (scanned 1h ago)
@@ -115,9 +115,14 @@ $ cos
 
 ## Boot it
 
-Not a developer? A downloadable, signed Ovenbird.app that sets itself up is on its way
-([decision 0015](docs/decisions/0015-claude-os-for-everyone.md)). Until it's out, this is the
-way in.
+**Not a developer?** [Download Ovenbird.app](https://github.com/NobiResearch/Ovenbird/releases/latest)
+for a Mac with Apple silicon and macOS 14 or later. Unzip it, move it to Applications and open
+it: the first launch shows what your Mac still needs (Claude Code with a Claude plan, Apple's
+command line tools) and installs nothing until you click. It's early, so far tried on only a few
+Macs; if something breaks, [tell us](https://github.com/NobiResearch/Ovenbird/issues/141).
+
+**From source**, for developers, and the only way on an Intel Mac (where nobody has tried it
+yet):
 
 Requirements: macOS, [Claude Code](https://claude.com/claude-code), git. Nothing else:
 the syscalls are Python standard library, and macOS ships Python. Building the app needs
