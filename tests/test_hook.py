@@ -400,6 +400,183 @@ class TestPretool(TempHome):
                     self.assertTrue(h["command"].startswith('[ -n "$CLAUDE_OS_DAEMON" ] || '), (name, h["command"]))
 
 
+class TestGhText(TempHome):
+    """The Guardian over what gh publishes, before the command runs (Fable's review, F5/F8): a
+    deny goes back to Claude and never shows a card, and only commands that publish are judged."""
+
+    SECRET = "sk-ant-" + "a" * 30
+
+    def setUp(self):
+        super().setUp()
+        import tempfile
+        self.tmp = os.path.realpath(tempfile.mkdtemp())
+        self.addCleanup(lambda: __import__("shutil").rmtree(self.tmp, ignore_errors=True))
+        places = mock.patch.object(hook, "EXTRA_BODY_PLACES", [self.tmp])
+        places.start()
+        self.addCleanup(places.stop)
+        self.clean = self.body("What and why.\n", "clean.md")
+        self.leaky = self.body("see %s/notes.txt\n" % os.path.expanduser("~"), "leaky.md")
+
+    def body(self, text, name="body.md"):
+        path = os.path.join(self.tmp, name)
+        with open(path, "w") as f:
+            f.write(text)
+        return path
+
+    def decide(self, command):
+        return hook.gh_text_decision(command, str(core.ROOT))
+
+    def test_a_clean_title_and_body_file_pass_with_no_card(self):
+        c = self.clean
+        for cmd in ('gh pr create --head night/x --title "A fix (F6, F10)" --body-file %s' % c,
+                    'bin/cos guard --text %s && gh pr create --head night/x --title "Fix" --body-file %s' % (c, c),
+                    'gh pr edit 120 --title "Better" --body-file %s' % c, "gh-axi pr comment 7 --body-file %s" % c,
+                    'gh issue create --title "Idea" --body "plain words"', "gh release create v1.0 --notes-file %s" % c,
+                    "gh pr review 3 --approve", 'gh pr close 4 --comment "Done here"',
+                    "gh pr merge 120 --squash --delete-branch --match-head-commit " + "a" * 40,
+                    "gh pr create --title 'Add `cos power`' --body-file %s" % c,  # single quotes expand nothing
+                    "gh -R NobiResearch/Ovenbird pr comment 7 --body-file %s" % c):
+            self.assertIsNone(self.decide(cmd), cmd)
+
+    def test_what_the_guardian_finds_is_denied_however_gh_is_reached(self):
+        s, home = self.SECRET, os.path.expanduser("~")
+        for cmd in ("gh pr create --title t --body-file %s" % self.leaky, 'gh pr create --title "%s" --body-file %s' % (s, self.clean),
+                    'gh pr comment 1 --body "%s"' % s, "gh pr comment 1 --body=%s" % s, 'FOO=1 gh issue comment 2 -b "%s"' % s,
+                    'gh-axi pr review 3 --body "%s"' % s, "gh release edit v1 --notes-file %s" % self.leaky,
+                    "gh api repos/a/b/issues/1/comments -f body=%s" % s, "gh api repos/a/b/issues -X POST -F body=@%s" % self.leaky,
+                    "gh api repos/a/b/issues -f %s=x" % s,  # the key is published too
+                    # global flags, wrappers and spellings of gh itself (the guardian's probes)
+                    "gh -R o/r pr comment 1 --body %s" % s, "gh --repo o/r pr comment 1 --body %s" % s,
+                    "gh --repo=o/r pr comment 1 --body %s" % s, "gh -Ro/r pr comment 1 --body %s" % s,
+                    "\\gh pr comment 1 --body %s" % s, "command gh pr comment 1 --body %s" % s, "env gh pr comment 1 --body %s" % s,
+                    "/opt/homebrew/bin/gh pr comment 1 --body %s" % s, '"gh" pr comment 1 --body %s' % s,
+                    "{ gh pr comment 1 --body %s; }" % s, "if gh pr comment 1 --body %s; then :; fi" % s, "! gh pr comment 1 --body %s" % s,
+                    "time gh pr comment 1 --body %s" % s, "nohup gh pr comment 1 --body %s" % s,
+                    "gh pr comment 1 2>&1 --body %s" % s, "gh pr -R o/r comment 1 --body %s" % s,
+                    "gh pr review 1 --comment --body %s" % s, "gh pr review 1 -c -b %s" % s,  # there -c is a switch
+                    "gh pr review 1 --comment --body-file %s" % self.leaky,
+                    # what else publishes
+                    "gh pr close 1 -c %s" % s, "gh issue reopen 2 --comment %s" % s, "gh pr merge 1 --squash --subject %s" % s,
+                    "gh pr merge 1 --squash -b %s" % s, "gh pr merge 1 --squash -A %s" % s, "gh pr merge 1 -F %s" % self.leaky,
+                    "gh discussion create --title %s" % s, "gh-axi discussion comment 3 --body %s" % s,
+                    "gh pr create --recover %s" % self.leaky,
+                    # outside the board's list, published all the same
+                    "gh label create x --description %s" % s, "gh repo edit --description %s" % s,
+                    "gh repo edit --homepage %s" % s, "gh workflow run ci.yml -f x=%s" % s,
+                    "gh project item-create 1 --owner o --title %s" % s):
+            why = self.decide(cmd)
+            self.assertIn("Guardian found", why or "", cmd)
+            self.assertNotIn(home, why)
+            self.assertNotIn(s, why)
+
+    def test_what_it_can_not_follow_is_refused(self):
+        """The guardian's third round on #121: flags before the verb, xargs, a flag with no value,
+        an apostrophe in double quotes, and shells fed text."""
+        cases = {
+            "flags after the verb": ("gh --body x pr comment 1", "gh pr --body x comment 1",
+                                     "gh -f body=x api repos/a/b/issues"),
+            "xargs adds words": ("echo 1 | xargs gh pr comment --body hi", "echo hi | xargs gh pr comment 1 --body"),
+            "needs its value": ("gh pr comment 1 --body", "gh pr comment 1 --body --title x"),
+            "has a `$`": ('gh pr comment 1 --body "Don\'t use $HOME, it\'s private"',),
+            "runs text as a command": ('gh pr comment 1 --body "it\'s $(cat x) isn\'t"',
+                                       "echo 'gh pr comment 1 --body x' | bash", "source x.sh && gh pr comment 1 --body hi"),
+            "full path": ("popd && gh pr comment 1 --body-file notes.md",),
+            "nothing may be written": ("cd /tmp && printf x > c.md && gh pr comment 1 --body-file %s" % self.clean,),
+            "same command": ("sed -i '' s/a/b/ %s && gh pr comment 1 --body-file %s" % (self.clean, self.clean),),
+            "alias": ("gh alias set pc 'pr comment'",),
+        }
+        for want, cmds in cases.items():
+            for cmd in cmds:
+                self.assertIn(want, self.decide(cmd) or "", cmd)
+        # Reading the body file first is the norm.
+        for cmd in ("bin/cos guard --text %s && gh pr comment 1 --body-file %s", "cat %s && gh pr comment 1 --body-file %s"):
+            self.assertIsNone(self.decide(cmd % (self.clean, self.clean)), cmd)
+
+    def test_round_four(self):
+        """The guardian's fourth round on #121: the verb the way gh finds it, shell words only
+        outside quotes, an unquoted ~, and writes it missed."""
+        s, c = self.SECRET, self.clean
+        for cmd in ('gh pr create --title "Open source the brief" --body-file %s' % c,
+                    'gh pr create --title "Fix eval of feeds" --body-file %s' % c,
+                    'gh pr comment 1 --body "Ran it with bash -c to check"', 'gh pr comment 1 --body "~/notes stays quoted"',
+                    "gh pr list --search review", "gh issue list --label edit", "gh pr list --label comment",
+                    "cd lib && ls 2>&1 && gh pr comment 1 --body-file %s" % c):  # 2>&1 writes no file
+            self.assertIsNone(self.decide(cmd), cmd)
+        cases = {
+            "flags after the verb": ("gh pr -b %s -R o/r comment 1" % s, "gh pr --body %s --repo o/r comment 1" % s),
+            "runs text as a command": ("bash -lc 'gh pr comment 1 --body hi'", "zsh -ic 'gh pr comment 1 --body hi'",
+                                       "sh -ec 'gh pr comment 1 --body hi'", "bash -o pipefail -c 'gh pr comment 1 --body hi'",
+                                       "echo 'gh pr comment 1 --body hi' | /bin/sh", "echo 'gh pr comment 1 --body hi' | dash"),
+            "unquoted ~": ("gh pr comment 1 --body ~/notes", "gh pr comment 1 --body ~", "gh pr comment 1 --body=~/x",
+                           "gh api repos/a/b/issues -f body=~/x"),
+            # gh's own `new` alias for create (the final guardian check)
+            "Guardian found": ("gh pr new --title t --body %s" % s, "gh issue new --title t --body %s" % s,
+                               "gh pr -R o/r new --body %s" % s, "gh repo new x --description %s" % s),
+            "for the human": ("gh gist new notes.md",),
+            "same command": ("echo x &> %s && gh pr comment 1 --body-file %s" % (c, c),
+                             "echo x &>> %s && gh pr comment 1 --body-file %s" % (c, c),
+                             "dd if=/dev/zero of=%s count=1 && gh pr comment 1 --body-file %s" % (c, c),
+                             "tool --output=%s && gh pr comment 1 --body-file %s" % (c, c)),
+        }
+        for want, cmds in cases.items():
+            for cmd in cmds:
+                self.assertIn(want, self.decide(cmd) or "", cmd)
+
+    def test_what_only_the_human_publishes_is_refused(self):
+        self.assertIn("for the human", self.decide("gh pr create --title t --body-file %s --attach shot.png" % self.clean))
+        self.assertIn("for the human", self.decide("gh issue comment 2 --body hi --attach=video.mov"))
+        self.assertIn("for the human", self.decide("gh gist create notes.md"))
+
+    def test_a_body_file_comes_from_the_repository_or_the_session_temp_only(self):
+        from helpers import REAL_HOME  # paths only: refused before anything is read
+        for private in (os.path.join(REAL_HOME, ".claude-os", "memory.md"), os.path.join(REAL_HOME, ".ssh", "config"),
+                        "/var/folders/xy/some-app-cache/notes.md"):
+            self.assertIn("isn't in this repository", self.decide("gh pr comment 1 --body-file %s" % private), private)
+        self.assertIn("couldn't read", self.decide("gh pr create --title t --body-file %s/missing.md" % self.tmp))
+        # What's checked must be what's sent.
+        self.assertIn("full path", self.decide("cd lib && gh pr comment 1 --body-file notes.md"))
+        self.assertIn("same command", self.decide("printf x > %s && gh pr comment 1 --body-file %s" % (self.clean, self.clean)))
+
+    def test_text_it_cant_read_is_denied_with_the_readable_form(self):
+        for cmd in ('gh pr create --title t --body "$(cat ~/.claude-os/memory.md)"', "gh pr comment 1 --body `cat x`",
+                    "gh pr create --title t --body-file -", "gh issue create --title t --body-file - < notes",
+                    "gh pr create --title 'unbalanced", 'gh pr create --title "x" --body "$NOTES"',
+                    'url="$(gh pr create --title t --body hi)"', "sh -c 'gh pr comment 1 --body hi'",
+                    "gh pr merge 1 --squash --match-head-commit $(git rev-parse HEAD)",
+                    "gh pr comment 1 -b%s" % self.SECRET, "gh pr comment 1 -b=hi", "gh pr comment 1 -F%s" % self.clean,
+                    "gh api repos/a/b/issues -fbody=hi", "gh pr close 1 -cb hi"):
+            self.assertIn("--body-file", self.decide(cmd) or "", cmd)
+        self.assertIn("-F key=@", self.decide("gh api graphql -f query='{ viewer { login } }'") or "")
+
+    def test_everything_else_gets_no_opinion(self):
+        for cmd in ('grep "gh pr create" CLAUDE.md', "gh pr checks 120 --watch", "gh pr view 1 --json body",
+                    "gh api repos/a/b/actions/runs --jq '.runs[] | select(.x == $y)'", "gh pr view 1; echo 'open quote",
+                    "git commit -m 'gh pr create'", "gh run list --branch night/x --json databaseId,status", "ls", ""):
+            self.assertIsNone(self.decide(cmd), cmd)
+
+    def test_an_error_denies_only_a_command_that_publishes(self):
+        with mock.patch("cos.guard.text_problems", side_effect=RuntimeError("boom")):
+            self.assertIn("couldn't check", self.decide('gh pr comment 1 --body "hi"'))
+            self.assertIsNone(self.decide("gh pr checks 1"))
+            self.assertIsNone(self.decide("cos status"))
+        import sys
+        import cos
+        with mock.patch.dict(sys.modules, {"cos.guard": None}), mock.patch.object(cos, "guard", None, create=True):
+            self.assertIn("couldn't check", self.decide('gh pr comment 1 --body "hi"'))  # a guard that won't load
+        # Writing the body file in the same command is refused; reading it first is the norm.
+        for cmd in ("echo hi >> %s; gh pr comment 1 --body-file %s", "cat a | tee %s && gh pr comment 1 --body-file %s",
+                    "cp x %s && gh pr comment 1 --body-file %s"):
+            self.assertIn("same command", self.decide(cmd % (self.clean, self.clean)), cmd)
+
+    def test_the_hook_prints_a_deny(self):
+        out = io.StringIO()
+        request = {"tool_name": "Bash", "cwd": str(core.ROOT), "tool_input": {"command": 'gh pr comment 1 --body "%s"' % self.SECRET}}
+        with mock.patch("sys.stdin", io.StringIO(json.dumps(request))), redirect_stdout(out):
+            self.assertEqual(hook.pretool(), 0)
+        said = json.loads(out.getvalue())["hookSpecificOutput"]
+        self.assertEqual((said["hookEventName"], said["permissionDecision"]), ("PreToolUse", "deny"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
