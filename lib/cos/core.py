@@ -198,7 +198,7 @@ SANDBOX_READ = ("/System", "/usr", "/bin", "/sbin", "/dev", "/private/etc", "/pr
 # account, and the histories shells and tools keep (where they keep them by default).
 PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".claude.json", ".claude.json.backup", ".aws", ".gnupg",
                 ".config/gh", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials",
-                ".docker", ".kube", ".config/gcloud", ".azure", ".cargo/credentials.toml", ".gem/credentials",
+                ".docker", ".kube", ".config/gcloud", ".azure", ".cargo/credentials.toml", ".cargo/credentials", ".gem/credentials",
                 ".password-store", "Library/Keychains", "Library/Application Support/com.apple.TCC",
                 ".zsh_history", ".zsh_sessions", ".bash_history", ".bash_sessions", ".local/share/fish",
                 ".python_history", ".node_repl_history", ".psql_history", ".mysql_history",
