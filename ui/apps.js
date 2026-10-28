@@ -91,7 +91,7 @@
 
       function welcome() {
         clear(log).appendChild(h("div", { class: "chat-welcome" },
-          h("img", { class: "chat-welcome-mark", src: "nest.svg", alt: "" }),
+          h("img", { class: "chat-welcome-mark", src: "mark.svg", alt: "" }),
           h("div", { class: "chat-welcome-title" }, "What can I do for you?"),
           h("div", { class: "chat-welcome-sub" }, "I can see and run this Mac through Ovenbird. Anything that changes something asks you first."),
           h("div", { class: "chips" }, SUGGESTIONS.map((s) => h("button", { class: "chip", onclick: () => ask(s) }, s)))));

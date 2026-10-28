@@ -1,6 +1,6 @@
 import AppKit
 
-/// The menu bar item: the Nest and "362 GB", with the server's signals in its menu.
+/// The menu bar item: the Courses mark and "362 GB", with the server's signals in its menu.
 /// Polls GET /api/status every 60 seconds (and when the menu opens).
 final class StatusItemController: NSObject, NSMenuDelegate {
     var endpoint: ServerEndpoint? {
@@ -34,7 +34,7 @@ final class StatusItemController: NSObject, NSMenuDelegate {
         session = URLSession(configuration: cfg)
         super.init()
 
-        item.button?.image = Self.nest
+        item.button?.image = Self.mark
         item.button?.imagePosition = .imageLeading
         item.button?.toolTip = "Ovenbird"
         menu.delegate = self
@@ -76,24 +76,22 @@ final class StatusItemController: NSObject, NSMenuDelegate {
 
     // MARK: rendering
 
-    /// The Nest as a template image (decision 0021): the filled dome with its doorway cut out at
-    /// the base, on docs/brand's 18 pt grid. Drawn when shown, so it's sharp at 1x and 2x, and
-    /// macOS tints it for a light, dark or highlighted menu bar.
-    static let nest: NSImage = {
+    /// The Courses mark as a template image (decision 0022): four round-ended bars on whole
+    /// points of docs/brand's 18 pt grid, the doorway a gap in the lower two. Drawn when shown, so
+    /// it's sharp at 1x and 2x (the designer's 36 px is exactly twice this), and macOS tints it
+    /// for a light, dark or highlighted menu bar.
+    static let mark: NSImage = {
+        let courses: [NSRect] = [
+            NSRect(x: 6, y: 2, width: 6, height: 2),
+            NSRect(x: 3, y: 6, width: 12, height: 2),
+            NSRect(x: 2, y: 10, width: 8, height: 2), NSRect(x: 13, y: 10, width: 3, height: 2),
+            NSRect(x: 1, y: 14, width: 9, height: 2), NSRect(x: 13, y: 14, width: 4, height: 2),
+        ]
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: true) { _ in
-            let path = NSBezierPath()
-            path.move(to: NSPoint(x: 1, y: 16))
-            path.curve(to: NSPoint(x: 9, y: 2), controlPoint1: NSPoint(x: 1, y: 7.3), controlPoint2: NSPoint(x: 3.4, y: 2))
-            path.curve(to: NSPoint(x: 17, y: 16), controlPoint1: NSPoint(x: 14.6, y: 2), controlPoint2: NSPoint(x: 17, y: 7.3))
-            path.close()
-            path.move(to: NSPoint(x: 12, y: 8))
-            path.line(to: NSPoint(x: 15, y: 12))
-            path.line(to: NSPoint(x: 12, y: 16))
-            path.line(to: NSPoint(x: 9, y: 12))
-            path.close()
-            path.windingRule = .evenOdd
             NSColor.black.setFill()
-            path.fill()
+            for bar in courses {
+                NSBezierPath(roundedRect: bar, xRadius: 1, yRadius: 1).fill()
+            }
             return true
         }
         image.isTemplate = true
