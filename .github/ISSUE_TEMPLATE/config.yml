@@ -1,5 +1,8 @@
 blank_issues_enabled: true
 contact_links:
+  - name: Ask a question or talk through an idea
+    url: https://github.com/NobiResearch/Ovenbird/discussions
+    about: Setting up or using Ovenbird, or an idea that's still rough. Bugs go in an issue.
   - name: Report a security or privacy hole privately
     url: https://github.com/NobiResearch/Ovenbird/security/advisories/new
     about: Please don't open a public issue for these.

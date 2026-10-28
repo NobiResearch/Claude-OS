@@ -1,14 +1,18 @@
 # Contributing to Ovenbird
 
 Thanks for wanting to make Ovenbird better. Ideas, bug reports and pull requests are all
-welcome. For a privacy or safety hole, please don't open an issue: see [SECURITY.md](SECURITY.md).
-Working with an AI coding agent is fine too: [AI_POLICY.md](AI_POLICY.md) says what we ask.
+welcome. Questions, and ideas that are still rough, go in
+[Discussions](https://github.com/NobiResearch/Ovenbird/discussions). For a privacy or safety
+hole, please don't open an issue: see [SECURITY.md](SECURITY.md). Working with an AI coding
+agent is fine too: [AI_POLICY.md](AI_POLICY.md) says what we ask.
 
 ## What we want most
 
 For anything new (a command, skill, daemon or desktop feature), open an
 [idea issue](https://github.com/NobiResearch/Ovenbird/issues/new?template=idea.md) first, so
-nobody builds something we'd turn down. Bug reports and fixes for open issues don't need one.
+nobody builds something we'd turn down. Not sure what it should be yet? Talk it through in
+[Ideas](https://github.com/NobiResearch/Ovenbird/discussions/categories/ideas) first. Bug
+reports and fixes for open issues don't need one.
 
 1. **Bug reports:** your macOS version, chip and what broke. Paste only `cos version` and
    `cos doctor` (it writes your home folder as `~`, but check it for your username anyway), and
