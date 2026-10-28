@@ -509,6 +509,10 @@ class TestGhText(TempHome):
                                        "echo 'gh pr comment 1 --body hi' | /bin/sh", "echo 'gh pr comment 1 --body hi' | dash"),
             "unquoted ~": ("gh pr comment 1 --body ~/notes", "gh pr comment 1 --body ~", "gh pr comment 1 --body=~/x",
                            "gh api repos/a/b/issues -f body=~/x"),
+            # gh's own `new` alias for create (the final guardian check)
+            "Guardian found": ("gh pr new --title t --body %s" % s, "gh issue new --title t --body %s" % s,
+                               "gh pr -R o/r new --body %s" % s, "gh repo new x --description %s" % s),
+            "for the human": ("gh gist new notes.md",),
             "same command": ("echo x &> %s && gh pr comment 1 --body-file %s" % (c, c),
                              "echo x &>> %s && gh pr comment 1 --body-file %s" % (c, c),
                              "dd if=/dev/zero of=%s count=1 && gh pr comment 1 --body-file %s" % (c, c),

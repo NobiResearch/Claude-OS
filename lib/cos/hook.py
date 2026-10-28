@@ -466,6 +466,9 @@ REFUSED = {("gist", "create"): "gh gist uploads files: those are for the human t
            ("alias", "import"): "a gh alias can hide what a later command publishes"}
 PUBLISHES |= {("label", "create"), ("label", "edit"), ("repo", "create"), ("repo", "edit"), ("workflow", "run"),
               ("project", "create"), ("project", "edit"), ("project", "item-create"), ("project", "item-edit")}
+# gh's own alias: `gh pr new` is `gh pr create` (and so for issue, repo, release and gist).
+PUBLISHES |= {(s, "new") for s in ("pr", "issue", "repo", "release")}
+REFUSED[("gist", "new")] = REFUSED[("gist", "create")]
 SUBCOMMANDS = {"pr", "issue", "release", "discussion", "gist", "alias", "api", "label", "repo", "workflow", "project"}
 # Text flags that only one subcommand has (elsewhere the same letter means something else).
 OWN_TEXT = {"label": {"--description", "-d"}, "repo": {"--description", "-d", "--homepage", "-h"}}
@@ -486,10 +489,10 @@ EXTRA_BODY_PLACES = []  # tests add their temp folder
 READABLE = ("run gh on its own and write the text plainly: --title \"…\" --body-file <file> (for gh api, "
             "-F key=@<file>, --input <file>, or quote the whole key=value), so Ovenbird can read what it publishes")
 MENTIONS_GH = re.compile(r"(?<![\w-])gh(?:-axi)?(?![\w-])")
-NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|edit|comment|review|close|reopen|merge)\b"
-                              r"|\b(?:release|gist|label|repo)\s+(?:create|edit)\b|\balias\s+(?:set|import)\b"
+NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|new|edit|comment|review|close|reopen|merge)\b"
+                              r"|\b(?:release|gist|label|repo)\s+(?:create|new|edit)\b|\balias\s+(?:set|import)\b"
                               r"|\bworkflow\s+run\b|\bproject\s+(?:create|edit|item-create|item-edit)\b"
-                              r"|\bapi\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X|--method)\b")
+                              r"|\bapi\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X|--method)")  # -XPOST too
 # Ways a command can run text as a command. Substitutions work inside double quotes, so they're
 # searched in _active text; a shell given a string or stdin, eval, source and `.` only run
 # outside all quotes, so they're searched in _bare text ("Open source the brief" is a title).
