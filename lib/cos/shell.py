@@ -162,7 +162,9 @@ def statusline():
         payload = json.load(sys.stdin) if not sys.stdin.isatty() else {}
     except ValueError:
         payload = {}
-    parts = [ACCENT + "◆ Ovenbird" + RESET]
+    # NO_COLOR set to anything (no-color.org) means plain text.
+    dim, reset, accent = ("", "", "") if os.environ.get("NO_COLOR") else (DIM, RESET, ACCENT)
+    parts = [accent + "◆ Ovenbird" + reset]
     model = (payload.get("model") or {}).get("display_name")
     if model:
         parts.append(model)
@@ -184,5 +186,5 @@ def statusline():
             parts.append("%d friction" % open_f)
     except Exception:
         pass
-    print((DIM + " │ " + RESET).join(parts))
+    print((dim + " │ " + reset).join(parts))
     return 0
