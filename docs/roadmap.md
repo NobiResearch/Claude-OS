@@ -73,9 +73,10 @@ what, where, and how we'll know it works.
 - v0.6: one player (library via MusicKit), `cos startup`, Swift tests (0004).
 - v0.7: radio and playlists in the one player, native notifications, Today's brief, the
   security review's fixes, `cos startup` without a password dialog (0005).
-- Since v0.7 (Unreleased): the night shift's pull requests and merges (0006), the board and
-  daemons live on the desktop (0007), `cos security` and the firewall switch (0008), `/music`
-  `/tidy` `/update` `/startup` in any folder through skill links rather than a plugin (0009),
-  the Guardian on pull request text, Night shift turned on only in the app's own dialog, and
-  Today's Radio chip: one click to a radio from a song you've been playing (0012's "morning
-  station").
+- v0.8: Claude OS became Ovenbird with its own mark (0019, 0022); the night shift's pull
+  requests (0006) and the board live on the desktop (0007); `cos security`, `cos net`,
+  `cos backup` and `cos power` (0008, 0010, 0012); `/music` `/tidy` `/update` `/startup` in any
+  folder (0009); Keep Ovenbird up to date (0011); a downloadable app, built but not released
+  (0015); the repository is Claude's, and every pull request gets a guardian's review (0013,
+  0020); settings safe for strangers (0017); MIT, contributor docs and the first outside
+  contributors (0014, 0016, 0018).
