@@ -12,11 +12,17 @@ the human has "Night shift" on in Settings, it approves pushes and nothing that 
   --delete-branch --match-head-commit <sha>` it says at best that the pull request is ready
   for that review, and the human's prompt appears.
 
-While the switch is on, it also lets read-only `gh api <path>` calls through, and pull request
-text (`gh pr create|edit|comment` with a title and a body) once the Guardian has read it. With the switch off, or in a downloaded copy, it
-approves nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any
-doubt, any error: it prints nothing and the human's normal prompt appears. This is a tripwire against drift and mistakes, not a wall: Claude works with the
-human's own GitHub login, and decision 0006 lists the spellings these rules don't catch.
+- **Claude's own pull requests** (decision 0023): `gh pr create|edit|comment` with a title and
+  a body, once the Guardian has read them, only from a clean checkout of this repository whose
+  only remote is origin, and only for a `night/*` pull request of this repository: opening one
+  into main, or editing or commenting on one that's open. Never a `gh api` call, and never a
+  command one of the checked-in ask rules covers.
+
+Every approval goes in the journal. With the switch off, or in a downloaded copy, it approves
+nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any doubt,
+any error: it prints nothing and the human's normal prompt appears. This is a tripwire
+against drift and mistakes, not a wall: Claude works with the human's own GitHub login, and
+decision 0006 lists the spellings these rules don't catch.
 
 `cos hook check <branch|PR>` answers without acting: would this push go through, and is this
 pull request ready for its review (with the exact merge command)? With no argument it lists
@@ -130,9 +136,10 @@ EXPANDS = re.compile(r"[$`\n\r]")  # nothing the shell would expand, and one lin
 
 
 def parse_pr_text(command):
-    """`gh pr create|edit|comment` publishing only a title and a body -> {"texts", "body_file"},
-    or None. Titles have spaces, so this parses quotes, but anything a shell would expand or
-    chain makes it None."""
+    """`gh pr create|edit|comment` publishing only a title and a body -> {"verb", "texts",
+    "body_file", "number", "head", "base"}, or None. Titles have spaces, so this parses quotes,
+    but anything a shell would expand or chain makes it None, and so does `-R`: gh picks the
+    repository from the checkout, which the decision checks."""
     if not isinstance(command, str) or EXPANDS.search(command):
         return None
     try:
@@ -143,7 +150,7 @@ def parse_pr_text(command):
         return None
     if any(w and set(w) <= set("();<>|&") for w in words) or tuple(words[:3]) not in PR_TEXT:
         return None
-    texts, body_file, number, rest, i = [], None, False, words[3:], 0
+    texts, body_file, number, refs, rest, i = [], None, None, {}, words[3:], 0
     while i < len(rest):
         w, value = rest[i], rest[i + 1] if i + 1 < len(rest) else None
         if w in ("--title", "-t", "--body", "-b") and value is not None:
@@ -153,25 +160,73 @@ def parse_pr_text(command):
             body_file = value
             i += 2
         elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[\w./-]+", value):
+            key = "base" if w in ("--base", "-B") else "head"
+            if key in refs:
+                return None
+            refs[key] = value
             i += 2
         elif w == "--draft":
             i += 1
-        elif w.isdigit() and not number and words[2] in ("edit", "comment"):
-            number = True
+        elif w.isdigit() and number is None and words[2] in ("edit", "comment"):
+            number = int(w)
             i += 1
         else:
             return None
     if not texts and body_file is None:
         return None
-    return {"texts": texts, "body_file": body_file}
+    return {"verb": words[2], "texts": texts, "body_file": body_file, "number": number,
+            "head": refs.get("head"), "base": refs.get("base")}
 
 
-def decide_pr_text(parsed, cwd):
-    """The Guardian over what a pull request's title and body would publish."""
+def asked_by_rule(command, root=None):
+    """Does one of the checked-in ask rules cover this command? The hook never answers a
+    prompt those rules exist to show (publishing a release, notarizing, deleting the
+    repository). True when the rules can't be read: no answer is the safe one."""
+    import fnmatch
+    try:
+        with open(os.path.join(str(root or core.ROOT), ".claude", "settings.json")) as f:
+            asks = json.load(f)["permissions"]["ask"]
+    except Exception:
+        return True
+    rules = [a[len("Bash("):-1] for a in asks if isinstance(a, str) and a.startswith("Bash(") and a.endswith(")")]
+    return any(fnmatch.fnmatchcase(str(command), rule) for rule in rules)
+
+
+def decide_pr_text(parsed, facts):
+    """Claude's own pull request, in this repository, and the Guardian over what it publishes."""
     from . import guard
+    why = _common(facts)
+    if why:
+        return False, why
+    if facts.get("remotes") != ["origin"]:
+        return False, "gh could pick another repository: origin isn't the only remote"
+    if any(r != "remote.origin.gh-resolved base" for r in facts.get("resolved") or []):
+        return False, "gh's default repository was set by hand"
+    if os.environ.get("GH_REPO") or os.environ.get("GH_HOST", "github.com") != "github.com":
+        return False, "GH_REPO or GH_HOST points gh somewhere else"
+    main, n = facts.get("main"), parsed["number"]
+    if parsed["base"] is not None and parsed["base"] != main:
+        return False, "a pull request goes into %s only" % main
+    if parsed["verb"] == "create":
+        head = parsed["head"] or facts.get("branch")
+        if not BRANCH.fullmatch(str(head or "")):
+            return False, "only a night/* branch's own pull request"
+        what = "opened a pull request from %s" % head
+    else:
+        if n is None or parsed["head"] is not None:
+            return False, "names no pull request of its own"
+        pr = facts.get("pr") or {}
+        owner_repo = GITHUB.match(facts["url"]).groups()
+        if str(pr.get("url", "")).lower() != ("https://github.com/%s/%s/pull/%d" % (owner_repo + (n,))).lower():
+            return False, "#%d isn't a pull request of this repository" % n
+        if pr.get("state") != "OPEN" or pr.get("isCrossRepository") or not BRANCH.fullmatch(str(pr.get("headRefName"))):
+            return False, "#%d isn't one of Claude's own open night/* pull requests" % n
+        what = "%s #%d" % ("edited" if parsed["verb"] == "edit" else "commented on", n)
     texts = [("title", t) for t in parsed["texts"]]
     if parsed["body_file"]:
-        path = os.path.join(cwd, os.path.expanduser(parsed["body_file"]))
+        path = facts.get("body")
+        if not path:
+            return False, "the body file isn't from the repository or the session's temp folder"
         try:
             if os.path.getsize(path) > 256 * 1024:
                 return False, "the body file is too big to check"
@@ -182,16 +237,7 @@ def decide_pr_text(parsed, cwd):
     problems = guard.text_problems(texts)
     if problems:
         return False, "the Guardian found %d problem(s) in what this would publish" % len(problems)
-    return True, "the Guardian checked what this publishes"
-
-
-def parse_api_read(command):
-    """A read-only `gh api [--paginate] <path>`: no method, no fields, no input, no GraphQL."""
-    words = _words(command)
-    if not words or words[:2] != ["gh", "api"]:
-        return False
-    rest = [w for w in words[2:] if w != "--paginate"]
-    return len(rest) == 1 and not rest[0].startswith("-") and "graphql" not in rest[0] and ".." not in rest[0]
+    return True, what
 
 
 # ---------------------------------------------------------------- what's true
@@ -243,6 +289,28 @@ def inspect_pr(number, sha, cwd):
         facts["problems"] = evolve.guard_branch(sha, base=base)
         patterns = guard.SECRET_PATTERNS + guard.personal_patterns()
         facts["problems"] += [("title", why) for _, why in guard.check_text("title", str(pr.get("title") or ""), patterns)]
+    return facts
+
+
+def inspect_text(parsed, cwd):
+    """What a pull request text decision needs to know: which repository gh would talk to,
+    the branch, where the body file really is, and (for edit and comment) the pull request."""
+    def git(*args):
+        return core.run(["git", "-C", cwd] + list(args), timeout=20)
+    base, facts = _repo(git)
+    remotes = git("remote")
+    facts["remotes"] = remotes.out.split() if remotes.ok else None
+    facts["resolved"] = git("config", "--get-regexp", r"^remote\..*\.gh-resolved$").out.splitlines()
+    facts["branch"] = git("symbolic-ref", "--short", "HEAD").out
+    facts["body"] = _body_file_ok(parsed["body_file"], cwd) if parsed["body_file"] else None
+    if parsed["number"] is not None:
+        view = core.run(["gh", "pr", "view", str(parsed["number"]), "--json",
+                         "url,state,isCrossRepository,headRefName"], cwd=cwd, timeout=15)
+        try:
+            pr = json.loads(view.out) if view.ok else None
+        except ValueError:
+            pr = None
+        facts["pr"] = pr if isinstance(pr, dict) else None
     return facts
 
 
@@ -316,8 +384,8 @@ def decide_merge(number, sha, facts):
     return False, READY + where
 
 
-def decide(request, cfg, look=inspect, look_pr=inspect_pr):
-    """-> (approve, why). Pure apart from `look` and `look_pr`, which read the repository."""
+def decide(request, cfg, look=inspect, look_pr=inspect_pr, look_text=inspect_text):
+    """-> (approve, why). Pure apart from the `look`s, which read the repository."""
     if os.environ.get("CLAUDE_OS_DAEMON"):
         return False, "inside a background job"
     if request.get("tool_name") != "Bash":
@@ -327,12 +395,12 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr):
         return False, "night shift is off"
     if core.downloaded():
         return False, "a downloaded Ovenbird doesn't push or merge (decision 0015)"
-    if parse_api_read(command):
-        return True, "a read-only gh api call"
+    if asked_by_rule(command):
+        return False, "a checked-in ask rule covers this"
+    cwd = request.get("cwd") or str(core.ROOT)
     pr_text = parse_pr_text(command)
     if pr_text:
-        return decide_pr_text(pr_text, request.get("cwd") or str(core.ROOT))
-    cwd = request.get("cwd") or str(core.ROOT)
+        return decide_pr_text(pr_text, look_text(pr_text, cwd))
     branch = parse_push(command)
     if branch:
         return decide_push(branch, look(branch, cwd))
@@ -349,8 +417,10 @@ def permission():
         request = json.loads(sys.stdin.read() or "{}")
         approve, why = decide(request, core.config())
         command = str((request.get("tool_input") or {}).get("command", ""))[:200]
-        if approve and not why.startswith(("a read-only", "the Guardian checked")):
+        if approve and parse_push(command):
             core.journal("action", "night shift: pushed " + why, via="hook")  # it never merges (0020)
+        elif approve:
+            core.journal("action", "night shift: %s: %s" % (why, command), via="hook")
         elif not approve and command.startswith(("git push", "gh pr merge", "gh-axi pr merge", "gh pr create",
                                                  "gh pr edit", "gh pr comment")):
             core.journal("permission", "night shift: asked the human (%s): %s" % (why, command), via="hook")

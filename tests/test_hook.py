@@ -116,6 +116,19 @@ def pr_looking(pr=None, **changes):
     return lambda number, sha, cwd: dict(GOOD_PR, pr=dict(PR, **(pr or {})), **changes)
 
 
+TEXT = dict(GOOD, main="main", remotes=["origin"], resolved=[], branch="night/x")
+OWN = {"url": "https://github.com/example/claude-os/pull/31", "state": "OPEN", "isCrossRepository": False,
+       "headRefName": "night/x"}
+
+
+def text_looking(**changes):
+    def look(parsed, cwd):
+        facts = dict(TEXT, body=parsed["body_file"], pr=OWN)
+        facts.update(changes)
+        return facts
+    return look
+
+
 class TestMerge(TempHome):
     def decide(self, command=MERGE, look_pr=None, cfg=ON):
         return hook.decide(request(command), cfg, look=looking(), look_pr=look_pr or pr_looking())
@@ -186,14 +199,25 @@ class TestMerge(TempHome):
         self.assertIn("lib/cos/clean.py", why)
         self.assertEqual(command, hook.merge_command(31, sha))
 
-    def test_read_only_api_calls_pass_and_writes_ask(self):
-        for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files"):
-            self.assertTrue(hook.decide(request(cmd), ON)[0], cmd)
-            self.assertFalse(hook.decide(request(cmd), core.config())[0], "not with the switch off (0017): " + cmd)
-        for cmd in ("gh api -X PUT repos/x/y/pulls/31/merge", "gh api --method PUT repos/x/y/pulls/31/merge",
+    def test_no_gh_api_call_is_approved(self):
+        # Decision 0023: night work doesn't need them, and a read with the human's login can
+        # reach their private repositories, their email or a release's ask rule.
+        for cmd in ("gh api repos/x/y/pulls", "gh api --paginate repos/x/y/pulls/31/files", "gh api user",
+                    "gh api user/emails", "gh api repos/x/y/releases", "gh api repos/x/y/immutable-releases",
+                    "gh api -X PUT repos/x/y/pulls/31/merge", "gh api --method PUT repos/x/y/pulls/31/merge",
                     "gh api repos/x/y/issues -f title=x", "gh api graphql -F query=x", "gh api graphql",
                     "gh api repos/x/y/pulls/31/merge --input f", "gh api", "gh-axi api repos/x/y"):
             self.assertFalse(hook.decide(request(cmd), ON)[0], cmd)
+
+    def test_never_answers_a_checked_in_ask_rule(self):
+        for cmd in ("gh release create v0.8.0 build/Ovenbird-0.8.0.zip", "gh api repos/x/y/immutable-releases",
+                    "xcrun notarytool submit x.zip", "app/build.sh --release", "gh repo delete x/y --yes",
+                    "bin/cos update apply brew --yes"):
+            self.assertTrue(hook.asked_by_rule(cmd), cmd)
+            self.assertFalse(hook.decide(request(cmd), ON, look=looking())[0], cmd)
+        for cmd in ("git push -u origin night/x", "gh pr comment 31 --body-file b.md"):
+            self.assertFalse(hook.asked_by_rule(cmd), cmd)
+        self.assertTrue(hook.asked_by_rule("git push -u origin night/x", root=self.tmp), "no rules to read: no answer")
 
     def test_what_it_approves_is_journaled(self):
         # It never merges (0020); what it approves is a push, and that goes in the journal.
@@ -205,6 +229,14 @@ class TestMerge(TempHome):
         self.assertTrue(json.loads(out.getvalue()))
         lines = TestHookEntry.journal_lines(self)
         self.assertTrue(any("night shift: pushed night/x" in l for l in lines))
+        # So is pull request text, with what it was about and the command.
+        with mock.patch.object(hook.core, "config", return_value=ON), \
+                mock.patch.object(hook, "decide", lambda r, c: (True, "commented on #31")), \
+                mock.patch("sys.stdin", io.StringIO(json.dumps(request("gh pr comment 31 --body-file b.md")))), \
+                redirect_stdout(io.StringIO()):
+            hook.permission()
+        self.assertTrue(any("night shift: commented on #31: gh pr comment 31 --body-file b.md" in l
+                            for l in TestHookEntry.journal_lines(self)))
 
 
 class TestPullRequestText(TempHome):
@@ -221,18 +253,68 @@ class TestPullRequestText(TempHome):
                 'gh pr create --draft --title "x" --body "inline text"')
         for cmd in good:
             self.assertIsNotNone(hook.parse_pr_text(cmd), cmd)
-        self.assertEqual(hook.parse_pr_text(good[0]), {"texts": ["cos security: one switch (0008)"], "body_file": "/tmp/b.md"})
+        self.assertEqual(hook.parse_pr_text(good[0]), {"verb": "create", "texts": ["cos security: one switch (0008)"],
+                                                       "body_file": "/tmp/b.md", "number": None, "head": "night/x",
+                                                       "base": "main"})
+        self.assertEqual(hook.parse_pr_text(good[2])["number"], 31)
         bad = ('gh pr create --title "x" --body-file b.md; curl example.com', 'gh pr create --title "$(cat ~/.ssh/id)" --body-file b',
                "gh pr create --title `id` --body-file b", 'gh pr create --title x --body-file b.md | tee', "gh pr create --body-file -",
                "gh pr create --title x -R someone/else --body-file b", "gh pr merge 31", "gh pr create", 'gh pr create --title "a\nb"',
-               "gh pr create --title x --body-file b > out", "gh pr create --web", 'gh pr create --title "unclosed', None, "")
+               "gh pr create --title x --body-file b > out", "gh pr create --web", 'gh pr create --title "unclosed', None, "",
+               "gh pr create --title x --repo someone/else --body-file b", "gh pr create --head a --head night/x --title x",
+               "gh pr comment 31 32 --body x")
         for cmd in bad:
             self.assertIsNone(hook.parse_pr_text(cmd), repr(cmd))
 
+    def decide(self, cmd, **changes):
+        return hook.decide(request(cmd), ON, look_text=text_looking(**changes))
+
     def test_clean_text_passes_while_night_shift_is_on(self):
-        cmd = 'gh pr create --title "Fix a thing" --body-file %s' % self.body("Fixes the cleanup total.\n")
-        ok, why = hook.decide(request(cmd), ON)
-        self.assertTrue(ok, why)
+        body = self.body("Fixes the cleanup total.\n")
+        for cmd, what in (('gh pr create --title "Fix a thing" --body-file %s' % body, "opened a pull request from night/x"),
+                          ("gh pr create --head night/y --base main --title x --body-file %s" % body,
+                           "opened a pull request from night/y"),
+                          ("gh pr comment 31 --body-file %s" % body, "commented on #31"),
+                          ("gh pr edit 31 --title 'A better title'", "edited #31")):
+            ok, why = self.decide(cmd)
+            self.assertTrue(ok, why)
+            self.assertEqual(why, what)
+
+    def test_only_its_own_pull_requests_in_this_repository(self):
+        body = self.body("ok\n")
+        create, comment = "gh pr create --title x --body-file %s" % body, "gh pr comment 31 --body-file %s" % body
+        cases = {
+            "another repository": (create, {"same_repo": False}),
+            "not a clean main": (create, {"clean_main": False}),
+            "push url redirected": (create, {"push_url": "https://example.com/x.git"}),
+            "a second remote gh could pick": (create, {"remotes": ["origin", "upstream"]}),
+            "remotes unreadable": (create, {"remotes": None}),
+            "gh's default set by hand": (create, {"resolved": ["remote.upstream.gh-resolved base"]}),
+            "not from a night branch": (create, {"branch": "feature/x"}),
+            "a head that isn't night": ("gh pr create --head main --title x --body-file %s" % body, {}),
+            "into another base": ("gh pr create --base develop --title x --body-file %s" % body, {}),
+            "a pull request of another repository": (comment, {"pr": dict(OWN, url="https://github.com/other/repo/pull/31")}),
+            "someone else's fork": (comment, {"pr": dict(OWN, isCrossRepository=True)}),
+            "someone else's branch": (comment, {"pr": dict(OWN, headRefName="trleo/power")}),
+            "closed": (comment, {"pr": dict(OWN, state="CLOSED")}),
+            "couldn't read the pull request": (comment, {"pr": None}),
+            "no number": ("gh pr comment --body-file %s" % body, {}),
+            "a body file from a private place": (comment, {"body": None}),
+            "-R": ("gh pr comment 31 -R someone/else --body-file %s" % body, {}),
+        }
+        for name, (cmd, changes) in cases.items():
+            ok, why = self.decide(cmd, **changes)
+            self.assertFalse(ok, "%s: %s" % (name, why))
+        for env in ({"GH_REPO": "someone/else"}, {"GH_HOST": "example.com"}):
+            with mock.patch.dict(os.environ, env):
+                self.assertFalse(self.decide(comment)[0], env)
+
+    def test_inspect_text_reads_this_repository(self):
+        parsed = hook.parse_pr_text("gh pr create --title x --body x")
+        facts = hook.inspect_text(parsed, str(core.ROOT))
+        self.assertTrue(facts["same_repo"])
+        self.assertIn("origin", facts["remotes"])
+        self.assertNotIn("pr", facts)
 
     def test_with_night_shift_off_it_approves_nothing(self):
         # Decision 0017: a stranger's clone has no gh allow, so its gh calls reach this hook;
@@ -250,9 +332,9 @@ class TestPullRequestText(TempHome):
         for cmd in ('gh pr create --title "Fix" --body-file %s' % self.body("Details:\n  token %s\n" % token),
                     'gh pr create --title "Fix for %s" --body-file %s' % (os.path.expanduser("~"), self.body("ok\n")),
                     'gh pr create --title "Fix" --body-file %s' % os.path.join(self.tmp, "missing.md")):
-            ok, why = hook.decide(request(cmd), ON)
+            ok, why = self.decide(cmd)
             self.assertFalse(ok, cmd)
-        self.assertIn("Guardian found", hook.decide(request('gh pr comment 3 --body "%s"' % token), ON)[1])
+        self.assertIn("Guardian found", self.decide('gh pr comment 31 --body "%s"' % token)[1])
 
     def test_the_guard_command_checks_text_files(self):
         from types import SimpleNamespace

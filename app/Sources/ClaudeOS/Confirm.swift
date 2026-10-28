@@ -18,10 +18,10 @@ enum Confirm {
     private static let questions: [String: Question] = [
         "night": Question(
             title: "Turn on Night shift?",
-            body: "While you're away, Claude may push its own night/… branches of Ovenbird, open, edit and "
-                + "comment on pull requests, and read from GitHub with your login, without asking you. Every "
-                + "commit and every pull request's text is checked for private data first. Merging isn't part "
-                + "of it: the switch never approves a merge. You can turn it off any time in Settings.",
+            body: "While you're away, Claude may push its own night/… branches of Ovenbird and open, edit and "
+                + "comment on its own pull requests for them, without asking you. Every commit and every pull "
+                + "request's text is checked for private data first. Merging isn't part of it: the switch never "
+                + "approves a merge. You can turn it off any time in Settings.",
             yes: "Turn On"),
         "catch-up": Question(
             title: "Keep Ovenbird up to date?",
