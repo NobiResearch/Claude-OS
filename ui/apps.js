@@ -75,7 +75,7 @@
   }
 
   COS.register({
-    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#f0ae5a,#b86a1e)", size: [640, 680],
+    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#6b6747,#34311f)", size: [640, 680],
     keywords: "chat ask assistant",
     render(w) {
       let sid = null, stop = null, lastSeq = 0, live = null, busy = false, pending = 0;
