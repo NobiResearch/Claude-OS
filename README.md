@@ -51,7 +51,8 @@ Ovenbird can see a lot of your Mac, so here's the deal in plain words.
 - **Background jobs are yours to start.** Installing starts only `pulse`, which uses no AI and
   takes a few seconds every two hours. The morning brief, the nightly evolve run and the board
   are off until you turn them on. In the morning and board runs, `cos` refuses every command
-  that changes something, except logging friction. The evolve run's `cos` is its own copy, so
+  that changes your Mac, its settings or what Ovenbird remembers about you; they may still log
+  friction, mark feeds read and refresh caches. The evolve run's `cos` is its own copy, so
   it's held instead by Claude Code's sandbox, its deny rules and the checks when it's merged.
 - **It doesn't rewrite itself behind your back.** The nightly evolve run works on a branch, in
   a sandbox, and reaches your copy only when it's merged: by you, or by Claude after a guardian
