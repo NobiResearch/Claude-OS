@@ -105,12 +105,13 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
 - `cos config` can only turn the autonomy switches (Night shift, Keep up to date) off. Turning
   them on takes the app's own dialog, which code in the desktop page can't click.
 
-**A downloadable Ovenbird.app** (built and tested, not released yet; [0015](docs/decisions/0015-claude-os-for-everyone.md))
+**A downloadable Ovenbird.app** (built, not released yet; [0015](docs/decisions/0015-claude-os-for-everyone.md))
 - `app/build.sh --release` builds it with nothing from the builder's Mac inside, scanned before
   it's signed, signed with Developer ID and the hardened runtime, notarized and stapled.
   `docs/releasing.md` has the steps. Building, notarizing and publishing all ask first.
 - On first launch, a checklist shows what the Mac still needs (Apple's command line tools,
   Claude Code, Ovenbird itself), with one button each and nothing installed before a click.
+  Two extras, the skills in Claude Code and the two-hourly vitals check, start off.
 - It follows its app: open a newer Ovenbird.app and the code comes along. Updates says when a
   newer app is out (it asks GitHub at most once a day), and a warning says when the code needs a
   newer app. It has no night shift and no Branches tab.
@@ -145,14 +146,15 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
 - **Night shift** (Settings › Permissions, off until you confirm it in the app's own dialog;
   [0006](docs/decisions/0006-night-shift-pushes.md)): while you're away, Claude pushes its own
   `night/…` branches, opens, edits and comments on pull requests, and reads from GitHub with your
-  login, without a card. Never `main`, never a force push, and the switch never approves a
-  merge. Every commit and pull request text is checked for private data first, and each push is
+  login, without a card. Never `main`, never a force push, never a change to `.github/`, and the
+  switch never approves a merge. Every commit and pull request text is checked for private data first, and each push is
   in your journal and the next morning's brief.
-- **The nightly evolve run** says when its tests failed (boot banner, `cos evolve`, the Evolve
-  window), flags a branch that changes safety files and merges it only after a review
-  (`--reviewed`), waits for CI to start before watching it, pins the merge to the commit that was
-  checked, and names its pull request after the night's change. The morning brief says when it
-  hit something it couldn't record.
+- **Nightly evolve branches:** the boot banner, `cos evolve` and the Evolve window say when a
+  branch's tests failed. `cos evolve merge` and the Evolve window's Merge take a branch that
+  changes safety files only after a review (`--reviewed`), wait for CI to start before watching
+  it, pin the merge to the commit that was checked, and name the pull request after the night's
+  change. The nightly run itself never pushes or merges. The morning brief says when it hit
+  something it couldn't record.
 - **Daemons on a Pro or Max plan run without a dollar cap**: the cap was Claude Code's estimate
   at API prices, so on a flat plan it only cut runs short. Time limits still bound every run, and
   with an API key the caps stay. Background jobs can't schedule wakeups or timers.
@@ -171,7 +173,7 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
   Docker, Kubernetes, Google Cloud, Azure, PyPI, Cargo, RubyGems, `pass`, and the histories
   shells and tools keep. The nightly evolve run can't read them, or `~/.ssh`, `~/.aws`,
   `~/.config/gh`, `~/.claude` and the Keychains, from its shell, the code it runs or its Read
-  tool.
+  tool. `~/.claude-os` stays readable for now: the run's workspace and its input live there.
 - **The nightly evolve run stays in its sandbox:** its tests run deny-by-default, with no Apple
   Events, no browser, no inherited environment and no network at all (their test servers use
   Unix sockets). It runs no hooks, edits only its own workspace and can't edit its Claude Code
@@ -180,7 +182,8 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
   load your own allow rules (in the chat, git, gh and `python3` ask with a card; the morning and
   board runs can't use git), and background runs can't speak, notify or write the journal on a
   model's say-so, are denied everything `cos` refuses them, and never ask GitHub with your login.
-  Their notifications are written by Ovenbird itself, and friction they log is marked as such.
+  Their notifications are written by Ovenbird itself, and friction they log is marked as such;
+  they can't close it.
 - **Settings safe for strangers** ([0017](docs/decisions/0017-stranger-safe-settings.md)): in a
   fresh clone or download, `git`, `gh` and the tests show a card first, and a downloaded copy's
   own deny rules come back if they go missing. A `cos` command that changes something shows a
