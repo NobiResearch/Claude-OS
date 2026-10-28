@@ -29,3 +29,14 @@ Re-record it whenever the desktop changes enough that the GIF is out of date.
    ```
 
    That gives about 22 seconds and 700 KB. The menu bar shows the real time of recording.
+
+   Check the menu bar's clock in every frame: it follows the browser's language, so set the
+   browser to English, or the clock gives away where the recording was made.
+
+## The two stills
+
+`storage.png` and `evolve.png` are 1600×1000 at 1×, from the same demo server. Each has two
+windows side by side: Vitals at the bottom left and Storage on the right, then Feeds at the
+bottom left and Evolution's Board tab on the right. `COS.open(id)` opens a window, and setting
+`COS.wins[id].el.style` left, top, width and height places it. Leave the Today panel's
+suggestions uncovered.
