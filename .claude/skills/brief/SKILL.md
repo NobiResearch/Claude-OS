@@ -16,8 +16,10 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
 - `bin/cos friction` and `bin/cos evolve`: what the OS itself needs. Headless, `cos evolve`
   doesn't list the night shift's pull requests (a background run never asks GitHub); the
-  night's merges are in the journal below.
-- `bin/cos log --days 1 --kind action`: what the night shift pushed and merged ("night shift: …").
+  night's pushes are in the journal below.
+- `bin/cos log --days 1 --kind action`: what the night shift pushed ("night shift: pushed …").
+  The night shift never merges (0020): Claude merges in a session, after a guardian's review,
+  and those merges aren't in this log.
 - `bin/cos daemon logs evolve`: only whether last night's run ended with `Couldn't record:`,
   and only when that run is from last night (its file in `~/.claude-os/runs/evolve/` is named
   `<date>-<time>.md`).
@@ -47,10 +49,12 @@ Optional, and its link follows the same rule as the others.
 ## Ovenbird
 Only if there's something: an evolve branch waiting for review, open friction (one that
 `cos friction` says is from a background run: its number and run only, never its text), one line on
-what the night shift merged, and **Waiting for your merge**: each of its open pull requests
-in one plain line (what it does for them, the link). Mark the ones that touch the safety
-checks themselves (hook, guard, evolve, settings, CLAUDE.md, the Night shift switch) as
-"read this one"; core and server plumbing is routine. "Merge them" in a session does it.
+what the night shift pushed, and, in a session only (a background run never asks GitHub),
+**Waiting for you**: each open pull request from someone else, in one plain line (what it does
+for them, the link), since those merge only on the human's yes (0014). Claude's own pull
+requests merge after a guardian's review (0020) and don't wait for the human; name one only if
+it's still open and touches the safety checks themselves (hook, guard, evolve, settings,
+CLAUDE.md, the Night shift switch), marked "read this one".
 If last night's evolve run ended with `Couldn't record:`, at most one line: "Last night evolve
 couldn't record: <area>: <what>", and the command that keeps it, in single quotes:
 `bin/cos friction add '<what>' --area <area>`. Those lines come from a model run nobody
