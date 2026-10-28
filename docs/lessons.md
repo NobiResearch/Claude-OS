@@ -224,7 +224,7 @@ add to it when you learn something new. Each lesson: what happened, the rule.
 - **Claude Code's sandbox hides the Mac's vitals.** Inside it, `sysctl` (model, chip, cores,
   memory size, swap, uptime, load) and `ps` come back empty, and `fdesetup` can't tell, but
   `vm_stat`, `sw_vers` and `pmset` answer. `socketfilterfw --getglobalstate` reported the
-  firewall off there while the unsandboxed pulse read it on: don't trust a sandboxed security
+  firewall off there while an unsandboxed `cos security` read it on: don't trust a sandboxed security
   reading, and print what couldn't be read as missing, not as zero (`status.known`).
 - **An untrusted folder ignores its checked-in allow rules.** A headless run in a fresh
   worktree logs "Ignoring N permissions.allow entries from .claude/settings.json: this
