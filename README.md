@@ -66,8 +66,8 @@ Ovenbird can see a lot of your Mac, so here's the deal in plain words.
   requests: once CI passes and a guardian agent has reviewed them, without a person reading them
   first. Pull requests from anyone else wait for a person. Leave it off if you'd rather look at
   each update first; Updates lists what's waiting. The **night shift**, which lets Claude push
-  its own branches in your own fork without a card (every merge still waits for a guardian's
-  review), also turns on only in the app's own dialog, and a downloaded copy has none.
+  its own branches and open pull requests in your own fork without a card (merging isn't part
+  of it), also turns on only in the app's own dialog, and a downloaded copy has none.
 
 ## The desktop
 

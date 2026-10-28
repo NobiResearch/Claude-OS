@@ -18,9 +18,9 @@ enum Confirm {
     private static let questions: [String: Question] = [
         "night": Question(
             title: "Turn on Night shift?",
-            body: "While you're away, Claude may push its own night/… branches of Ovenbird, open pull requests "
-                + "and merge the ones that pass, without asking you. Every commit is checked for private data "
-                + "first, and pull requests that change Ovenbird's own safety checks wait for your merge. "
+            body: "While you're away, Claude may push its own night/… branches of Ovenbird and open pull "
+                + "requests for them, without asking you. Every commit and pull request is checked for private "
+                + "data first. Merging isn't part of it: a merge asks you just as it would with the switch off. "
                 + "You can turn it off any time in Settings.",
             yes: "Turn On"),
         "catch-up": Question(

@@ -982,8 +982,8 @@
         if (!s.downloaded || s.night_shift) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Night shift", s.night_shift ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "Let Claude push its own night/… branches, open pull requests and merge the ones that pass while you're away. Never a force push; every commit is checked for private data, and pull requests that change Ovenbird's own safety checks wait for your merge."),
-            h("div", { class: "muted small" }, s.night_shift ? "On: each push and merge is in your journal and tomorrow's brief." : "Off: every push and merge asks you first.")),
+            h("div", { class: "small" }, "Let Claude push its own night/… branches and open pull requests for them while you're away. Never a force push; every commit and pull request is checked for private data first. Merging isn't part of it: a merge asks you just as it would with the switch off."),
+            h("div", { class: "muted small" }, s.night_shift ? "On: each push is in your journal and tomorrow's brief." : "Off: every push and merge asks you first.")),
           nightToggle));
 
         // Keep Ovenbird up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
