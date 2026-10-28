@@ -330,7 +330,10 @@ class TestPullRequestText(TempHome):
                     "gh pr create --title ~ --body x", "gh pr create --title x* --body x",
                     "gh pr create --title x? --body x", "gh pr create --title [x] --body x",
                     "gh pr create --title =ls --body x", "gh pr comment ٣١ --body x",
-                    "gh pr create --title ^x --body x", "gh pr create --title x! --body x"):
+                    "gh pr create --title ^x --body x", "gh pr create --title x! --body x",
+                    "gh pr create --title x==ls --body x", "gh pr create --title x=a:=ls --body x",
+                    'gh pr comment 31 --body-file "~/x.md"', "gh pr comment 31 --body-file \\~/x.md",
+                    "gh pr comment 31 --body x\x00y", "gh pr comment 31 --body " + "x" * (64 * 1024)):
             self.assertIsNone(hook.parse_pr_text(cmd), cmd)
             self.assertFalse(self.decide(cmd)[0], cmd)
         # Quoted, the same characters are only text.

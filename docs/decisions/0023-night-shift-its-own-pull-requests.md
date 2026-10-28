@@ -30,18 +30,19 @@ repository's releases.
 
 - **No `gh api` call is approved.** Night work doesn't need one.
 - **Pull request text is approved only for Claude's own pull requests in this repository:**
-  - The command runs from a clean checkout of this repository, under the same checks as a
-    push.
+  - The command runs in a checkout of this repository (a worktree counts), under the same
+    checks as a push: among them, the hook's own checkout is a clean main.
   - origin is a plain GitHub remote, and it's the only remote.
   - gh's default repository wasn't set by hand, and neither `GH_REPO` nor `GH_HOST` points
     elsewhere.
   - `create` opens a pull request from a `night/*` branch into main.
   - `edit` and `comment` name a pull request of this repository that's open, from a `night/*`
     branch, and not from a fork.
-  - The body file is a plain file from the repository, a worktree or the session's temp folder.
+  - The body file is a plain file, not a link, from the repository, a worktree or the session's
+    temp folder, and its path doesn't start with `~`.
   - Nothing outside quotes means something different to the shell than to the hook's parser:
-    no `#`, braces, globs, `~` or a word-initial `=`, and the pull request number is plain
-    ASCII digits. Before this, `--title x#; <any command>` read as a pull request title and
+    no `#`, braces, globs (`* ? [ ] ^`), `~`, `=` or `!`, no NUL, nothing longer than 64 KB, and
+    the pull request number is plain ASCII digits. Before this, `--title x#; <any command>` read as a pull request title and
     approved whatever followed. That was the guardian's finding on this pull request, and it
     was live on main with Night shift on.
   - The Guardian has read the title and body.

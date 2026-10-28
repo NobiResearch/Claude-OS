@@ -13,8 +13,9 @@ the human has "Night shift" on in Settings, it approves pushes and nothing that 
   for that review, and the human's prompt appears.
 
 - **Claude's own pull requests** (decision 0023): `gh pr create|edit|comment` with a title and
-  a body, once the Guardian has read them, only from a clean checkout of this repository whose
-  only remote is origin, and only for a `night/*` pull request of this repository: opening one
+  a body, once the Guardian has read them, only in a checkout of this repository whose only
+  remote is origin (and the hook's own checkout a clean main, as for a push), and only for a
+  `night/*` pull request of this repository: opening one
   into main, or editing or commenting on one that's open. Never a `gh api` call, and never a
   command one of the checked-in ask rules covers.
 
@@ -132,12 +133,13 @@ def parse_merge(command):
 
 
 PR_TEXT = {("gh", "pr", "create"), ("gh", "pr", "edit"), ("gh", "pr", "comment")}
-EXPANDS = re.compile(r"[$`\n\r]")  # nothing the shell would expand, and one line
+EXPANDS = re.compile(r"[$`\n\r\x00]")  # nothing the shell would expand, and one line
 # Outside quotes, the shell gives these a meaning shlex doesn't: `#` only starts a comment at
 # the start of a word (`x#; rm` runs rm), braces and globs turn one word into several (`^` too,
-# with zsh's EXTENDED_GLOB from a profile), `~` and a word-initial `=` (zsh) become paths, and
-# `!` is history in an interactive shell.
-UNQUOTED = re.compile(r"[#{}~*?\[\]^!]|(?:^|\s)=")
+# with zsh's EXTENDED_GLOB from a profile), `~` and `=` can become paths in zsh (`=ls`, and
+# `x==ls` with MAGIC_EQUAL_SUBST), and `!` is history in an interactive shell.
+UNQUOTED = re.compile(r"[#{}~*?\[\]^!=]")
+LONGEST = 64 * 1024  # longer and shlex gets slow; it's no pull request title anyway
 
 
 def parse_pr_text(command):
@@ -145,7 +147,8 @@ def parse_pr_text(command):
     "body_file", "number", "head", "base"}, or None. Titles have spaces, so this parses quotes,
     but anything a shell would expand or chain makes it None, and so does `-R`: gh picks the
     repository from the checkout, which the decision checks."""
-    if not isinstance(command, str) or EXPANDS.search(command) or UNQUOTED.search(_bare(command)):
+    if not isinstance(command, str) or len(command) > LONGEST or EXPANDS.search(command) \
+            or UNQUOTED.search(_bare(command)):
         return None
     try:
         lex = shlex.shlex(command, posix=True, punctuation_chars=True)
@@ -162,7 +165,10 @@ def parse_pr_text(command):
         if w in ("--title", "-t", "--body", "-b") and value is not None:
             texts.append(value)
             i += 2
-        elif w in ("--body-file", "-F") and value not in (None, "-") and body_file is None:
+        elif w in ("--body-file", "-F") and value not in (None, "-") and not value.startswith("~") \
+                and body_file is None:
+            # A `~` that got this far was quoted, so gh opens `<cwd>/~/…` while expanduser
+            # would read the home folder: not the same file.
             body_file = value
             i += 2
         elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[A-Za-z0-9_./-]+", value):
