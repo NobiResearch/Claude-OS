@@ -24,8 +24,11 @@ on their own Mac; nothing here runs in CI, and publishing is a separate step on 
 ## Before the first public release
 
 The full check from decision 0015, step 1, on the notarized zip, before it's published (the
-draft release's zip, see Publishing): download it in a **second macOS user account** (so it's
-quarantined and nothing of yours is there), and go through the first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
+draft release's zip, see Publishing): download it in a **second macOS user account**, in Safari
+signed in to GitHub (a draft's files download only for people with write access), so it's
+quarantined and nothing of yours is there. Before opening it, `xattr -p com.apple.quarantine`
+on the zip should print a value: a copy moved over by `gh` or a shared folder isn't quarantined
+and proves nothing. Then go through the first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
 Remove Ovenbird… leaves nothing behind but the app.
 
@@ -73,25 +76,34 @@ on. Say so in the notes, and in the README's download link.
 Only on the owner's yes, each time, in this order. Every `gh release` command asks before it
 runs.
 
-1. **Check the zip:** `codesign --verify --deep --strict --verbose=2`, `spctl -a -vv` and
-   `xcrun stapler validate` on the app, `zipinfo` for `__MACOSX` or extended-attribute entries,
-   and `shasum -a 256` on the zip.
-2. **The name on it** (0015, step 2): `codesign -dv` shows the "Developer ID Application: …"
-   line every copy will carry. The owner reads it and says yes.
+1. **Check the zip:** `codesign --verify --deep --strict --verbose=2`, `spctl -a -vv`,
+   `xcrun stapler validate` and `lipo -archs` (on `Contents/MacOS/ClaudeOS`) on the app,
+   `zipinfo` for `__MACOSX` or extended-attribute entries, and `shasum -a 256` on the zip.
+2. **The name on it** (0015, step 2): `codesign -dv --verbose=2` shows the "Authority=Developer
+   ID Application: …" line every copy will carry. The owner reads it and says yes.
 3. **A draft, pinned to the build's commit:** `gh release create v<version>
    build/Ovenbird-<version>.zip --draft --target <commit> --title "Ovenbird <version>"
-   --notes-file <notes>`. A draft is visible only to the repository's maintainers. The notes
-   pass `bin/cos guard --text` first, and live in the session's temp folder, not `~/.claude-os`
-   (the Guardian won't publish a file from there).
+   --notes-file <notes>`, with the full 40-character commit the app was built from:
+   `/usr/libexec/PlistBuddy -c 'Print :ClaudeOSCommit' build/Ovenbird.app/Contents/Info.plist`.
+   The tag must not exist yet (GitHub ignores `--target` for a tag that does). A draft is
+   visible only to people with write access to the repository. The notes pass
+   `bin/cos guard --text` first, and live in the session's temp folder, not `~/.claude-os` (the
+   Guardian won't publish a file from there). They quote only spctl's `accepted` and
+   `source=…`, never its `origin=` line or codesign's Authority and TeamIdentifier lines: the
+   guard doesn't know the name on the certificate.
 4. **The first-launch check** on the draft's zip, the first time and whenever the first launch
    changed (see "Before the first public release" above).
 5. **Immutable releases on** (Settings › General › Releases), once: a published release's tag
    and files can't change after that.
-6. **Publish:** `gh release edit v<version> --draft=false --latest`. Never as a pre-release: the
-   app's update check reads `releases/latest`, which skips pre-releases.
+6. **Publish:** `gh release edit v<version> --draft=false --latest`. A release that carries the
+   app is never a pre-release: the app's update check reads `releases/latest`, which skips
+   pre-releases.
 
-If the first-launch check can't happen, publish nothing, or a source-only release with no zip.
-Under immutable releases, the zip then comes as the next version.
+If the first-launch check can't happen, publish no app. Delete the draft
+(`gh release delete v<version>`), or first take its zip off
+(`gh release delete-asset v<version> Ovenbird-<version>.zip`) and publish what's left as a
+**pre-release**, so `releases/latest` and the app's update check don't point at a release with
+no app. Under immutable releases, the zip then comes as the next version.
 
 ### The notes
 
