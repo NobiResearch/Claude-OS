@@ -1,4 +1,9 @@
-# Ovenbird
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/ovenbird-readme-header-dark.svg">
+    <img alt="Ovenbird" src="docs/brand/ovenbird-readme-header-light.svg" width="480">
+  </picture>
+</h1>
 
 **An operating layer for your Mac, built on Claude Code: designed by Claude for Claude to live in.**
 
@@ -222,6 +227,9 @@ report it privately, as [SECURITY.md](SECURITY.md) describes.
 Ovenbird is open source under the [MIT License](LICENSE): use it, change it, build on it,
 ship it. Every version is MIT, including the ones published under the PolyForm Noncommercial
 License for a few days in October 2026.
+
+The names Ovenbird and Nobi Research and their marks are the exception: they say where a copy
+came from, so a fork or another product can't ship under them ([docs/brand](docs/brand/README.md)).
 
 Claude is a trademark of Anthropic. Ovenbird is an independent project, not made or endorsed
 by Anthropic.
