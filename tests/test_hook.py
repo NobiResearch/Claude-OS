@@ -492,6 +492,32 @@ class TestGhText(TempHome):
         for cmd in ("bin/cos guard --text %s && gh pr comment 1 --body-file %s", "cat %s && gh pr comment 1 --body-file %s"):
             self.assertIsNone(self.decide(cmd % (self.clean, self.clean)), cmd)
 
+    def test_round_four(self):
+        """The guardian's fourth round on #121: the verb the way gh finds it, shell words only
+        outside quotes, an unquoted ~, and writes it missed."""
+        s, c = self.SECRET, self.clean
+        for cmd in ('gh pr create --title "Open source the brief" --body-file %s' % c,
+                    'gh pr create --title "Fix eval of feeds" --body-file %s' % c,
+                    'gh pr comment 1 --body "Ran it with bash -c to check"', 'gh pr comment 1 --body "~/notes stays quoted"',
+                    "gh pr list --search review", "gh issue list --label edit", "gh pr list --label comment",
+                    "cd lib && ls 2>&1 && gh pr comment 1 --body-file %s" % c):  # 2>&1 writes no file
+            self.assertIsNone(self.decide(cmd), cmd)
+        cases = {
+            "flags after the verb": ("gh pr -b %s -R o/r comment 1" % s, "gh pr --body %s --repo o/r comment 1" % s),
+            "runs text as a command": ("bash -lc 'gh pr comment 1 --body hi'", "zsh -ic 'gh pr comment 1 --body hi'",
+                                       "sh -ec 'gh pr comment 1 --body hi'", "bash -o pipefail -c 'gh pr comment 1 --body hi'",
+                                       "echo 'gh pr comment 1 --body hi' | /bin/sh", "echo 'gh pr comment 1 --body hi' | dash"),
+            "unquoted ~": ("gh pr comment 1 --body ~/notes", "gh pr comment 1 --body ~", "gh pr comment 1 --body=~/x",
+                           "gh api repos/a/b/issues -f body=~/x"),
+            "same command": ("echo x &> %s && gh pr comment 1 --body-file %s" % (c, c),
+                             "echo x &>> %s && gh pr comment 1 --body-file %s" % (c, c),
+                             "dd if=/dev/zero of=%s count=1 && gh pr comment 1 --body-file %s" % (c, c),
+                             "tool --output=%s && gh pr comment 1 --body-file %s" % (c, c)),
+        }
+        for want, cmds in cases.items():
+            for cmd in cmds:
+                self.assertIn(want, self.decide(cmd) or "", cmd)
+
     def test_what_only_the_human_publishes_is_refused(self):
         self.assertIn("for the human", self.decide("gh pr create --title t --body-file %s --attach shot.png" % self.clean))
         self.assertIn("for the human", self.decide("gh issue comment 2 --body hi --attach=video.mov"))

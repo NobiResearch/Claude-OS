@@ -490,10 +490,14 @@ NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|edit|comme
                               r"|\b(?:release|gist|label|repo)\s+(?:create|edit)\b|\balias\s+(?:set|import)\b"
                               r"|\bworkflow\s+run\b|\bproject\s+(?:create|edit|item-create|item-edit)\b"
                               r"|\bapi\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X|--method)\b")
-# Ways a command can run text as a command: substitutions, a shell given a string or stdin, eval
-# and source. Searched in what the shell would expand (_active).
-HIDES = re.compile(r"`|\$\(|<\(|>\(|\b(?:ba|z)?sh\s+-[cs]\b|\|\s*(?:ba|z)?sh\b|\beval\b|\bsource\b"
-                   r"|(?:^|[;&|]\s*)\.\s+\S")
+# Ways a command can run text as a command. Substitutions work inside double quotes, so they're
+# searched in _active text; a shell given a string or stdin, eval, source and `.` only run
+# outside all quotes, so they're searched in _bare text ("Open source the brief" is a title).
+SUBSTITUTES = re.compile(r"`|\$\(|<\(|>\(")
+_SHELL = r"(?:\S*/)?(?:ba|z|da|k)?sh"
+SHELLS = re.compile(r"\beval\b|\bsource\b|(?:^|[;&|(]\s*)\.\s+\S"
+                    r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*\s-[A-Za-z]*[cs][A-Za-z]*\b"  # sh -c, bash -lc, -o x -c
+                    r"|\|\s*" + _SHELL + r"\b")
 FLAG_LIKE = re.compile(r"--?[A-Za-z][\w-]*(?:=.*)?")
 REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
 
@@ -548,12 +552,22 @@ def gh_calls(command):
                 continue  # a read publishes nothing
             v, verb = k, ""
         else:
-            # gh lets flags sit between the subcommand and the verb, and a flag's value can look
-            # like a verb: take the first word after it that names one that publishes.
-            plain = [n for n in range(k + 1, len(args)) if not args[n].startswith("-")][:2]
-            v = next((n for n in plain if (sub, args[n]) in PUBLISHES or (sub, args[n]) in REFUSED), None)
-            if v is None:
-                continue
+            # The verb the way gh finds it: past -R/--repo/--hostname, the next plain word.
+            n = k + 1
+            while n < len(args) and (args[n] in GLOBAL_VALUE or args[n].startswith(("--repo=", "--hostname="))
+                                     or (args[n].startswith("-R") and len(args[n]) > 2)):
+                n += 2 if args[n] in GLOBAL_VALUE else 1
+            if n < len(args) and not args[n].startswith("-"):
+                v = n
+                if (sub, args[v]) not in PUBLISHES and (sub, args[v]) not in REFUSED:
+                    continue  # gh pr list --search review: not a verb that publishes
+            else:
+                # Another flag comes first: whatever it carries isn't read here, so a later
+                # publishing verb is refused rather than guessed at.
+                v = next((m for m in range(n, len(args)) if not args[m].startswith("-")
+                          and ((sub, args[m]) in PUBLISHES or (sub, args[m]) in REFUSED)), None)
+                if v is None:
+                    continue
             verb = args[v]
         why = None
         if not _global_only(args[:k] + args[k + 1:v]):
@@ -610,6 +624,35 @@ def _active(text):
     return "".join(out)
 
 
+def _bare(text):
+    """The text outside all quotes, the only place a shell word like eval or `sh -c` runs."""
+    out, quote, i = [], None, 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            if c == quote:
+                quote = None
+            elif c == "\\" and quote == '"':
+                i += 1
+            out.append(" ")
+        elif c == "\\":
+            out.append("_")
+            i += 1
+        elif c in "'\"":
+            quote = c
+            out.append(" ")
+        else:
+            out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def _tilde(raw):
+    """Would the shell turn a ~ in this word into the home folder? At its start, or after = or
+    :, outside quotes."""
+    return bool(re.search(r"(?:^|[=:])~", re.sub(r"'[^']*'|\"[^\"]*\"", "''", raw)))
+
+
 # What may use the body file earlier in the same command: commands that only read it.
 READERS = {"cat", "head", "tail", "wc", "grep", "less", "more", "file", "ls", "stat", "test", "[", "diff", "shasum"}
 MOVES = {"cd", "pushd", "popd"}
@@ -627,12 +670,16 @@ def _used_before(path, before, cwd):
             segment = []
             continue
         segment.append(w)
-        redirect = re.match(r"\d*>>?\|?", w)
-        target = before[k + 1] if w in (">", ">>", ">|") and k + 1 < len(before) else (
-            re.sub(r"^\d*>>?\|?", "", w) if redirect and len(w) > len(redirect.group(0)) else None)
+        # Redirections, with &> and &>> as REDIRECT left them (@>, @>>).
+        redirect = re.match(r"(?:\d*|@)>>?\|?", w)
+        target = before[k + 1] if w in (">", ">>", ">|", "@>", "@>>") and k + 1 < len(before) else (
+            re.sub(r"^(?:\d*|@)>>?\|?", "", w) if redirect and len(w) > len(redirect.group(0)) else None)
+        if target is not None and re.fullmatch(r"@(?:\d+|-)", target):
+            target = None  # 2>&1 copies a file descriptor: no file is written
         if target is not None and moved:
             return "after a cd, nothing may be written before gh in the same command: what's checked must be what's sent"
-        names = {x for x in ([w] + ([target] if target else []))}
+        # dd of=f, --output=f: the path can sit after an =.
+        names = {w} | ({target} if target else set()) | ({w.split("=", 1)[1]} if "=" in w else set())
         if not any(n == path or os.path.realpath(os.path.join(cwd, os.path.expanduser(n))) == real for n in names):
             continue
         command = next((s for s in segment if not re.fullmatch(r"\w+=.*", s)), "")
@@ -659,12 +706,14 @@ def _gh_text(sub, verb, raw, cooked, before, cwd):
         i += 1
         if w in switches:
             continue
+        written = raw[i - 1]  # the value as typed, for the ~ check: the flag word itself when attached
         if w.startswith("--"):
             flag, eq, value = w.partition("=")
             kinds = LONG_TEXT | LONG_FILE | own | fields | ({"--input"} if sub == "api" else set())
             if flag not in kinds:
                 continue
             if not eq:
+                written = raw[i] if i < len(raw) else ""
                 value, i = (cooked[i] if i < len(cooked) else None), i + 1
         elif w.startswith("-") and len(w) > 1:
             if len(w) > 2:  # -bX, -b=X, -F/path, -cb: gh's flag parser reads these more ways than one
@@ -675,12 +724,15 @@ def _gh_text(sub, verb, raw, cooked, before, cwd):
                 continue
             if w not in SHORT_TEXT | SHORT_FILE | fields | own:
                 continue
+            written = raw[i] if i < len(raw) else ""
             flag, value, i = w, (cooked[i] if i < len(cooked) else None), i + 1
         else:
             continue
         if value is None or FLAG_LIKE.fullmatch(value):
             # Its value is missing or is another flag: gh would read the words some other way.
             return None, "%s needs its value right after it: %s" % (flag, READABLE)
+        if flag not in LONG_FILE | SHORT_FILE | {"--input"} and _tilde(written):
+            return None, "an unquoted ~ in %s becomes your home folder: quote it, or %s" % (flag, READABLE)
         if flag in fields or flag == "--input":
             if flag in ("-F", "--field") and value.partition("=")[2].startswith("@"):
                 files.append(value.partition("=")[2][1:])
@@ -720,7 +772,7 @@ def gh_text_decision(command, cwd):
     publishes = bool(NAMES_PUBLISHING.search(text))
     try:
         from . import guard
-        if publishes and HIDES.search(_active(text)):
+        if publishes and (SUBSTITUTES.search(_active(text)) or SHELLS.search(_bare(text))):
             return ("this command publishes through gh and also runs text as a command (a substitution, backticks, "
                     "sh -c, | sh, eval or source): " + READABLE)
         calls = gh_calls(text)
