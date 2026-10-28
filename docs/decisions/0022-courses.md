@@ -38,7 +38,13 @@ every night.
   `ui/mark-mono.svg`, the class `.brand-mark`, the image `StatusItemController.mark`, the struct
   `Mark`. A future redesign changes files, not names.
 - **A mark merges only after the owner has seen a real build** in their own Dock and menu bar. This
-  one did.
+  one did: the owner ran it and said "It is clean and looks good."
+- **The brand is frozen.** No new direction after this one, only refinements where something
+  needs it (a menu bar variant, the light icon, spacing). The owner's call, on the Skeptic's
+  advice: two marks in one day was cheap while almost nobody had seen them, and every change after
+  this costs recognition.
+- **Better a minimalist mark** that holds its own beside other brands in a real Dock than a
+  detailed one that only works as a big lockup: that's what the Nest taught.
 
 ## Consequences
 
