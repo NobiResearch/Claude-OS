@@ -50,5 +50,5 @@ Nest's own dome.
 - **The files are MIT, the names and marks are reserved.** Anyone may use and change the files,
   like the rest of the repository, but the names Ovenbird and Nobi Research and these marks say
   where a copy came from: a fork or another product ships under a name and mark of its own. That's
-  how Rust, Firefox and Homebrew do it, and it's the owner's choice. Outfit's credit and license
+  how Rust and Firefox do it, and it's the owner's choice. Outfit's credit and license
   are in `docs/brand/`.
