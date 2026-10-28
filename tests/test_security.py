@@ -92,6 +92,19 @@ class TestSecurity(TempHome):
             self.assertEqual(ctx.exception.code, 3)
             self.assertEqual(mac.calls, [])
 
+    def test_disabled_inside_a_sandbox_means_unknown(self):
+        # Friction #25: a sandbox keeps socketfilterfw from its service, and it says "disabled".
+        for in_sandbox, expected in ((False, False), (True, None)):
+            with mock.patch.object(security.core, "run", FakeMac(firewall=False)), \
+                    mock.patch.object(security, "sandboxed", return_value=in_sandbox):
+                self.assertIs(security.posture()["firewall"], expected, in_sandbox)
+            with mock.patch.object(security.core, "run", FakeMac(firewall=True)), \
+                    mock.patch.object(security, "sandboxed", return_value=in_sandbox):
+                self.assertIs(security.posture()["firewall"], True, "on is on, sandbox or not")
+        self.assertIsInstance(security.sandboxed(), bool)
+        with mock.patch.dict(os.environ, {"COS_SANDBOXED": "1"}):
+            self.assertTrue(security.sandboxed())
+
     def test_the_read_view_says_how(self):
         state = {"filevault": True, "sip": True, "firewall": False, "gatekeeper": None}
         with redirect_stdout(io.StringIO()) as out:

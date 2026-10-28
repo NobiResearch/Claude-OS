@@ -8,7 +8,7 @@ SIP can't be turned on by a script, and spctl lost its global Gatekeeper switch 
 so for those it says where to go.
 
 This module runs as root when the human approves, so it's on the night shift's protected list
-(lib/cos/hook.py) and imports nothing but core.
+(lib/cos/hook.py) and imports nothing but core (and ctypes, to ask macOS whether it's sandboxed).
 """
 
 import os
@@ -40,16 +40,37 @@ HOW = {
 }
 
 
+def sandboxed():
+    """Is this process inside a macOS sandbox (Claude Code's, or the nightly evolve run's)? There
+    socketfilterfw can't reach the firewall's service and says "disabled" whatever the truth
+    (friction #25), so "disabled" means "couldn't tell"."""
+    if os.environ.get("COS_SANDBOXED"):
+        return True
+    try:
+        import ctypes
+        check = ctypes.CDLL("/usr/lib/libSystem.B.dylib").sandbox_check
+        check.restype, check.argtypes = ctypes.c_int, [ctypes.c_int, ctypes.c_char_p, ctypes.c_int]
+        return check(os.getpid(), None, 0) != 0
+    except Exception:
+        return False
+
+
 def posture():
     """{protection: True (on) | False (off) | None (couldn't tell)}."""
     fv = core.run(["fdesetup", "status"], timeout=5).out
     sip = core.run(["csrutil", "status"], timeout=5).out
     fw = core.run([FIREWALL, "--getglobalstate"], timeout=5).out
     gk = core.run(["spctl", "--status"], timeout=5)
+    if not fw:
+        firewall = None
+    elif "enabled" in fw or "State = 1" in fw:
+        firewall = True
+    else:
+        firewall = None if sandboxed() else False
     return {
         "filevault": "On" in fv if fv else None,
         "sip": "enabled" in sip if sip else None,
-        "firewall": ("enabled" in fw or "State = 1" in fw) if fw else None,
+        "firewall": firewall,
         "gatekeeper": "enabled" in (gk.out + gk.err) if (gk.out or gk.err) else None,
     }
 
