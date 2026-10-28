@@ -27,8 +27,9 @@ The full check from decision 0015, step 1, on the notarized zip, before it's pub
 draft release's zip, see Publishing): download it in a **second macOS user account**, in Safari
 signed in to GitHub (a draft's files download only for people with write access), so it's
 quarantined and nothing of yours is there. Before opening it, `xattr -p com.apple.quarantine`
-on the zip should print a value: a copy moved over by `gh` or a shared folder isn't quarantined
-and proves nothing. Then go through the first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
+on the zip (or on the app, if Safari unzipped it) should print a value: a copy moved over by
+`gh` or a shared folder isn't quarantined and proves nothing. Then go through the first launch
+from nothing. The command line tools, Claude Code and the download, then Calendar,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
 Remove Ovenbird… leaves nothing behind but the app.
 
@@ -102,8 +103,9 @@ runs.
 If the first-launch check can't happen, publish no app. Delete the draft
 (`gh release delete v<version>`), or first take its zip off
 (`gh release delete-asset v<version> Ovenbird-<version>.zip`) and publish what's left as a
-**pre-release**, so `releases/latest` and the app's update check don't point at a release with
-no app. Under immutable releases, the zip then comes as the next version.
+**pre-release** (`gh release edit v<version> --draft=false --prerelease`, not step 6's
+command), so `releases/latest` and the app's update check don't point at a release with no app.
+Under immutable releases, the zip then comes as the next version.
 
 ### The notes
 
