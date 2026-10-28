@@ -42,11 +42,18 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 # Claude Code runs a hook outside the sandbox, and the workspace's hooks run its bin/cos,
 # which the run itself may edit. Its file edits stay in the workspace through acceptEdits
 # alone: a bare Edit or Write allow would reach any path on the Mac.
+#
+# Nor may it read the private folders (Fable's review, F3): keys, cloud and GitHub logins,
+# Claude Code's own settings and the Keychains. ~/.claude-os stays readable for now: the
+# run's workspace and its input (friction, the journal) live there.
+UNREADABLE = ["~/" + p for p in core.PRIVATE_DIRS if p != ".claude-os"]
 SANDBOX_SETTINGS = {"disableAllHooks": True, "disableSkillShellExecution": True,
                     "sandbox": {"enabled": True, "failIfUnavailable": True,
                                 "allowUnsandboxedCommands": False, "autoAllowBashIfSandboxed": False,
                                 # the test suite starts servers on 127.0.0.1; still no outside network
-                                "network": {"allowLocalBinding": True}}}
+                                "network": {"allowLocalBinding": True},
+                                "filesystem": {"denyRead": UNREADABLE}}}  # its shell
+READ_DENIED = [r for p in UNREADABLE for r in ("Read(%s)" % p, "Read(%s/**)" % p)]  # its Read tool
 
 
 def definitions():
@@ -452,7 +459,7 @@ def claude_command(spec, capped=True):
         cmd += ["--allowedTools"] + spec["allowed_tools"]
     if spec.get("sandbox"):
         cmd += ["--settings", json.dumps(SANDBOX_SETTINGS)]
-    denied = spec.get("disallowed_tools", []) + ALWAYS_DENIED
+    denied = spec.get("disallowed_tools", []) + ALWAYS_DENIED + (READ_DENIED if spec.get("sandbox") else [])
     cmd += ["--disallowedTools"] + denied + [r for r in core.local_denies() if r not in denied]
     return cmd
 

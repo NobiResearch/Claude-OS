@@ -430,3 +430,22 @@ class TestEvolveCommandLine(unittest.TestCase):
         allowed = cmd[cmd.index("--allowedTools") + 1:cmd.index("--settings")]
         self.assertNotIn("Edit", allowed)
         self.assertNotIn("Write", allowed)
+
+    def test_the_evolve_run_reads_no_private_folder_but_its_own(self):
+        # Fable's review, F3: its shell (the sandbox's denyRead) and its Read tool (deny rules).
+        cmd = daemon.claude_command(daemon.definitions()["evolve"])
+        settings = json.loads(cmd[cmd.index("--settings") + 1])
+        unreadable = settings["sandbox"]["filesystem"]["denyRead"]
+        denied = cmd[cmd.index("--disallowedTools") + 1:]
+        for private in core.PRIVATE_DIRS:
+            path = "~/" + private
+            if private == ".claude-os":  # its workspace and its input, for now (step 2 of the plan)
+                self.assertNotIn(path, unreadable)
+                continue
+            self.assertIn(path, unreadable)
+            self.assertIn("Read(%s/**)" % path, denied)
+        for must in ("~/.ssh", "~/.aws", "~/.config/gh", "~/Library/Keychains"):
+            self.assertIn(must, unreadable)
+        # Runs in the human's checkout aren't sandboxed and keep their own rules.
+        morning = daemon.claude_command(daemon.definitions()["morning"])
+        self.assertFalse([r for r in morning if r.startswith("Read(~/.ssh")])
