@@ -134,9 +134,10 @@ def parse_merge(command):
 PR_TEXT = {("gh", "pr", "create"), ("gh", "pr", "edit"), ("gh", "pr", "comment")}
 EXPANDS = re.compile(r"[$`\n\r]")  # nothing the shell would expand, and one line
 # Outside quotes, the shell gives these a meaning shlex doesn't: `#` only starts a comment at
-# the start of a word (`x#; rm` runs rm), braces and globs turn one word into several, `~` and
-# a word-initial `=` (zsh) become paths.
-UNQUOTED = re.compile(r"[#{}~*?\[\]]|(?:^|\s)=")
+# the start of a word (`x#; rm` runs rm), braces and globs turn one word into several (`^` too,
+# with zsh's EXTENDED_GLOB from a profile), `~` and a word-initial `=` (zsh) become paths, and
+# `!` is history in an interactive shell.
+UNQUOTED = re.compile(r"[#{}~*?\[\]^!]|(?:^|\s)=")
 
 
 def parse_pr_text(command):
@@ -233,7 +234,7 @@ def decide_pr_text(parsed, facts):
         path = facts.get("body")
         if not path:
             return False, "the body file isn't from the repository or the session's temp folder"
-        if not os.path.isfile(path):
+        if not os.path.isfile(path) or facts.get("body_link"):
             return False, "the body file isn't a plain file"
         try:
             if os.path.getsize(path) > 256 * 1024:
@@ -311,6 +312,9 @@ def inspect_text(parsed, cwd):
     facts["resolved"] = git("config", "--get-regexp", r"^remote\..*\.gh-resolved$").out.splitlines()
     facts["branch"] = git("symbolic-ref", "--short", "HEAD").out
     facts["body"] = _body_file_ok(parsed["body_file"], cwd) if parsed["body_file"] else None
+    # gh opens the path as written, so it must be the file the Guardian reads, not a link to it.
+    named = os.path.abspath(os.path.join(cwd, os.path.expanduser(parsed["body_file"] or "")))
+    facts["body_link"] = bool(parsed["body_file"]) and os.path.realpath(named) != named
     if parsed["number"] is not None:
         view = core.run(["gh", "pr", "view", str(parsed["number"]), "--json",
                          "url,state,isCrossRepository,headRefName"], cwd=cwd, timeout=15)

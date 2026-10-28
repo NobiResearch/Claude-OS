@@ -306,6 +306,7 @@ class TestPullRequestText(TempHome):
             "no number": ("gh pr comment --body-file %s" % body, {}, "names no pull request"),
             "a body file from a private place": (comment, {"body": None}, "isn't from the repository"),
             "a body file that isn't a file": (comment, {"body": self.tmp}, "isn't a plain file"),
+            "a body file through a link": (comment, {"body_link": True}, "isn't a plain file"),
             "-R": ("gh pr comment 31 -R someone/else --body-file %s" % body, {}, "not the exact"),
         }
         for name, (cmd, changes, reason) in cases.items():
@@ -328,7 +329,8 @@ class TestPullRequestText(TempHome):
                     "gh pr create --title {x,-F,~/.ssh/id_ed25519}",
                     "gh pr create --title ~ --body x", "gh pr create --title x* --body x",
                     "gh pr create --title x? --body x", "gh pr create --title [x] --body x",
-                    "gh pr create --title =ls --body x", "gh pr comment ٣١ --body x"):
+                    "gh pr create --title =ls --body x", "gh pr comment ٣١ --body x",
+                    "gh pr create --title ^x --body x", "gh pr create --title x! --body x"):
             self.assertIsNone(hook.parse_pr_text(cmd), cmd)
             self.assertFalse(self.decide(cmd)[0], cmd)
         # Quoted, the same characters are only text.
