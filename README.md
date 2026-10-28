@@ -224,7 +224,9 @@ to set up, what we want most, what a change needs, and how review works. Questio
 that are still rough, go in [Discussions](https://github.com/NobiResearch/Ovenbird/discussions).
 Working with an AI coding agent? Point it at [AGENTS.md](AGENTS.md), and see
 [AI_POLICY.md](AI_POLICY.md). Found a privacy or safety hole? Please report it privately, as
-[SECURITY.md](SECURITY.md) describes.
+[SECURITY.md](SECURITY.md) describes. Everyone here follows the
+[Code of Conduct](CODE_OF_CONDUCT.md), and [ACCESSIBILITY.md](ACCESSIBILITY.md) says where
+Ovenbird stands for people who use VoiceOver, the keyboard, Reduce Motion or larger text.
 
 ## License
 
@@ -234,6 +236,8 @@ License for a few days in October 2026.
 
 The names Ovenbird and Nobi Research and their marks are the exception: they say where a copy
 came from, so a fork or another product can't ship under them ([docs/brand](docs/brand/README.md)).
+The [Code of Conduct](CODE_OF_CONDUCT.md) is adapted from the Contributor Covenant and stays
+under its own license, CC BY-SA 4.0.
 
 Claude is a trademark of Anthropic. Ovenbird is an independent project, not made or endorsed
 by Anthropic.
