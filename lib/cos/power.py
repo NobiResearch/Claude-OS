@@ -20,15 +20,18 @@ TARGET_ASSERTIONS = (
     "PreventSystemSleep",
 )
 
-# pmset holder lines vary: the (process) name and the HH:MM:SS duration
+# pmset holder lines vary: the (process) name and the duration
 # are both optional, e.g.
 #   pid 1234(caffeinate): [0x...] 00:42:10 PreventUserIdleSystemSleep named: "..."
 #   pid 194: [0x...] PreventUserIdleSystemSleep named: "..."
+# The duration is %02d:%02d:%02d, a minimum width: hours keep counting
+# past 99, so the hour field is \d+, not \d\d, or a holder at 100+ hours
+# would silently disappear from the output.
 # Only pid lines are matched, so the system-wide summary (no pid) can
 # never double-count. The named: string is matched but not captured.
 _HOLDER = re.compile(
     r"^\s*pid\s+(\d+)(?:\(([^)]*)\))?:\s*\[0x[0-9a-fA-F]+\]\s+"
-    r"(?:(\d\d:\d\d:\d\d)\s+)?(Prevent\w+)\s+named:\s*\"[^\"]*\"",
+    r"(?:(\d+:\d\d:\d\d)\s+)?(Prevent\w+)\s+named:\s*\"[^\"]*\"",
     re.M)
 
 
@@ -47,12 +50,10 @@ def _format_duration(seconds):
         return "unknown duration"
     if seconds < 60:
         return "%d s" % seconds
-    minutes, secs = divmod(seconds, 60)
+    minutes = seconds // 60
     if minutes < 60:
         return "%d min" % minutes
     hours, minutes = divmod(minutes, 60)
-    if secs:
-        return "%d h %d min" % (hours, minutes)
     return "%d h %d min" % (hours, minutes)
 
 
@@ -101,8 +102,11 @@ def render(r):
     if not holders:
         print("✓ Nothing is keeping the Mac awake.")
         return
-    print("✗ %d %s keeping the Mac awake:" % (
-        len(holders), "process is" if len(holders) == 1 else "processes are"))
+    # Count assertions, not processes: one app can hold two assertions.
+    if len(holders) == 1:
+        print("• 1 sleep assertion keeping the Mac awake:")
+    else:
+        print("• %d sleep assertions keeping the Mac awake:" % len(holders))
     for h in holders:
         process = h.get("process") or "unknown process"
         print("  %s (pid %s) — %s, %s" % (

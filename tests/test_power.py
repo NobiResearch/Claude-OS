@@ -36,6 +36,15 @@ class TestPower(TempHome):
         self.assertNotIn("NoIdleSleepAssertion",
                          [h["assertion"] for h in power.parse_assertions(SAMPLE)])
 
+    def test_three_digit_hour_duration(self):
+        # pmset's %02d hour field is a minimum width: hours keep counting
+        # past 99, so a holder at 123 hours must still parse.
+        holders = power.parse_assertions(
+            '   pid 4321(exampleapp): [0x0000000100004321] 123:04:05 '
+            'PreventSystemSleep named: "x"\n')
+        self.assertEqual(len(holders), 1)
+        self.assertEqual(holders[0]["duration_seconds"], 443045)
+
     def test_duration_and_process_optional(self):
         holders = power.parse_assertions(
             '   pid 194: [0x0000000100000194] PreventUserIdleSystemSleep named: "named-token-12345"\n')
