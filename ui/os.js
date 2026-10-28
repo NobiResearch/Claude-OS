@@ -411,7 +411,7 @@
     const co = (state.status || {}).claude_os || {};
     const ok = await confirmDialog({
       title: "Restart to update Ovenbird?",
-      body: (co.waiting ? "Brings in what you merged on GitHub, then restarts Ovenbird's server. "
+      body: (co.waiting ? "Brings in what's merged on GitHub, then restarts Ovenbird's server. "
         : "Restarts Ovenbird's server on the code that's on disk now. ")
         + "Music keeps playing; a reply that's still being written stops.",
       ok: "Restart",

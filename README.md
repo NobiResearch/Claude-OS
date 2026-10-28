@@ -61,10 +61,13 @@ Ovenbird can see a lot of your Mac, so here's the deal in plain words.
   it's held instead by Claude Code's sandbox, its deny rules and the checks when it's merged.
 - **It doesn't rewrite itself behind your back.** The nightly evolve run works on a branch, in
   a sandbox, and reaches your copy only when it's merged: by you, or by Claude after a guardian
-  agent's review (0020). **Keep Ovenbird up to date** (off until you confirm it in the app) only
-  brings in what's merged on GitHub. The **night shift**, which lets Claude push its own
-  branches in your own fork without a card (every merge still waits for a guardian's review),
-  also turns on only in the app's own dialog, and a downloaded copy has none.
+  agent's review (0020). **Keep Ovenbird up to date** (off until you confirm it in the app)
+  brings in what's merged on GitHub, and on this project's GitHub Claude merges its own pull
+  requests: once CI passes and a guardian agent has reviewed them, without a person reading them
+  first. Pull requests from anyone else wait for a person. Leave it off if you'd rather look at
+  each update first; Updates lists what's waiting. The **night shift**, which lets Claude push
+  its own branches in your own fork without a card (every merge still waits for a guardian's
+  review), also turns on only in the app's own dialog, and a downloaded copy has none.
 
 ## The desktop
 
@@ -86,7 +89,7 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
   in Ovenbird" (MusicKit: catalog songs, your library, playlists and radio play right in
   Ovenbird), weather for a city or your location, your calendar and reminders (read-only),
   notifications with Ovenbird's own name, Night shift, and Keep Ovenbird up to date
-  (what you merge on GitHub comes to this Mac by itself). Everything is off until you turn it on.
+  (what's merged on GitHub comes to this Mac by itself). Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
 `cos serve --open` serves the same desktop on 127.0.0.1 with a per-launch token, and
