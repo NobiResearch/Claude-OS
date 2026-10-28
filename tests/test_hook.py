@@ -452,16 +452,45 @@ class TestGhText(TempHome):
                     "/opt/homebrew/bin/gh pr comment 1 --body %s" % s, '"gh" pr comment 1 --body %s' % s,
                     "{ gh pr comment 1 --body %s; }" % s, "if gh pr comment 1 --body %s; then :; fi" % s, "! gh pr comment 1 --body %s" % s,
                     "time gh pr comment 1 --body %s" % s, "nohup gh pr comment 1 --body %s" % s,
-                    "echo 1 | xargs gh pr comment --body %s" % s, "gh pr comment 1 2>&1 --body %s" % s,
+                    "gh pr comment 1 2>&1 --body %s" % s, "gh pr -R o/r comment 1 --body %s" % s,
+                    "gh pr review 1 --comment --body %s" % s, "gh pr review 1 -c -b %s" % s,  # there -c is a switch
+                    "gh pr review 1 --comment --body-file %s" % self.leaky,
                     # what else publishes
                     "gh pr close 1 -c %s" % s, "gh issue reopen 2 --comment %s" % s, "gh pr merge 1 --squash --subject %s" % s,
                     "gh pr merge 1 --squash -b %s" % s, "gh pr merge 1 --squash -A %s" % s, "gh pr merge 1 -F %s" % self.leaky,
                     "gh discussion create --title %s" % s, "gh-axi discussion comment 3 --body %s" % s,
-                    "gh pr create --recover %s" % self.leaky):
+                    "gh pr create --recover %s" % self.leaky,
+                    # outside the board's list, published all the same
+                    "gh label create x --description %s" % s, "gh repo edit --description %s" % s,
+                    "gh repo edit --homepage %s" % s, "gh workflow run ci.yml -f x=%s" % s,
+                    "gh project item-create 1 --owner o --title %s" % s):
             why = self.decide(cmd)
             self.assertIn("Guardian found", why or "", cmd)
             self.assertNotIn(home, why)
             self.assertNotIn(s, why)
+
+    def test_what_it_can_not_follow_is_refused(self):
+        """The guardian's third round on #121: flags before the verb, xargs, a flag with no value,
+        an apostrophe in double quotes, and shells fed text."""
+        cases = {
+            "flags after the verb": ("gh --body x pr comment 1", "gh pr --body x comment 1",
+                                     "gh -f body=x api repos/a/b/issues"),
+            "xargs adds words": ("echo 1 | xargs gh pr comment --body hi", "echo hi | xargs gh pr comment 1 --body"),
+            "needs its value": ("gh pr comment 1 --body", "gh pr comment 1 --body --title x"),
+            "has a `$`": ('gh pr comment 1 --body "Don\'t use $HOME, it\'s private"',),
+            "runs text as a command": ('gh pr comment 1 --body "it\'s $(cat x) isn\'t"',
+                                       "echo 'gh pr comment 1 --body x' | bash", "source x.sh && gh pr comment 1 --body hi"),
+            "full path": ("popd && gh pr comment 1 --body-file notes.md",),
+            "nothing may be written": ("cd /tmp && printf x > c.md && gh pr comment 1 --body-file %s" % self.clean,),
+            "same command": ("sed -i '' s/a/b/ %s && gh pr comment 1 --body-file %s" % (self.clean, self.clean),),
+            "alias": ("gh alias set pc 'pr comment'",),
+        }
+        for want, cmds in cases.items():
+            for cmd in cmds:
+                self.assertIn(want, self.decide(cmd) or "", cmd)
+        # Reading the body file first is the norm.
+        for cmd in ("bin/cos guard --text %s && gh pr comment 1 --body-file %s", "cat %s && gh pr comment 1 --body-file %s"):
+            self.assertIsNone(self.decide(cmd % (self.clean, self.clean)), cmd)
 
     def test_what_only_the_human_publishes_is_refused(self):
         self.assertIn("for the human", self.decide("gh pr create --title t --body-file %s --attach shot.png" % self.clean))

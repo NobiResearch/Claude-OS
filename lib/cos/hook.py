@@ -460,7 +460,18 @@ def pretool_decision(command, patterns):
 PUBLISHES = {(s, v) for s in ("pr", "issue") for v in ("create", "edit", "comment", "close", "reopen")} | {
     ("pr", "review"), ("pr", "merge"), ("release", "create"), ("release", "edit"),
     ("discussion", "create"), ("discussion", "edit"), ("discussion", "comment")}
-REFUSED = {("gist", "create"), ("gist", "edit")}  # uploads files: those are the human's to publish
+REFUSED = {("gist", "create"): "gh gist uploads files: those are for the human to publish",
+           ("gist", "edit"): "gh gist uploads files: those are for the human to publish",
+           ("alias", "set"): "a gh alias can hide what a later command publishes",
+           ("alias", "import"): "a gh alias can hide what a later command publishes"}
+PUBLISHES |= {("label", "create"), ("label", "edit"), ("repo", "create"), ("repo", "edit"), ("workflow", "run"),
+              ("project", "create"), ("project", "edit"), ("project", "item-create"), ("project", "item-edit")}
+SUBCOMMANDS = {"pr", "issue", "release", "discussion", "gist", "alias", "api", "label", "repo", "workflow", "project"}
+# Text flags that only one subcommand has (elsewhere the same letter means something else).
+OWN_TEXT = {"label": {"--description", "-d"}, "repo": {"--description", "-d", "--homepage", "-h"}}
+FIELDS = {"api", "workflow"}  # -f/-F key=value: a workflow's inputs show on its public run page
+# Flags that are on/off switches for one command, though they take text for another.
+SWITCHES = {("pr", "review"): {"--comment", "-c", "--approve", "-a", "--request-changes", "-r"}}
 LONG_TEXT = {"--title", "--body", "--notes", "--subject", "--comment", "--author-email"}
 LONG_FILE = {"--body-file", "--notes-file", "--recover"}
 SHORT_TEXT = {"-t", "-b", "-n", "-c", "-A"}
@@ -473,12 +484,17 @@ SHORT_VALUE = {"-R", "-B", "-H", "-a", "-l", "-m", "-p", "-r", "-T", "-X", "-q",
 SESSION_TEMP = "/private/tmp/claude-%d" % os.getuid()  # Claude Code's own temp: the session scratchpad
 EXTRA_BODY_PLACES = []  # tests add their temp folder
 READABLE = ("run gh on its own and write the text plainly: --title \"…\" --body-file <file> (for gh api, "
-            "-F key=@<file> or --input <file>), so Ovenbird can read what it publishes")
+            "-F key=@<file>, --input <file>, or quote the whole key=value), so Ovenbird can read what it publishes")
 MENTIONS_GH = re.compile(r"(?<![\w-])gh(?:-axi)?(?![\w-])")
 NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|edit|comment|review|close|reopen|merge)\b"
-                              r"|\brelease\s+(?:create|edit)\b|\bgist\s+(?:create|edit)\b"
+                              r"|\b(?:release|gist|label|repo)\s+(?:create|edit)\b|\balias\s+(?:set|import)\b"
+                              r"|\bworkflow\s+run\b|\bproject\s+(?:create|edit|item-create|item-edit)\b"
                               r"|\bapi\b[^\n;&|]*\s(?:-f|-F|--field|--raw-field|--input|-X|--method)\b")
-HIDES = re.compile(r"`|\$\(|<\(|>\(|\b(?:ba|z)?sh\s+-c\b|\beval\b")
+# Ways a command can run text as a command: substitutions, a shell given a string or stdin, eval
+# and source. Searched in what the shell would expand (_active).
+HIDES = re.compile(r"`|\$\(|<\(|>\(|\b(?:ba|z)?sh\s+-[cs]\b|\|\s*(?:ba|z)?sh\b|\beval\b|\bsource\b"
+                   r"|(?:^|[;&|]\s*)\.\s+\S")
+FLAG_LIKE = re.compile(r"--?[A-Za-z][\w-]*(?:=.*)?")
 REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
 
 
@@ -486,11 +502,27 @@ def _is_gh(word):
     return word in ("gh", "gh-axi") or word.endswith(("/gh", "/gh-axi"))
 
 
+def _global_only(words):
+    """Are these words (gh's, before the verb) only -R/--repo/--hostname with their values?"""
+    k = 0
+    while k < len(words):
+        w = words[k]
+        if w in GLOBAL_VALUE:
+            k += 2
+        elif w.startswith(("--repo=", "--hostname=")) or (w.startswith("-R") and len(w) > 2):
+            k += 1
+        else:
+            return False
+    return True
+
+
 def gh_calls(command):
-    """Every place a gh or gh-axi word is followed (past -R/--repo/--hostname) by something that
-    publishes -> [(subcommand, verb, raw args, cooked args, cooked words before it)]. Found
-    wherever it sits, so `env gh`, `command gh`, `xargs gh` and `{ gh …; }` count too. None
-    when the command can't be read."""
+    """Every gh or gh-axi word followed by something that publishes -> [(subcommand, verb, raw
+    args, cooked args, cooked words before it, why it's refused or None)]. Found wherever it
+    sits, so `env gh`, `command gh` and `{ gh …; }` count too. The subcommand and verb are
+    found the way gh finds them, past flags, and any flag before the verb other than
+    -R/--repo/--hostname is refused: it might be text this doesn't read. None when the command
+    can't be read."""
     text = str(command or "").replace("\\\n", "").replace("\n", " ; ")
     text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), text)
     try:
@@ -503,18 +535,35 @@ def gh_calls(command):
     for i, word in enumerate(cooked):
         if not _is_gh(word):
             continue
-        j = i + 1
-        while j < len(cooked) and (cooked[j] in GLOBAL_VALUE or cooked[j].startswith(("-R", "--repo=", "--hostname="))):
-            j += 1 if "=" in cooked[j] or (cooked[j].startswith("-R") and len(cooked[j]) > 2) else 2
-        pair = tuple(cooked[j:j + 2])
-        if pair in PUBLISHES or pair in REFUSED or (pair[:1] == ("api",) and any(
-                w.split("=", 1)[0] in API_WRITES or w[:2] in ("-f", "-F", "-X") for w in cooked[j + 1:])):
-            end = j
-            while end < len(cooked) and cooked[end] not in OPERATORS:
-                end += 1
-            sub, verb = (pair + ("",))[:2] if pair[:1] != ("api",) else ("api", "")
-            start = j + (1 if sub == "api" else 2)
-            calls.append((sub, verb, raw[start:end], cooked[start:end], cooked[:i]))
+        end = i + 1
+        while end < len(cooked) and cooked[end] not in OPERATORS:
+            end += 1
+        args, rargs = cooked[i + 1:end], raw[i + 1:end]
+        k = next((n for n, w in enumerate(args) if w in SUBCOMMANDS), None)
+        if k is None:
+            continue
+        sub = args[k]
+        if sub == "api":
+            if not any(w.split("=", 1)[0] in API_WRITES or w[:2] in ("-f", "-F", "-X") for w in args):
+                continue  # a read publishes nothing
+            v, verb = k, ""
+        else:
+            # gh lets flags sit between the subcommand and the verb, and a flag's value can look
+            # like a verb: take the first word after it that names one that publishes.
+            plain = [n for n in range(k + 1, len(args)) if not args[n].startswith("-")][:2]
+            v = next((n for n in plain if (sub, args[n]) in PUBLISHES or (sub, args[n]) in REFUSED), None)
+            if v is None:
+                continue
+            verb = args[v]
+        why = None
+        if not _global_only(args[:k] + args[k + 1:v]):
+            why = "write gh's flags after the verb (gh pr comment 1 --body-file …): " + READABLE
+        first = i  # where gh's own command starts
+        while first > 0 and cooked[first - 1] not in OPERATORS:
+            first -= 1
+        if "xargs" in cooked[first:i]:
+            why = why or "xargs adds words to this gh command that Ovenbird can't see: " + READABLE
+        calls.append((sub, verb, rargs[v + 1:], args[v + 1:], cooked[:i], why))
     return calls
 
 
@@ -539,48 +588,80 @@ def _body_file_ok(path, cwd):
     return real
 
 
-def _unquoted(raw):
-    return re.sub(r"'[^']*'", "''", raw)  # single quotes expand nothing
+def _active(text):
+    """The text without what the shell won't expand: single-quoted spans (only outside double
+    quotes: in "it's" the ' is a letter) and backslash-escaped characters. `$` and backticks
+    left in it are live."""
+    out, quote, i = [], None, 0
+    while i < len(text):
+        c = text[i]
+        if quote == "'":
+            quote = None if c == "'" else quote
+        elif c == "\\":
+            out.append("_")
+            i += 1
+        elif c == "'" and quote is None:
+            quote = "'"
+        else:
+            if c == '"':
+                quote = None if quote == '"' else '"'
+            out.append(c)
+        i += 1
+    return "".join(out)
 
 
-WRITERS = {"tee", "cp", "mv", "install", "rsync", "ln", "dd", "touch", "truncate"}
+# What may use the body file earlier in the same command: commands that only read it.
+READERS = {"cat", "head", "tail", "wc", "grep", "less", "more", "file", "ls", "stat", "test", "[", "diff", "shasum"}
+MOVES = {"cd", "pushd", "popd"}
 
 
-def _written(before):
-    """The files a command writes before its gh call: redirection targets, and what tee, cp, mv
-    and the like are given. Reading a file first (`cos guard --text f`) is fine."""
-    out, k = set(), 0
-    while k < len(before):
-        w = before[k]
-        if w in (">", ">>", ">|") and k + 1 < len(before):
-            out.add(before[k + 1])
-        elif re.match(r"\d*>>?\|?\S", w):
-            out.add(re.sub(r"^\d*>>?\|?", "", w))
-        elif w in WRITERS:
-            j = k + 1
-            while j < len(before) and before[j] not in OPERATORS:
-                if not before[j].startswith("-"):
-                    out.add(before[j])
-                j += 1
-        k += 1
-    return out
+def _used_before(path, before, cwd):
+    """-> why the body file can't be trusted, or None. Earlier in the command it may only be
+    read (`cos guard --text f`, `cat f`): a write, or a command that might write it, means what
+    gets checked isn't what gets sent."""
+    real = os.path.realpath(os.path.join(cwd, os.path.expanduser(path)))
+    moved = any(w in MOVES for w in before)
+    segment = []
+    for k, w in enumerate(before):
+        if w in OPERATORS:
+            segment = []
+            continue
+        segment.append(w)
+        redirect = re.match(r"\d*>>?\|?", w)
+        target = before[k + 1] if w in (">", ">>", ">|") and k + 1 < len(before) else (
+            re.sub(r"^\d*>>?\|?", "", w) if redirect and len(w) > len(redirect.group(0)) else None)
+        if target is not None and moved:
+            return "after a cd, nothing may be written before gh in the same command: what's checked must be what's sent"
+        names = {x for x in ([w] + ([target] if target else []))}
+        if not any(n == path or os.path.realpath(os.path.join(cwd, os.path.expanduser(n))) == real for n in names):
+            continue
+        command = next((s for s in segment if not re.fullmatch(r"\w+=.*", s)), "")
+        reads = command in READERS or (_is_cos(command) and "guard" in segment)
+        if target is not None or not reads:
+            return "the body file is written or used in the same command, so what's checked isn't what's sent: write it first"
+    return None
 
 
 def _gh_text(sub, verb, raw, cooked, before, cwd):
     """One publishing gh call -> (texts, None) or (None, why it's denied)."""
     if (sub, verb) in REFUSED:
-        return None, "gh gist uploads files: those are for the human to publish"
+        return None, REFUSED[(sub, verb)]
     if any(w.startswith("--attach") for w in cooked):
         return None, "attachments (pictures, files) are for the human to publish, not Claude"
-    if any(re.search(r"[$`]|<\(|>\(", _unquoted(r)) for r in raw):
+    if any(re.search(r"[$`]|<\(|>\(", _active(r)) for r in raw):
         return None, "this gh command's text has a `$`, backticks or a substitution: " + READABLE
+    switches = SWITCHES.get((sub, verb), set())
+    fields = API_FIELD if sub in FIELDS else set()
+    own = OWN_TEXT.get(sub, set())
     texts, files, i = [], [], 0
     while i < len(cooked):
         w = cooked[i]
         i += 1
+        if w in switches:
+            continue
         if w.startswith("--"):
             flag, eq, value = w.partition("=")
-            kinds = LONG_TEXT | LONG_FILE | ({"--input"} | API_FIELD if sub == "api" else set())
+            kinds = LONG_TEXT | LONG_FILE | own | fields | ({"--input"} if sub == "api" else set())
             if flag not in kinds:
                 continue
             if not eq:
@@ -588,18 +669,19 @@ def _gh_text(sub, verb, raw, cooked, before, cwd):
         elif w.startswith("-") and len(w) > 1:
             if len(w) > 2:  # -bX, -b=X, -F/path, -cb: gh's flag parser reads these more ways than one
                 return None, "write each short flag on its own, with its value after a space: " + READABLE
-            if w in SHORT_VALUE and w not in (API_FIELD if sub == "api" else ()):
+            if w in SHORT_VALUE and w not in fields | own:
                 if i < len(cooked) and not cooked[i].startswith("-"):
                     i += 1
                 continue
-            if w not in SHORT_TEXT | SHORT_FILE and not (sub == "api" and w in API_FIELD):
+            if w not in SHORT_TEXT | SHORT_FILE | fields | own:
                 continue
             flag, value, i = w, (cooked[i] if i < len(cooked) else None), i + 1
         else:
             continue
-        if value is None:
-            continue
-        if sub == "api":
+        if value is None or FLAG_LIKE.fullmatch(value):
+            # Its value is missing or is another flag: gh would read the words some other way.
+            return None, "%s needs its value right after it: %s" % (flag, READABLE)
+        if flag in fields or flag == "--input":
             if flag in ("-F", "--field") and value.partition("=")[2].startswith("@"):
                 files.append(value.partition("=")[2][1:])
             elif flag == "--input":
@@ -612,12 +694,11 @@ def _gh_text(sub, verb, raw, cooked, before, cwd):
     for path in files:
         if path == "-":
             return None, "a body from stdin can't be checked: " + READABLE
-        if not path.startswith(("/", "~")) and any(w in ("cd", "pushd") for w in before):
+        if not path.startswith(("/", "~")) and any(w in MOVES for w in before):
             return None, "after a cd, give the body file's full path: what's checked must be what's sent"
-        written = _written(before)
-        if path in written or os.path.realpath(os.path.join(cwd, os.path.expanduser(path))) in {
-                os.path.realpath(os.path.join(cwd, os.path.expanduser(w))) for w in written}:
-            return None, "the body file is written in the same command, so what's checked isn't what's sent: write it first"
+        used = _used_before(path, before, cwd)
+        if used:
+            return None, used
         real = _body_file_ok(path, cwd)
         if not real:
             return None, "the body file isn't in this repository, a worktree of it or the session's temp folder"
@@ -639,12 +720,15 @@ def gh_text_decision(command, cwd):
     publishes = bool(NAMES_PUBLISHING.search(text))
     try:
         from . import guard
-        if publishes and HIDES.search(_unquoted(text)):
-            return "this command publishes through gh and also has a substitution, backticks, sh -c or eval: " + READABLE
+        if publishes and HIDES.search(_active(text)):
+            return ("this command publishes through gh and also runs text as a command (a substitution, backticks, "
+                    "sh -c, | sh, eval or source): " + READABLE)
         calls = gh_calls(text)
         if calls is None:
             return ("Ovenbird can't read this command, and it publishes text through gh: " + READABLE) if publishes else None
-        for sub, verb, raw, cooked, before in calls:
+        for sub, verb, raw, cooked, before, refused in calls:
+            if refused:
+                return refused
             texts, why = _gh_text(sub, verb, raw, cooked, before, cwd)
             if why:
                 return why
