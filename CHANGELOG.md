@@ -1,92 +1,214 @@
 # Changelog
 
-User-visible changes to Claude OS. Each pull request adds its entry as a file in `changes/`;
-they're folded in here at each release (the desktop shows them under **Unreleased** until then).
+User-visible changes to Ovenbird (called Claude OS until 0.8.0). Each pull request adds its
+entry as a file in `changes/`; they're folded in here at each release (the desktop shows them
+under **Unreleased** until then).
 
 ## Unreleased
 
+## 0.8.0 — 2026-10-28
+
+Claude OS becomes **Ovenbird**, gets a mark of its own and opens up to contributors. Claude now
+works on it day and night, in the open: every pull request gets a guardian's review, and what's
+merged can come to your Mac by itself if you want it to (decisions 0005 to 0022).
+
+**Ovenbird**
+- **Claude OS is now Ovenbird** ([0019](docs/decisions/0019-the-name.md)): the app, its menus,
+  the desktop, the boot banner, notifications and the docs. "Claude" is Anthropic's trademark,
+  so the name is our own, and the description says what it's built on: Claude Code. `cos`,
+  `~/.claude-os` and everything macOS remembers (permissions, Music, Calendar) stay as they are.
+- **A mark of its own: Courses** ([0022](docs/decisions/0022-courses.md)). The ovenbird's domed
+  nest, built from four round-ended bars like courses of bricks, the top one in amber, the
+  doorway a gap in the lower two. It's the app icon (dark, hand-drawn at 16 and 32 px), the menu
+  bar icon (which macOS tints for light and dark menu bars), the README's header and the
+  desktop's favicon. Nobi Research's mark is a gate. The brand kit is in `docs/brand/`.
+- **The desktop wears the mark's colors:** neutral dark grays with one amber accent, Crown, and
+  status colors that read clearly apart from it, with dark text on every colored fill. The mark
+  replaces the diamond where it was the logo; the diamond stays where it marks things, and the
+  terminal's accent follows the new color.
+- **A new home:** [github.com/NobiResearch/Ovenbird](https://github.com/NobiResearch/Ovenbird).
+  The old addresses redirect. If your checkout still points at one, run `git remote set-url
+  origin https://github.com/NobiResearch/Ovenbird.git`, then, if **Keep Ovenbird up to date** is
+  on, turn it off and on in Settings so it follows.
+
+**Your Mac**
 - **`cos security`**: FileVault, SIP, the firewall and Gatekeeper, what each does and how to
   turn it on. `cos security on firewall --yes` turns the firewall on through macOS's own
-  password dialog, which says Claude OS is asking. It only ever turns things on. The
-  desktop's Security card offers it while the firewall is off
-  ([0008](docs/decisions/0008-firewall-switch.md)).
-
-- `cos update apply` shows progress as it goes, prints every warning and error with its
-  details (instead of the last few lines of two streams glued together), names anything
-  you asked to upgrade that's still outdated afterwards, and keeps the full output in
-  `~/.claude-os/runs/updates/`.
-
-- `cos update` says "couldn't check" for npm, the App Store or Rust when it can't reach them
-  (offline, say), instead of a reassuring "up to date".
-
-- `cos clean` reports what it actually freed: deleting old simulator runtimes counted 0 B when
-  Xcode's simulator service was busy, and now counts each runtime it deleted. A cache that a
-  running tool holds (uv, while an MCP server runs through `uvx`) is skipped, with a
-  sentence saying why, instead of waiting minutes and freeing nothing.
-
-- **Night shift opens pull requests for everything and merges the safe ones.** Work that
-  touches Claude OS's core no longer stays on your Mac until morning. It's pushed, CI
-  runs, and the pull request waits for your merge; everything else merges by itself. The
-  morning brief lists what waits ("Waiting for your merge"), and `cos hook check` shows
-  it too. Merges, and the commands that could merge another way, now ask unless the night
-  shift's check passes ([0006](docs/decisions/0006-night-shift-pushes.md), second
-  amendment).
-
-- Night shift's push check closes four gaps the board found: a moved file now counts under
-  its old name too, a file in `lib/` that could shadow Python's own modules counts as a
-  safety file, a failed `git diff` asks you instead of passing, and the hook only approves
-  while it runs from a clean main.
-
-- Pausing in Claude OS's player keeps the paused song on screen, and play resumes it, however
-  long the pause. Before, it fell back to whatever the Music app last had. Play and pause
-  also no longer swap the cover image back and forth.
-
-- Playing music from the chat inside Claude OS works. The check for "is Claude OS running?"
-  couldn't see the app from inside the app, so radio and songs said it wasn't running.
-
-- **Clicking a notification opens what it's about**: the board's minutes, the morning brief,
-  evolve's branches or Background jobs. The click target comes from a fixed list, so a click
-  only ever navigates.
-
-- **Watch the board meet.** While a meeting runs, Evolution › Board shows "In session" and
-  each seat waiting, deliberating or voted. When it ends, the minutes appear in the same
-  place without the chatter that came before them. Settings and `cos daemon list` say when
-  a background job is running. The notification at the end now says what happened ("Board
-  minutes — weekly review", or that it ran out of time) instead of the run's first line
-  ([0007](docs/decisions/0007-live-daemon-runs.md)).
-- Background jobs can't schedule wakeups or timers any more. The first weekly meeting
-  finished in 6 minutes and then waited 14 more on a wakeup it had set itself.
-
-- Night shift: branches that change `core.py`, `cli.py`, `evolve.py` or `server.py` now
-  wait for you too, because the night shift's own checks rely on them (amendment to 0006,
-  from the first weekly board meeting).
-
-- `cos friction add`, `cos remember` and `cos memory --forget` print one clear line instead
-  of a traceback when private state can't be written (as in a sandboxed run).
-
-- **Night shift** (Settings › Permissions, off by default): while you're away, Claude can
-  push its own `night/…` branches and open pull requests for Claude OS without stalling on
-  a prompt until morning. Never `main`, never a force push. Every commit and message is
-  checked for private data first, and branches that change Claude OS's own permissions,
-  laws, CI or guard still wait for you. Each push is journaled and listed in the next
-  morning's brief. `cos hook check <branch>` shows what it would decide
-  ([0006](docs/decisions/0006-night-shift-pushes.md)).
-
-- **Daemons on a Pro or Max plan run without a dollar cap.** The cap is Claude Code's
-  estimate at API prices, so on a flat plan it only cut runs short (a weekly board meeting
-  could stop halfway). The daemons' time limits still bound every run. With an API key,
-  which bills per token, the caps stay.
-
-- **Backup signal**: `cos status`, the boot banner and the morning brief say "Time Machine
-  isn't set up" when it isn't, as a quiet note (never a notification). Pulse checks once a
-  day with `tmutil destinationinfo`, which never mounts or names a backup disk. Back up
-  another way? `cos config pulse.backup_check false`
+  password dialog. It only ever turns things on, and the desktop's Security card offers it
+  while the firewall is off ([0008](docs/decisions/0008-firewall-switch.md)).
+- **`cos backup`**: whether Time Machine is set up, about how much there is to back up, and
+  which connected disk could hold it: format, size, whether it's big enough, and plainly when
+  Time Machine would erase it. With no disk plugged in, it says what size to get. `cos backup
+  setup` opens Time Machine's settings
+  ([0012](docs/decisions/0012-backup-and-the-night-of-26-october.md)). `cos status`, the boot
+  banner and the morning brief say "Time Machine isn't set up" as a quiet note, never a
+  notification; pulse checks once a day with `tmutil destinationinfo`, which never mounts or
+  names a backup disk. Back up another way? `cos config pulse.backup_check false`
   ([0005](docs/decisions/0005-radio-and-backup-signal.md)).
-- **Updates flag downgrades and new version schemes.** When Homebrew or npm's "latest" is
-  *lower* than what's installed, `cos update` marks it ▼ (downgrade); when a build number
-  or year turns into an ordinary version (say 9430 → 0.7.0), it's marked ≠ instead of a
-  misleading "major". Both count as "look first" next to ▲ majors, and the desktop's
-  Updates app leaves them unticked.
+- **`cos net`**: is it the Wi-Fi, the router or the internet? A few seconds, one plain verdict,
+  then the signal, the router, the internet and DNS. It gets the hard cases right too: DNS that
+  hangs, Wi-Fi without an address, IPv6-only networks, a sign-in page that hijacks DNS, a broken
+  IPv6 path, a VPN over a cable. It never reads the network's name or anything else that says
+  where you are. `cos net --speed` measures throughput with macOS's own networkQuality, only when
+  you ask ([0010](docs/decisions/0010-net.md)). Vitals has a Network card that does the same,
+  and asks Claude (and so you) before a speed test, which uses real data.
+- **`cos power`**: what keeps the Mac or display awake, from the processes holding sleep
+  assertions and how long they've held them. Read-only. Contributed by
+  [trleo](https://github.com/trleo).
+- **`cos update`:** `update apply` shows progress, prints every warning and error with its
+  details, names anything you asked to upgrade that's still outdated, and keeps the full output
+  in `~/.claude-os/runs/updates/`. It says "couldn't check" for npm, the App Store or Rust when
+  it can't reach them, or when a proxy or firewall refuses the npm registry, instead of "up to
+  date". Downgrades (▼) and new version schemes (≠, say 9430 → 0.7.0) count as "look first" next
+  to ▲ majors, and the Updates app leaves them unticked. A macOS update's version shows once.
+- **`cos clean`** reports what it actually freed (old simulator runtimes counted 0 B when
+  Xcode's simulator service was busy), and skips a cache a running tool holds, saying why. It's
+  stricter about what it deletes: never through a symlinked folder; command cleanups run from the
+  home folder; only items from your last scan, within a day; a downloaded folder with something
+  recent inside isn't "old"; running apps keep their caches; Poetry's and JetBrains' folders
+  aren't caches; `node_modules` needs a package.json and a lockfile; and `downloads-old trash`
+  together is refused.
+- **`cos status` and Vitals** read the load, swap and top processes correctly with a locale that
+  writes decimals with a comma. Helper processes count as the app they belong to ("Firefox ×18
+  7.3 GB"), tools inside an app bundle keep their own name, and a group's memory shows as
+  approximate (≈). What macOS wouldn't tell them (inside Claude Code's sandbox, say) is left out
+  instead of made up: no "0 cores", "of 0 B" or "swap 0 B" in `cos status`, the boot banner or
+  the Vitals card, and unreadable swap is `null` in `--json`. The Vitals card's fix was
+  contributed by [bfs2021](https://github.com/bfs2021).
+- **`cos startup`** flags a launch agent or daemon whose plist names nothing to run as a
+  leftover, and sizes its name column to the longest name.
+- **Weather** alerts no longer warn about an hour that's already over.
+- **Music:** pausing in Ovenbird's player keeps the paused song on screen and play resumes it,
+  however long the pause, without swapping the cover back and forth. Playing music from the chat
+  inside the app works. Today has a Radio chip: one click to a radio from a song you've been
+  playing (`cos music radio --mine` in the terminal).
+- **Clicking a notification opens what it's about:** the board's minutes, the morning brief,
+  evolve's branches or Background jobs. The target comes from a fixed list, so a click only ever
+  navigates.
+
+**Keeping up to date** ([0011](docs/decisions/0011-catching-up-with-main.md))
+- **Ovenbird notices what's merged.** The boot banner and `cos update` say when changes are
+  merged on GitHub but not on this Mac yet, and name Ovenbird's safety files when they change.
+  `cos update apply claude-os --yes` brings them in: fast-forward only, only on a clean `main`,
+  only over GitHub's own pull request merges, and journaled with the way back. The Updates window
+  shows it too, with a button that asks Claude to bring it in.
+- **Keep Ovenbird up to date** (Settings › Permissions, off until you confirm it in the app's own
+  dialog): what's merged on GitHub comes to this Mac by itself, when the app starts, when a
+  terminal session starts, and while the app is closed. On this project's GitHub, Claude merges
+  its own pull requests once CI passes and a guardian agent has reviewed them, without a person
+  reading them first; the dialog and the README say so. While the app is open, **Update** in its
+  menu bar restarts just its server onto the new code, and music keeps playing.
+- The app's server keeps the code it started with until you click Update. Update waits for a
+  running cleanup or update to finish, reloads the desktop with the new server's token (so
+  windows don't say "missing or wrong token"), and isn't offered when a catch-up can't happen.
+  View › Reload (⌘R) reloads for real.
+- `cos config` can only turn the autonomy switches (Night shift, Keep up to date) off. Turning
+  them on takes the app's own dialog, which code in the desktop page can't click.
+
+**A downloadable Ovenbird.app** (built and tested, not released yet; [0015](docs/decisions/0015-claude-os-for-everyone.md))
+- `app/build.sh --release` builds it with nothing from the builder's Mac inside, scanned before
+  it's signed, signed with Developer ID and the hardened runtime, notarized and stapled.
+  `docs/releasing.md` has the steps. Building, notarizing and publishing all ask first.
+- On first launch, a checklist shows what the Mac still needs (Apple's command line tools,
+  Claude Code, Ovenbird itself), with one button each and nothing installed before a click.
+- It follows its app: open a newer Ovenbird.app and the code comes along. Updates says when a
+  newer app is out (it asks GitHub at most once a day), and a warning says when the code needs a
+  newer app. It has no night shift and no Branches tab.
+- **Remove Ovenbird…** turns off its background jobs, removes its links and moves its code to the
+  Trash. Your journal and memory go only if you say so.
+- Ovenbird's tools always talk to the app you're using, even with another copy on the Mac, and
+  `cos doctor`, `cos daemon list`, `daemon install` and `uninstall` know which background jobs
+  belong to another copy and leave them alone.
+
+**The desktop**
+- In its first week on a Mac, Today shows a welcome card: where to look first, how to ask
+  Claude, and that weather, calendar and Apple Music stay off until you turn them on. Feeds says
+  what's happening on its first, slower load, and an empty Journal says what it's for.
+- **Watch the board meet** ([0007](docs/decisions/0007-live-daemon-runs.md)): while a meeting
+  runs, Evolution › Board shows each seat waiting, deliberating or voted, then the minutes.
+  Settings and `cos daemon list` say when a background job is running, and the notification at
+  the end says what happened.
+- The Evolve window says when a branch's tests failed in the sandbox, when a branch changes
+  Ovenbird's safety checks, and what Merge does (push, open a pull request, squash-merge once CI
+  passes). Your OK in the Merge dialog covers the commit it showed; if the branch moved since,
+  it asks you to look again.
+
+**Claude at work on Ovenbird**
+- **The repository is Claude's** ([0013](docs/decisions/0013-the-repository-is-claudes.md)):
+  Claude pushes, opens pull requests and merges its own in the Ovenbird repository you own
+  without asking. The Guardian still blocks private data, `main` takes only green pull
+  requests, and deleting the repository still asks.
+- **Every pull request gets a guardian's review before it merges**
+  ([0020](docs/decisions/0020-every-pull-request-gets-a-review.md)), not only the ones that
+  touch Ovenbird's safety files. `cos hook check <PR>` says when one is ready for that review,
+  names the safety files it changes, and prints the exact merge command.
+- **Night shift** (Settings › Permissions, off until you confirm it in the app's own dialog;
+  [0006](docs/decisions/0006-night-shift-pushes.md)): while you're away, Claude pushes its own
+  `night/…` branches, opens, edits and comments on pull requests, and reads from GitHub with your
+  login, without a card. Never `main`, never a force push, and the switch never approves a
+  merge. Every commit and pull request text is checked for private data first, and each push is
+  in your journal and the next morning's brief.
+- **The nightly evolve run** says when its tests failed (boot banner, `cos evolve`, the Evolve
+  window), flags a branch that changes safety files and merges it only after a review
+  (`--reviewed`), waits for CI to start before watching it, pins the merge to the commit that was
+  checked, and names its pull request after the night's change. The morning brief says when it
+  hit something it couldn't record.
+- **Daemons on a Pro or Max plan run without a dollar cap**: the cap was Claude Code's estimate
+  at API prices, so on a flat plan it only cut runs short. Time limits still bound every run, and
+  with an API key the caps stay. Background jobs can't schedule wakeups or timers.
+- `cos friction add`, `cos remember` and `cos memory --forget` print one clear line instead of a
+  traceback when private state can't be written.
+
+**Safety and privacy**
+- **The Guardian reads more before anything leaves the Mac:** every push, commit by commit
+  (files, messages, and an author and committer address that must be GitHub's noreply); a pull
+  request's title and body; and everything `gh` would publish (comments, reviews, issues, release
+  notes, `gh api` fields), with body files only from the repository or the temp folder.
+  `cos guard --text <file>` runs the same check on any file. It also catches your login name
+  where it names you, a Mac name of the "Name's MacBook" kind, paths hidden in URLs and text
+  inside pictures.
+- **More things count as private:** Claude Code's account file, git's stored credentials,
+  Docker, Kubernetes, Google Cloud, Azure, PyPI, Cargo, RubyGems, `pass`, and the histories
+  shells and tools keep. The nightly evolve run can't read them, or `~/.ssh`, `~/.aws`,
+  `~/.config/gh`, `~/.claude` and the Keychains, from its shell, the code it runs or its Read
+  tool.
+- **The nightly evolve run stays in its sandbox:** its tests run deny-by-default, with no Apple
+  Events, no browser, no inherited environment and no network at all (their test servers use
+  Unix sockets). It runs no hooks, edits only its own workspace and can't edit its Claude Code
+  settings, and its clones copy git's objects instead of sharing them with your checkout.
+- **Runs that read feeds get less:** the morning brief, the board and the app's chat no longer
+  load your own allow rules (in the chat, git, gh and `python3` ask with a card; the morning and
+  board runs can't use git), and background runs can't speak, notify or write the journal on a
+  model's say-so, are denied everything `cos` refuses them, and never ask GitHub with your login.
+  Their notifications are written by Ovenbird itself, and friction they log is marked as such.
+- **Settings safe for strangers** ([0017](docs/decisions/0017-stranger-safe-settings.md)): in a
+  fresh clone or download, `git`, `gh` and the tests show a card first, and a downloaded copy's
+  own deny rules come back if they go missing. A `cos` command that changes something shows a
+  card even when it's oddly written.
+- `cos doctor` prints paths as `~/…`. A feed larger than 5 MB isn't read, a hand-edited setting
+  that isn't a section no longer breaks Settings, and a package name starting with a dash is
+  refused.
+
+**Everywhere** ([0009](docs/decisions/0009-claude-os-everywhere.md))
+- `/music`, `/tidy`, `/update` and `/startup` work in Claude Code from any folder on your Mac:
+  `cos install` links them into `~/.claude/skills`. Their descriptions keep them out of your
+  projects' own dependencies, clean-ups and video music, and nothing about the project you're in
+  gets recorded. `cos uninstall` removes the links. `cos install --no-daemons` says which
+  background jobs are still running.
+
+**Contributors**
+- Ovenbird is MIT, every version, including the ones published for a few days under the
+  PolyForm Noncommercial License ([0014](docs/decisions/0014-license-and-contributions.md),
+  [0016](docs/decisions/0016-back-to-mit.md)).
+- New: CONTRIBUTING.md (what we want most, where a change goes, what we turn down), AI_POLICY.md
+  ([0018](docs/decisions/0018-what-we-ask-of-contributors.md)), AGENTS.md, SECURITY.md with
+  private reporting, a Code of Conduct, ACCESSIBILITY.md, pull request and issue templates, and
+  GitHub Discussions for questions and rough ideas.
+- The README and the architecture page say exactly what's enforced and who merges what.
+- Each pull request records its changelog entry as its own file in `changes/`, so pull requests
+  don't conflict over this file.
+- Thanks to our first contributors, [trleo](https://github.com/trleo) and
+  [bfs2021](https://github.com/bfs2021).
 
 ## 0.7.0 — 2026-10-25
 
