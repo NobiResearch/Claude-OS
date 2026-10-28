@@ -32,9 +32,13 @@ center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
 Ovenbird can see a lot of your Mac, so here's the deal in plain words.
 
-- **It looks before it touches.** Every `cos` command only reads until you name what to change
-  and add `--yes`. In the app, a change is an **Allow / Deny** card with the exact command, and
-  your click is the answer.
+- **It looks before it touches.** Cleaning, updating, installing, connecting something or
+  changing a setting shows an **Allow / Deny** card with the exact command, and your click is
+  the answer; cleaning, updating and turning on the firewall also need `--yes`. Some everyday
+  things don't ask, for example playing, skipping and liking music, remembering or forgetting
+  what you tell it, notes in its journal and friction log, speaking and notifications. In its
+  own repository Claude also merges and discards its evolve branches without a card, after a
+  guardian agent's review or your yes (decisions 0013 and 0020).
 - **It writes down what it did.** Every change goes in a journal you can read: `cos log`, or
   Journal in the app.
 - **It asks macOS, not around it.** Calendar, location, notifications and Apple Music each sit
@@ -46,13 +50,16 @@ Ovenbird can see a lot of your Mac, so here's the deal in plain words.
   checks reach the services they name.
 - **Background jobs are yours to start.** Installing starts only `pulse`, which uses no AI and
   takes a few seconds every two hours. The morning brief, the nightly evolve run and the board
-  are off until you turn them on, and inside them `cos` refuses every command that changes
-  something.
+  are off until you turn them on. In the morning and board runs, `cos` refuses every command
+  that changes your Mac, its settings or what Ovenbird remembers about you; they may still log
+  friction, mark feeds read and refresh caches. The evolve run's `cos` is its own copy, so
+  it's held instead by Claude Code's sandbox, its deny rules and the checks when it's merged.
 - **It doesn't rewrite itself behind your back.** The nightly evolve run works on a branch, in
-  a sandbox, and reaches your copy only when you merge it. **Keep Ovenbird up to date** (off
-  until you confirm it in the app) only brings in what's merged on GitHub. The **night shift**,
-  which lets Claude push and merge its own pull requests in your own fork, also turns on only in
-  the app's own dialog, and a downloaded copy has none.
+  a sandbox, and reaches your copy only when it's merged: by you, or by Claude after a guardian
+  agent's review (0020). **Keep Ovenbird up to date** (off until you confirm it in the app) only
+  brings in what's merged on GitHub. The **night shift**, which lets Claude push its own
+  branches in your own fork without a card (every merge still waits for a guardian's review),
+  also turns on only in the app's own dialog, and a downloaded copy has none.
 
 ## The desktop
 
@@ -131,7 +138,7 @@ the MusicKit service for your bundle id (`COS_BUNDLE_ID`), and its provisioning 
 |---|---|---|
 | desktop | `app/`, `ui/`, `lib/cos/server.py` | Ovenbird.app: native shell, web desktop, local API, Claude bridge |
 | kernel | `CLAUDE.md` | the laws Claude follows here, and the syscall table |
-| syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
+| syscalls | `lib/cos/`, `bin/cos` | deterministic, changes show a card (cleaning, updating and security also need `--yes`; a few everyday ones don't ask), journaled, `--json` everywhere |
 | apps | `.claude/skills/` | `/music` `/tidy` `/update` `/startup` `/brief` `/board` `/lab` `/evolve` |
 | colleagues | `.claude/agents/` | the board (architect, guardian, steward, skeptic) and the lab's scouts |
 | daemons | `etc/daemons.json` | `pulse` (free), `morning`, `evolve`, `board` (opt-in, time-limited; budget-capped with an API key) |
