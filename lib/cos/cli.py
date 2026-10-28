@@ -11,7 +11,7 @@ COMMANDS = {
     "ask", "status", "clean", "update", "music", "feeds", "log", "friction", "remember", "memory",
     "notify", "say", "brief", "daemon", "evolve", "guard", "boot", "statusline", "install",
     "uninstall", "doctor", "version", "config", "serve", "app", "weather", "cal", "startup", "hook", "security",
-    "net", "backup",
+    "net", "power", "backup",
 }
 
 INTRO = """\
@@ -25,6 +25,7 @@ syscalls (what Claude uses; you can too):
   status                    vitals and signals
   security                  FileVault, SIP, firewall, Gatekeeper · security on firewall --yes
   net [--speed]             is it the Wi-Fi, the router or the internet? · --speed: networkQuality
+  power                     what keeps the Mac awake (read-only)
   backup [setup]            Time Machine, and which connected disk could hold it · setup: its settings
   clean [--deep]            reclaimable space · clean apply <id>... --yes
   update [--fetch]          what's outdated, Ovenbird too · update apply <source> --yes
@@ -131,6 +132,7 @@ def build_parser():
     nt = cmd("net", "is it the Wi-Fi, the router or the internet? (read-only)")
     nt.add_argument("--speed", action="store_true",
                     help="measure throughput with macOS's networkQuality (about 20 seconds; uses data)")
+    cmd("power", "what keeps the Mac awake? (read-only)")
     hk = cmd("hook", "Claude Code hooks (night shift pushes, 0006; every merge waits for a guardian's review, 0020)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
     hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
@@ -455,6 +457,9 @@ def main(argv=None):
     if c == "net":
         from . import net
         return net.main(args)
+    if c == "power":
+        from . import power
+        return power.main(args)
     if c == "backup":
         from . import backup
         return backup.main(args)
