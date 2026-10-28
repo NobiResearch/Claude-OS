@@ -1,4 +1,9 @@
-# Ovenbird
+<h1>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/brand/ovenbird-readme-header-dark.svg">
+    <img alt="Ovenbird" src="docs/brand/ovenbird-readme-header-light.svg" width="480">
+  </picture>
+</h1>
 
 **An operating layer for your Mac, built on Claude Code: designed by Claude for Claude to live in.**
 
