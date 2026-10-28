@@ -83,12 +83,16 @@ most every 10 minutes. The LLM daemons (`morning`,
 can override (`ALWAYS_DENIED`) and a timeout. They're opt-in. A budget cap applies when
 Claude is billed per token (an API key); on a Pro or Max plan the timeout is the limit.
 
-Defense in depth for headless runs, strongest first:
+Defense in depth for headless runs:
 
-1. `cos` itself refuses every mutating command when `CLAUDE_OS_DAEMON` is set, however the
-   command is spelled (`cli.check_mutation`).
+1. For the morning and board runs, which run your checkout's code, `cos` itself refuses every
+   mutating command when `CLAUDE_OS_DAEMON` is set, however it's spelled
+   (`cli.check_mutation`). The evolve run's `cos` is its workspace's own copy, which it can
+   edit, so there the first layer is the next one.
 2. Evolve's shell runs in Claude Code's sandbox (writes confined to its worktree, no
-   network), and the tests it wrote run under `sandbox-exec` with a throwaway `HOME`.
+   network). The tests it wrote run again under `sandbox-exec` with a throwaway `HOME` when
+   the branch is checked: right after the run, and again at merge time. During the run
+   itself, they run in Claude Code's sandbox only.
 3. `cos evolve merge` re-runs the Guardian over the branch and its tests before
    fast-forwarding, so nothing reaches `main` unchecked, whatever happened during the run.
 4. No daemon gets web access: they read untrusted text (RSS), so they get no way to send

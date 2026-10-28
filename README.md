@@ -32,9 +32,11 @@ center, and **`cos`** in the terminal. Same brain, same syscalls, same memory.
 
 Ovenbird can see a lot of your Mac, so here's the deal in plain words.
 
-- **It looks before it touches.** Every `cos` command only reads until you name what to change
-  and add `--yes`. In the app, a change is an **Allow / Deny** card with the exact command, and
-  your click is the answer.
+- **It looks before it touches.** Cleaning, updating, installing, connecting something or
+  changing a setting needs `--yes` and shows an **Allow / Deny** card with the exact command,
+  and your click is the answer. A few everyday things don't ask: playing, skipping and liking
+  music, remembering or forgetting what you tell it, notes in its journal and friction log,
+  speaking and notifications.
 - **It writes down what it did.** Every change goes in a journal you can read: `cos log`, or
   Journal in the app.
 - **It asks macOS, not around it.** Calendar, location, notifications and Apple Music each sit
@@ -131,7 +133,7 @@ the MusicKit service for your bundle id (`COS_BUNDLE_ID`), and its provisioning 
 |---|---|---|
 | desktop | `app/`, `ui/`, `lib/cos/server.py` | Ovenbird.app: native shell, web desktop, local API, Claude bridge |
 | kernel | `CLAUDE.md` | the laws Claude follows here, and the syscall table |
-| syscalls | `lib/cos/`, `bin/cos` | deterministic, read-only unless `--yes`, journaled, `--json` everywhere |
+| syscalls | `lib/cos/`, `bin/cos` | deterministic, changes need `--yes` and a card (a few everyday ones don't), journaled, `--json` everywhere |
 | apps | `.claude/skills/` | `/music` `/tidy` `/update` `/startup` `/brief` `/board` `/lab` `/evolve` |
 | colleagues | `.claude/agents/` | the board (architect, guardian, steward, skeptic) and the lab's scouts |
 | daemons | `etc/daemons.json` | `pulse` (free), `morning`, `evolve`, `board` (opt-in, time-limited; budget-capped with an API key) |
