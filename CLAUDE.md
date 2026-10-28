@@ -55,6 +55,7 @@ that review either way, then `--reviewed` (0020). Discard only on the human's ye
 | `security` · `security on firewall --yes` | FileVault, SIP, firewall, Gatekeeper and how to turn each on; the firewall is the one switch a command flips, only on, through macOS's password dialog |
 | `backup` · `backup setup` | is Time Machine set up, and which connected disk could hold it (format, size, whether it'd be erased); `setup` opens its settings |
 | `net` · `net --speed` | is it the Wi-Fi, the router or the internet? One verdict, a few seconds, nothing identifying; `--speed` runs macOS's networkQuality (~20 s, uses data) |
+| `power` | what keeps the Mac or display awake: processes holding PreventUserIdleSystemSleep, PreventUserIdleDisplaySleep or PreventSystemSleep, and how long (read-only) |
 | `clean [--deep]` | reclaimable space by target, with safety level; `clean apply <id>… --yes` |
 | `update [--fetch]` | macOS, Homebrew, npm, mas, rustup, and Ovenbird itself (what's merged on GitHub and not here); `update apply <source> [names] --yes` |
 | `music now\|play <q>\|pause\|resume\|next\|prev\|vol N\|find <q>\|catalog <q>\|playlists\|playlist <name> [--shuffle]\|radio [<q>]\|like\|history\|setup` | Apple Music (songs and playlists play inside Ovenbird when "Apple Music in Ovenbird" is on) |
