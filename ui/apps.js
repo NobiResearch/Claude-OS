@@ -1000,8 +1000,8 @@
         if (!s.downloaded || s.catch_up) box.appendChild(h("div", { class: "daemon" },
           h("div", { class: "grow" },
             h("div", { class: "daemon-name" }, "Keep Ovenbird up to date", s.catch_up ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "When you merge a pull request on GitHub, Ovenbird brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),
-            h("div", { class: "muted small" }, s.catch_up ? "On: while the app is open, Update in the menu bar restarts it onto what you merged." : "Off: the boot banner says what's merged, and `cos update apply claude-os --yes` brings it in.")),
+            h("div", { class: "small" }, "When a pull request is merged on GitHub, Ovenbird brings it to this Mac by itself: when the app starts, when a terminal session starts, and while the app is closed. Only a clean main, only forward, only over GitHub's own merges."),
+            h("div", { class: "muted small" }, s.catch_up ? "On: while the app is open, Update in the menu bar restarts it onto what's merged." : "Off: the boot banner says what's merged, and `cos update apply claude-os --yes` brings it in.")),
           upToggle));
 
         // Calendar & Reminders (decision 0002): read-only, only after the human clicks Connect.
