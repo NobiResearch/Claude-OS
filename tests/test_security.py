@@ -117,8 +117,18 @@ class TestSecurity(TempHome):
     def test_root_code_is_protected_and_imports_only_core(self):
         self.assertTrue(hook.protected("lib/cos/security.py"))
         with open(security.__file__) as f:
-            imports = [l.strip() for l in f if l.startswith(("import ", "from "))]
+            lines = f.readlines()
+        imports = [l.strip() for l in lines if l.startswith(("import ", "from "))]
         self.assertEqual(sorted(imports), ["from . import core", "import os", "import re"])
+        nested = [l.strip() for l in lines if l.strip().startswith(("import ", "from ")) and l[0] == " "]
+        self.assertEqual(nested, ["import ctypes"], "the only import inside a function: asking about the sandbox")
+
+    def test_sandbox_check_failing_means_not_sandboxed(self):
+        # Failing toward "not sandboxed" keeps the old reading: "disabled" stays "off".
+        import ctypes
+        with mock.patch.dict(os.environ, {"COS_SANDBOXED": ""}), \
+                mock.patch.object(ctypes, "CDLL", side_effect=OSError("no libSystem")):
+            self.assertIs(security.sandboxed(), False)
 
 
 class TestMutationRegistry(unittest.TestCase):
