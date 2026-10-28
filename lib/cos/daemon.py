@@ -44,7 +44,8 @@ ALWAYS_DENIED = ["Bash(%s %s*)" % (pre, m) for m in _MUTATING for pre in ("bin/c
 # alone: a bare Edit or Write allow would reach any path on the Mac.
 #
 # Nor may it read the private folders (Fable's review, F3): keys, cloud and GitHub logins,
-# Claude Code's own settings and the Keychains. ~/.claude-os stays readable for now: the
+# Claude Code's own settings and account, the Keychains, and the shells' and tools' histories
+# where they keep them by default (core.PRIVATE_DIRS). ~/.claude-os stays readable for now: the
 # run's workspace and its input (friction, the journal) live there.
 UNREADABLE = ["~/" + p for p in core.PRIVATE_DIRS if p != ".claude-os"]
 SANDBOX_SETTINGS = {"disableAllHooks": True, "disableSkillShellExecution": True,

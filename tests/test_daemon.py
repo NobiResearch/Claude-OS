@@ -443,8 +443,9 @@ class TestEvolveCommandLine(unittest.TestCase):
                 self.assertNotIn(path, unreadable)
                 continue
             self.assertIn(path, unreadable)
+            self.assertIn("Read(%s)" % path, denied)  # a file (~/.claude.json) as well as a folder
             self.assertIn("Read(%s/**)" % path, denied)
-        for must in ("~/.ssh", "~/.aws", "~/.config/gh", "~/Library/Keychains"):
+        for must in ("~/.ssh", "~/.aws", "~/.config/gh", "~/Library/Keychains", "~/.claude.json", "~/.zsh_history"):
             self.assertIn(must, unreadable)
         # Runs in the human's checkout aren't sandboxed and keep their own rules.
         morning = daemon.claude_command(daemon.definitions()["morning"])

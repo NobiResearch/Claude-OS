@@ -194,9 +194,15 @@ SANDBOX_READ = ("/System", "/usr", "/bin", "/sbin", "/dev", "/private/etc", "/pr
                 "/Library/Developer/CommandLineTools", "/Applications/Xcode.app", "/opt/homebrew")
 
 # Never readable by model-written code, even if its folder were inside the home folder:
-# credentials and the human's private state.
-PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".aws", ".gnupg", ".config/gh", ".netrc", ".npmrc",
-                "Library/Keychains", "Library/Application Support/com.apple.TCC")
+# credentials and the human's private state: keys and logins, Claude Code's settings and
+# account, and the histories shells and tools keep (where they keep them by default).
+PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".claude.json", ".claude.json.backup", ".aws", ".gnupg",
+                ".config/gh", ".netrc", ".npmrc", ".pypirc", ".git-credentials", ".config/git/credentials",
+                ".docker", ".kube", ".config/gcloud", ".azure", ".cargo/credentials.toml", ".cargo/credentials", ".gem/credentials",
+                ".password-store", "Library/Keychains", "Library/Application Support/com.apple.TCC",
+                ".zsh_history", ".zsh_sessions", ".bash_history", ".bash_sessions", ".local/share/fish",
+                ".python_history", ".node_repl_history", ".psql_history", ".mysql_history",
+                ".sqlite_history", ".lesshst", ".viminfo")
 # The PATH entries the sandbox can run from; the rest of the human's PATH stays outside.
 SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/Python.framework/",
                "/Library/Developer/CommandLineTools/", "/Applications/Xcode.app/")
