@@ -320,12 +320,14 @@
           ring(used, Math.round(used * 100) + "%", "disk used", used > 0.9 ? "bad" : used > 0.8 ? "warn" : ""),
           h("div", { class: "vitals-hero-text" },
             h("div", { class: "big" }, fmt.bytes(d.free) + " free"),
-            h("div", { class: "muted" }, "of " + fmt.bytes(d.total) + " · " + sy.model + " · macOS " + sy.macos),
-            h("div", { class: "muted" }, sy.chip + " · " + sy.cores + " cores · up " + fmt.uptime(s.uptime)))));
+            h("div", { class: "muted" }, ["of " + fmt.bytes(d.total), sy.model, sy.macos ? "macOS " + sy.macos : ""].filter(Boolean).join(" · ")),
+            h("div", { class: "muted" }, [sy.chip, sy.cores ? sy.cores + " cores" : "", "up " + fmt.uptime(s.uptime)].filter(Boolean).join(" · ")))));
         const signals = s.signals.length ? s.signals.map((x) => h("div", { class: "signal " + x.level }, x.level === "warn" ? "⚠ " : "· ", x.msg))
           : [h("div", { class: "signal ok" }, "All quiet.")];
         root.appendChild(h("div", { class: "grid2" },
-          card("Memory", h("div", { class: "kv-big" }, fmt.bytes(m.used), h("span", { class: "muted" }, " of " + fmt.bytes(m.total))), meter(m.used / m.total, m.used / m.total > 0.9 ? "bad" : ""), h("div", { class: "muted small" }, "swap " + fmt.bytes(m.swap_used))),
+          card("Memory", h("div", { class: "kv-big" }, fmt.bytes(m.used), m.total ? h("span", { class: "muted" }, " of " + fmt.bytes(m.total)) : null),
+            m.total ? meter(m.used / m.total, m.used / m.total > 0.9 ? "bad" : "") : null,
+            m.swap_used != null ? h("div", { class: "muted small" }, "swap " + fmt.bytes(m.swap_used)) : null),
           b ? card("Battery", h("div", { class: "kv-big" }, b.percent + "%", h("span", { class: "muted" }, " " + b.state)), meter(b.percent / 100, b.percent < 20 ? "bad" : "ok"),
             h("div", { class: "muted small" }, (b.health_pct ? "health " + b.health_pct + "% · " : "") + (b.cycles != null ? b.cycles + " cycles · " : "") + "on " + b.source))
             : card("Power", h("div", { class: "muted" }, "No battery — desktop Mac.")),
