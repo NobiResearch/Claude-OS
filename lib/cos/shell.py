@@ -13,7 +13,7 @@ import sys
 
 from . import __version__, core
 
-DIM, RESET, ACCENT = "\033[2m", "\033[0m", "\033[38;5;173m"
+DIM, RESET, ACCENT = "\033[2m", "\033[0m", "\033[38;5;172m"  # 172: the 256-color nearest Crown
 
 
 def _music_now(max_age=20):

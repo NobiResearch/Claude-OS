@@ -75,7 +75,7 @@
   }
 
   COS.register({
-    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#ec916f,#b4532f)", size: [640, 680],
+    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#f0ae5a,#b86a1e)", size: [640, 680],
     keywords: "chat ask assistant",
     render(w) {
       let sid = null, stop = null, lastSeq = 0, live = null, busy = false, pending = 0;
@@ -91,7 +91,7 @@
 
       function welcome() {
         clear(log).appendChild(h("div", { class: "chat-welcome" },
-          h("div", { class: "chat-welcome-mark" }, "◆"),
+          h("img", { class: "chat-welcome-mark", src: "nest.svg", alt: "" }),
           h("div", { class: "chat-welcome-title" }, "What can I do for you?"),
           h("div", { class: "chat-welcome-sub" }, "I can see and run this Mac through Ovenbird. Anything that changes something asks you first."),
           h("div", { class: "chips" }, SUGGESTIONS.map((s) => h("button", { class: "chip", onclick: () => ask(s) }, s)))));
@@ -1077,7 +1077,7 @@
           });
           root.appendChild(h("div", { class: "section-title" }, "About"));
           root.appendChild(h("div", { class: "about" },
-            h("div", { class: "about-mark" }, "◆"),
+            h("img", { class: "about-mark", src: "favicon.svg", alt: "" }),
             h("div", null, h("div", { class: "about-name" }, "Ovenbird"), h("div", { class: "muted small" }, "An operating layer for your Mac, designed by Claude."),
               h("div", { class: "row gap pad-t" },
                 h("a", { class: "btn ghost small", href: "https://github.com/NobiResearch/Ovenbird", target: "_blank", rel: "noopener" }, "Source on GitHub"),
