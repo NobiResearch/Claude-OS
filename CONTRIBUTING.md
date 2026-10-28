@@ -4,7 +4,8 @@ Thanks for wanting to make Ovenbird better. Ideas, bug reports and pull requests
 welcome. Questions, and ideas that are still rough, go in
 [Discussions](https://github.com/NobiResearch/Ovenbird/discussions). For a privacy or safety
 hole, please don't open an issue: see [SECURITY.md](SECURITY.md). Working with an AI coding
-agent is fine too: [AI_POLICY.md](AI_POLICY.md) says what we ask.
+agent is fine too: [AI_POLICY.md](AI_POLICY.md) says what we ask. Everyone here follows the
+[Code of Conduct](CODE_OF_CONDUCT.md), and what an agent posts for you counts as yours.
 
 ## What we want most
 
