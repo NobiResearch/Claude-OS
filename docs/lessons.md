@@ -221,6 +221,11 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   Claude Code session on the Mac shares (so don't allow sockets there). `run_sandboxed`
   allows only Unix sockets in its own folder. Test servers use `helpers.local_server`, which
   works in both.
+- **Claude Code's sandbox hides the Mac's vitals.** Inside it, `sysctl` (model, chip, cores,
+  memory size, swap, uptime, load) and `ps` come back empty, and `fdesetup` can't tell, but
+  `vm_stat`, `sw_vers` and `pmset` answer. `socketfilterfw --getglobalstate` reported the
+  firewall off there while the unsandboxed pulse read it on: don't trust a sandboxed security
+  reading, and print what couldn't be read as missing, not as zero (`status.known`).
 - **An untrusted folder ignores its checked-in allow rules.** A headless run in a fresh
   worktree logs "Ignoring N permissions.allow entries from .claude/settings.json: this
   workspace has not been trusted", so it gets only what `--allowedTools` gives it.

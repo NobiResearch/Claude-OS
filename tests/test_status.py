@@ -1,3 +1,6 @@
+import contextlib
+import copy
+import io
 import plistlib
 import time
 import unittest
@@ -5,7 +8,7 @@ from unittest import mock
 
 from helpers import TempHome
 
-from cos import core, status
+from cos import core, demo, shell, status
 
 NONE_SET = plistlib.dumps({}).decode()
 ONE_SET = plistlib.dumps({"Destinations": [{"ID": "00000000-0000-0000-0000-000000000000", "Kind": "Local",
@@ -112,6 +115,75 @@ class TestLocale(unittest.TestCase):
         self.assertEqual(status.app_name("/Applications/Xcode.app/Contents/Developer/usr/bin/git"), "git")
         self.assertEqual(status.app_name("/Applications/Firefox.app/Contents/MacOS/plugin-container.app/Contents/MacOS/plugin-container"), "Firefox")
         self.assertEqual(status.app_name("/Applications/Google Chrome.app/Contents/Frameworks/G.framework/Helpers/Google Chrome Helper.app/Contents/MacOS/Google Chrome Helper"), "Google Chrome")
+
+
+VM_STAT = """Mach Virtual Memory Statistics: (page size of 16384 bytes)
+Pages active:                            1000.
+Pages wired down:                         500.
+Pages occupied by compressor:             100.
+"""
+
+
+def refused(cmd, **kw):
+    """A sandbox (Claude Code's, say): vm_stat and sw_vers answer, sysctl and ps don't."""
+    if cmd[0] == "vm_stat":
+        return core.Result(0, VM_STAT, "")
+    if cmd[0] == "sw_vers":
+        return core.Result(0, "ProductName:\tmacOS\nProductVersion:\t27.0.1\nBuildVersion:\t26A500", "")
+    return core.Result(1, "", "sysctl: Operation not permitted")
+
+
+class TestUnreadable(TempHome):
+    """When sysctl and ps are refused, the lines leave out what couldn't be read."""
+
+    def rendered(self, s):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status.render(s)
+        return out.getvalue()
+
+    def unread(self):
+        s = copy.deepcopy(demo.STATUS)
+        s["system"].update(model="", chip="", cores=0)
+        s["memory"].update(total=0, swap_used=None)
+        s.update(uptime=None, load=[], top={"cpu": [], "memory": []}, signals=[])
+        return s
+
+    def test_everything_read(self):
+        out = self.rendered(demo.STATUS).splitlines()
+        self.assertEqual(out[0], "◆ Mac16,8 · macOS 27.0.1 (26A500) · Apple M4 Pro, 14 cores")
+        self.assertEqual(out[2], "  memory   21.4 GB used of 48.0 GB · swap 0 B")
+        self.assertIn("  uptime   3d 2h · load 2.41 2.18 1.97", out)
+        self.assertTrue(any(l.startswith("  top cpu  Xcode") for l in out))
+        self.assertEqual(shell._vitals(demo.STATUS)[0], "  Mac16,8 · macOS 27.0.1 · Apple M4 Pro · up 3d 2h")
+        self.assertIn("memory 21.4 GB/48.0 GB", shell._vitals(demo.STATUS)[1])
+
+    def test_nothing_made_up(self):
+        out = self.rendered(self.unread())
+        self.assertEqual(out.splitlines()[0], "◆ macOS 27.0.1 (26A500)")
+        self.assertIn("  memory   21.4 GB used\n", out)
+        for wrong in ("0 cores", "of 0 B", "swap", " · ,", "uptime", "load", "top cpu", "top mem"):
+            self.assertNotIn(wrong, out)
+        lines = shell._vitals(self.unread())
+        self.assertEqual(lines[0], "  macOS 27.0.1")
+        self.assertIn("memory 21.4 GB used ·", lines[1])
+        self.assertNotIn("0 B", lines[1])
+
+    def test_this_mac_when_even_sw_vers_fails(self):
+        s = self.unread()
+        s["system"].update(macos=None, build=None)
+        self.assertTrue(self.rendered(s).startswith("◆ this Mac\n"))
+        self.assertTrue(shell._vitals(s)[0].startswith("  disk "))
+
+    def test_swap_unknown_is_not_zero(self):
+        with mock.patch.object(status.core, "run", refused):
+            m = status.memory()
+        self.assertEqual(m, {"total": 0, "used": 1600 * 16384, "swap_used": None})
+        s = dict(VITALS, memory=m)
+        self.assertEqual([x for x in status.signals(s) if "swap" in x[1]], [], "unknown swap is no signal")
+        with mock.patch.object(status.core, "run", lambda cmd, **kw: core.Result(
+                0, "total = 2048.00M  used = 5120.00M  free = 0.00M  (encrypted)" if cmd[-1] == "vm.swapusage" else "", "")):
+            self.assertEqual(status.memory()["swap_used"], 5 * 2 ** 30)
 
 
 if __name__ == "__main__":

@@ -19,6 +19,13 @@ def _sysctl(name):
     return r.out if r.ok else ""
 
 
+def known(*parts, sep=" · "):
+    """The parts that could be read, joined. A sandbox (Claude Code's, say) refuses sysctl and
+    ps, which answer the model, chip, cores, memory size, swap, uptime, load and top processes:
+    a shorter line beats "0 cores" or "used of 0 B"."""
+    return sep.join(p for p in parts if p)
+
+
 def disk():
     path = DATA_VOLUME if os.path.exists(DATA_VOLUME) else "/"
     st = os.statvfs(path)
@@ -42,10 +49,8 @@ def memory():
             pages[k.strip()] = int(v)
     used = (pages.get("Pages active", 0) + pages.get("Pages wired down", 0)
             + pages.get("Pages occupied by compressor", 0)) * page
-    swap = 0
     sm = re.search(r"used = ([\d.]+)M", _sysctl("vm.swapusage"))
-    if sm:
-        swap = int(float(sm.group(1)) * 1024 * 1024)
+    swap = int(float(sm.group(1)) * 1024 * 1024) if sm else None  # None: couldn't tell
     return {"total": total, "used": used, "swap_used": swap}
 
 
@@ -169,7 +174,7 @@ def signals(s):
     elif d["free_pct"] < 20:
         out.append(("note", "disk getting full: %s%% free" % d["free_pct"]))
     m = s["memory"]
-    if m["swap_used"] > 4 * 1024 ** 3:
+    if (m["swap_used"] or 0) > 4 * 1024 ** 3:
         out.append(("note", "heavy swap: %s" % core.human_bytes(m["swap_used"])))
     b = s.get("battery")
     if b and b.get("health_pct") and b["health_pct"] < 80:
@@ -287,23 +292,29 @@ def fmt_uptime(sec):
 
 def render(s):
     sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
-    print("◆ %s · macOS %s (%s) · %s, %d cores" % (sy["model"], sy["macos"], sy["build"], sy["chip"], sy["cores"]))
+    macos = "macOS %s (%s)" % (sy["macos"], sy["build"]) if sy["macos"] else ""
+    cpu = known(sy["chip"], "%d cores" % sy["cores"] if sy["cores"] else "", sep=", ")
+    print("◆ " + (known(sy["model"], macos, cpu) or "this Mac"))
     print("  disk     %s free of %s (%s%%)" % (core.human_bytes(d["free"]), core.human_bytes(d["total"]), d["free_pct"]))
-    print("  memory   %s used of %s · swap %s" % (core.human_bytes(m["used"]), core.human_bytes(m["total"]), core.human_bytes(m["swap_used"])))
+    used = core.human_bytes(m["used"]) + " used" + (" of " + core.human_bytes(m["total"]) if m["total"] else "")
+    swap = "swap " + core.human_bytes(m["swap_used"]) if m["swap_used"] is not None else ""
+    print("  memory   " + known(used, swap))
     if b:
         extra = ""
         if "health_pct" in b:
             extra = " · health %d%%, %d cycles" % (b["health_pct"], b.get("cycles", 0))
         print("  battery  %d%% %s on %s%s" % (b["percent"], b["state"], b["source"], extra))
-    print("  uptime   %s · load %s" % (fmt_uptime(s["uptime"]), " ".join("%.2f" % x for x in s["load"])))
+    if s["uptime"] is not None or s["load"]:
+        print("  uptime   %s · load %s" % (fmt_uptime(s["uptime"]), " ".join("%.2f" % x for x in s["load"]) or "?"))
     sec = s.get("security") or {}
     if sec:
         flag = lambda v: "on" if v else ("off" if v is False else "?")
         print("  security FileVault %s · SIP %s · firewall %s · Gatekeeper %s" % (
             flag(sec.get("filevault")), flag(sec.get("sip")), flag(sec.get("firewall")), flag(sec.get("gatekeeper"))))
-    top = s.get("top")
-    if top:
+    top = s.get("top") or {}
+    if top.get("cpu"):
         print("  top cpu  " + ", ".join(_proc(p, "%.0f%%" % p["cpu"]) for p in top["cpu"][:4]))
+    if top.get("memory"):
         # a group's resident memory is a sum, so pages its processes share count more than once
         print("  top mem  " + ", ".join(_proc(p, ("≈" if p.get("count", 1) > 1 else "") + core.human_bytes(p["rss"]))
                                          for p in top["memory"][:4]))

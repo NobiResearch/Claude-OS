@@ -101,6 +101,19 @@ def _friction_line():
     return "  friction: %d open (cos friction) — latest: %s" % (len(open_f), latest)
 
 
+def _vitals(s):
+    """The banner's machine and vitals lines, without what couldn't be read (status.known)."""
+    from . import status
+    sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
+    up = "up " + status.fmt_uptime(s["uptime"]) if s["uptime"] is not None else ""
+    machine = status.known(sy["model"], "macOS %s" % sy["macos"] if sy["macos"] else "", sy["chip"], up)
+    used = core.human_bytes(m["used"]) + ("/" + core.human_bytes(m["total"]) if m["total"] else " used")
+    vit = "  disk %s free (%s%%) · memory %s" % (core.human_bytes(d["free"]), d["free_pct"], used)
+    if b:
+        vit += " · battery %d%% %s" % (b["percent"], b["state"])
+    return (["  " + machine] if machine else []) + [vit]
+
+
 def boot():
     from . import status, mem, daemon, system
     try:
@@ -108,15 +121,9 @@ def boot():
     except Exception:
         pass
     s = status.collect(include_slow=False)
-    sy, d, m, b = s["system"], s["disk"], s["memory"], s["battery"]
     now = dt.datetime.now()
     lines = ["◆ Ovenbird %s · %s" % (__version__, now.strftime("%A %d %b %Y, %H:%M"))]
-    lines.append("  %s · macOS %s · %s · up %s" % (sy["model"], sy["macos"], sy["chip"], status.fmt_uptime(s["uptime"])))
-    vit = "  disk %s free (%s%%) · memory %s/%s" % (core.human_bytes(d["free"]), d["free_pct"],
-                                                    core.human_bytes(m["used"]), core.human_bytes(m["total"]))
-    if b:
-        vit += " · battery %d%% %s" % (b["percent"], b["state"])
-    lines.append(vit)
+    lines += _vitals(s)
     if s["signals"]:
         lines.append("  signals: " + " · ".join(("⚠ " if x["level"] == "warn" else "") + x["msg"] for x in s["signals"]))
     n = _music_now()
