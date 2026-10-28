@@ -23,9 +23,9 @@ on their own Mac; nothing here runs in CI, and publishing is a separate step on 
 
 ## Before the first public release
 
-The full check from decision 0015, step 1, on the notarized zip: download it in a **second
-macOS user account** (so it's quarantined and nothing of yours is there), and go through the
-first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
+The full check from decision 0015, step 1, on the notarized zip, before it's published (the
+draft release's zip, see Publishing): download it in a **second macOS user account** (so it's
+quarantined and nothing of yours is there), and go through the first launch from nothing. The command line tools, Claude Code and the download, then Calendar,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
 Remove Ovenbird… leaves nothing behind but the app.
 
@@ -42,7 +42,10 @@ Claude Code there ([research](research/growing-the-project.md)).
 2. **The oldest app the code works with.** If the server now needs something only this app
    does, raise `APP_NEEDED` in `lib/cos/core.py` to this version: older downloaded apps then say
    "download Ovenbird.app" instead of breaking.
-3. **Build** from a clean checkout of `main`, at `origin/main`:
+3. **Build** from a clean checkout of `main`, at `origin/main`, once CI on GitHub has passed
+   for that commit (the ruleset doesn't require a merge to be tested on top of what came before
+   it, so the squashed commit's own run is the one that counts). From here until it's published,
+   nothing merges into main: the release's tag has to be the commit the app was built from.
 
 ```sh
 COS_RELEASE_PROFILE=~/.claude-os/ClaudeOS-Release.provisionprofile \
@@ -62,11 +65,33 @@ the evolve sandbox. It then:
 
 `--no-notarize` stops before notarizing, for a local check. That zip isn't for publishing.
 
+The app runs on Apple silicon only: `swift build` without `--arch` builds for the Mac it runs
+on. Say so in the notes, and in the README's download link.
+
 ## Publishing
 
-Only on the owner's yes, each time: `gh release create v<version> build/Ovenbird-<version>.zip
---title "Ovenbird <version>" --notes-file <notes>`, which asks before it runs. The notes pass
-`bin/cos guard --text` first.
+Only on the owner's yes, each time, in this order. Every `gh release` command asks before it
+runs.
+
+1. **Check the zip:** `codesign --verify --deep --strict --verbose=2`, `spctl -a -vv` and
+   `xcrun stapler validate` on the app, `zipinfo` for `__MACOSX` or extended-attribute entries,
+   and `shasum -a 256` on the zip.
+2. **The name on it** (0015, step 2): `codesign -dv` shows the "Developer ID Application: …"
+   line every copy will carry. The owner reads it and says yes.
+3. **A draft, pinned to the build's commit:** `gh release create v<version>
+   build/Ovenbird-<version>.zip --draft --target <commit> --title "Ovenbird <version>"
+   --notes-file <notes>`. A draft is visible only to the repository's maintainers. The notes
+   pass `bin/cos guard --text` first, and live in the session's temp folder, not `~/.claude-os`
+   (the Guardian won't publish a file from there).
+4. **The first-launch check** on the draft's zip, the first time and whenever the first launch
+   changed (see "Before the first public release" above).
+5. **Immutable releases on** (Settings › General › Releases), once: a published release's tag
+   and files can't change after that.
+6. **Publish:** `gh release edit v<version> --draft=false --latest`. Never as a pre-release: the
+   app's update check reads `releases/latest`, which skips pre-releases.
+
+If the first-launch check can't happen, publish nothing, or a source-only release with no zip.
+Under immutable releases, the zip then comes as the next version.
 
 ### The notes
 
@@ -75,8 +100,9 @@ Plain words, for someone who isn't a developer. Start from this and add what's n
 ```markdown
 **Ovenbird <version>**: an operating layer for your Mac that Claude lives in.
 
-**What you need:** macOS 14 or later, [Claude Code](https://claude.com/claude-code) with a Claude
-plan, and Apple Music for the music player.
+**What you need:** a Mac with Apple silicon, macOS 14 or later,
+[Claude Code](https://claude.com/claude-code) with a Claude plan, and Apple Music for the music
+player.
 
 **Install:** unzip, move Ovenbird.app to your Applications folder, and open it. The first launch
 shows a checklist: Apple's command line tools (Apple installs them), Claude Code (a link to
@@ -96,4 +122,11 @@ to the Trash.
 
 Ovenbird is open source under the MIT License, the app included. It isn't made or endorsed by
 Anthropic; Claude is Anthropic's trademark.
+
+---
+
+**Verify the download:** commit `<commit>`; SHA-256 of `Ovenbird-<version>.zip`: `<sha256>`;
+`spctl -a -vv Ovenbird.app` says `accepted` and `source=Notarized Developer ID`.
 ```
+
+Credit outside contributors by their GitHub handle, as links rather than @-mentions.
