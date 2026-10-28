@@ -75,7 +75,7 @@
   }
 
   COS.register({
-    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#6b6747,#34311f)", size: [640, 680],
+    id: "claude", title: "Claude", icon: "claude", color: "linear-gradient(140deg,#3d3d3d,#161616)", size: [640, 680],
     keywords: "chat ask assistant",
     render(w) {
       let sid = null, stop = null, lastSeq = 0, live = null, busy = false, pending = 0;
@@ -919,7 +919,7 @@
 
   // ------------------------------------------------------------ Settings
   COS.register({
-    id: "settings", title: "Settings", icon: "settings", color: "linear-gradient(140deg,#9a948d,#5b5650)", size: [600, 560],
+    id: "settings", title: "Settings", icon: "settings", color: "linear-gradient(140deg,#9a9a9a,#555555)", size: [600, 560],
     keywords: "daemons background about preferences",
     render(w) {
       const root = h("div", { class: "pad" });
