@@ -38,12 +38,17 @@ repository's releases.
   - `create` opens a pull request from a `night/*` branch into main.
   - `edit` and `comment` name a pull request of this repository that's open, from a `night/*`
     branch, and not from a fork.
-  - The body file comes from the repository, a worktree or the session's temp folder.
+  - The body file is a plain file from the repository, a worktree or the session's temp folder.
+  - Nothing outside quotes means something different to the shell than to the hook's parser:
+    no `#`, braces, globs, `~` or a word-initial `=`, and the pull request number is plain
+    ASCII digits. Before this, `--title x#; <any command>` read as a pull request title and
+    approved whatever followed. That was the guardian's finding on this pull request, and it
+    was live on main with Night shift on.
   - The Guardian has read the title and body.
 - **The hook never answers a checked-in ask rule.** When `.claude/settings.json` can't be
-  read, it answers nothing.
+  read, it answers nothing at all, pushes included.
 - **Every approval goes in the journal:** what it was ("commented on #31") and the command.
-- Pushing and merging are unchanged.
+- Otherwise, pushing and merging are unchanged.
 
 ## Consequences
 

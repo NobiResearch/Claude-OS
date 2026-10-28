@@ -133,6 +133,10 @@ def parse_merge(command):
 
 PR_TEXT = {("gh", "pr", "create"), ("gh", "pr", "edit"), ("gh", "pr", "comment")}
 EXPANDS = re.compile(r"[$`\n\r]")  # nothing the shell would expand, and one line
+# Outside quotes, the shell gives these a meaning shlex doesn't: `#` only starts a comment at
+# the start of a word (`x#; rm` runs rm), braces and globs turn one word into several, `~` and
+# a word-initial `=` (zsh) become paths.
+UNQUOTED = re.compile(r"[#{}~*?\[\]]|(?:^|\s)=")
 
 
 def parse_pr_text(command):
@@ -140,11 +144,12 @@ def parse_pr_text(command):
     "body_file", "number", "head", "base"}, or None. Titles have spaces, so this parses quotes,
     but anything a shell would expand or chain makes it None, and so does `-R`: gh picks the
     repository from the checkout, which the decision checks."""
-    if not isinstance(command, str) or EXPANDS.search(command):
+    if not isinstance(command, str) or EXPANDS.search(command) or UNQUOTED.search(_bare(command)):
         return None
     try:
         lex = shlex.shlex(command, posix=True, punctuation_chars=True)
         lex.whitespace_split = True
+        lex.commenters = ""
         words = list(lex)
     except ValueError:
         return None
@@ -159,7 +164,7 @@ def parse_pr_text(command):
         elif w in ("--body-file", "-F") and value not in (None, "-") and body_file is None:
             body_file = value
             i += 2
-        elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[\w./-]+", value):
+        elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[A-Za-z0-9_./-]+", value):
             key = "base" if w in ("--base", "-B") else "head"
             if key in refs:
                 return None
@@ -167,7 +172,7 @@ def parse_pr_text(command):
             i += 2
         elif w == "--draft":
             i += 1
-        elif w.isdigit() and number is None and words[2] in ("edit", "comment"):
+        elif re.fullmatch(r"[0-9]+", w) and number is None and words[2] in ("edit", "comment"):
             number = int(w)
             i += 1
         else:
@@ -181,14 +186,15 @@ def parse_pr_text(command):
 def asked_by_rule(command, root=None):
     """Does one of the checked-in ask rules cover this command? The hook never answers a
     prompt those rules exist to show (publishing a release, notarizing, deleting the
-    repository). True when the rules can't be read: no answer is the safe one."""
+    repository). None when the rules can't be read, and then it answers nothing at all."""
     import fnmatch
     try:
         with open(os.path.join(str(root or core.ROOT), ".claude", "settings.json")) as f:
             asks = json.load(f)["permissions"]["ask"]
     except Exception:
-        return True
+        return None
     rules = [a[len("Bash("):-1] for a in asks if isinstance(a, str) and a.startswith("Bash(") and a.endswith(")")]
+    rules = [r[:-2] + "*" if r.endswith(":*") else r for r in rules]  # the older prefix spelling
     return any(fnmatch.fnmatchcase(str(command), rule) for rule in rules)
 
 
@@ -227,6 +233,8 @@ def decide_pr_text(parsed, facts):
         path = facts.get("body")
         if not path:
             return False, "the body file isn't from the repository or the session's temp folder"
+        if not os.path.isfile(path):
+            return False, "the body file isn't a plain file"
         try:
             if os.path.getsize(path) > 256 * 1024:
                 return False, "the body file is too big to check"
@@ -395,7 +403,10 @@ def decide(request, cfg, look=inspect, look_pr=inspect_pr, look_text=inspect_tex
         return False, "night shift is off"
     if core.downloaded():
         return False, "a downloaded Ovenbird doesn't push or merge (decision 0015)"
-    if asked_by_rule(command):
+    rule = asked_by_rule(command)
+    if rule is None:
+        return False, "couldn't read the checked-in ask rules"
+    if rule:
         return False, "a checked-in ask rule covers this"
     cwd = request.get("cwd") or str(core.ROOT)
     pr_text = parse_pr_text(command)
