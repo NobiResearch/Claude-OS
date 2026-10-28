@@ -194,9 +194,10 @@ SANDBOX_READ = ("/System", "/usr", "/bin", "/sbin", "/dev", "/private/etc", "/pr
                 "/Library/Developer/CommandLineTools", "/Applications/Xcode.app", "/opt/homebrew")
 
 # Never readable by model-written code, even if its folder were inside the home folder:
-# credentials and the human's private state.
-PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".aws", ".gnupg", ".config/gh", ".netrc", ".npmrc",
-                "Library/Keychains", "Library/Application Support/com.apple.TCC")
+# credentials and the human's private state (Claude Code's account and history, the shells').
+PRIVATE_DIRS = (".ssh", ".claude-os", ".claude", ".claude.json", ".claude.json.backup", ".aws", ".gnupg",
+                ".config/gh", ".netrc", ".npmrc", ".zsh_history", ".zsh_sessions", ".bash_history",
+                ".bash_sessions", "Library/Keychains", "Library/Application Support/com.apple.TCC")
 # The PATH entries the sandbox can run from; the rest of the human's PATH stays outside.
 SANDBOX_BIN = ("/usr/", "/bin", "/sbin", "/opt/homebrew/", "/Library/Frameworks/Python.framework/",
                "/Library/Developer/CommandLineTools/", "/Applications/Xcode.app/")
