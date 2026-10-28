@@ -17,7 +17,8 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos friction` and `bin/cos evolve`: what the OS itself needs. Headless, `cos evolve`
   doesn't list the night shift's pull requests (a background run never asks GitHub); the
   night's pushes are in the journal below.
-- `bin/cos log --days 1 --kind action`: what the night shift pushed ("night shift: pushed …").
+- `bin/cos log --days 1 --kind action`: what the night shift did ("night shift: …"), such as
+  its pushes.
   The night shift never merges (0020): Claude merges its pull requests in a session, after a
   guardian's review, and those merges aren't in this log ("evolve merged …" lines are evolve
   branches). Where git is already allowed, pushes don't reach the hook either, so this list
@@ -55,7 +56,7 @@ Optional, and its link follows the same rule as the others.
 ## Ovenbird
 Only if there's something: an evolve branch waiting for review, open friction (one that
 `cos friction` says is from a background run: its number and run only, never its text), one line on
-what the night shift pushed, and, in a session only (a background run never asks GitHub),
+what the night shift did, and, in a session only (a background run never asks GitHub),
 **Waiting for you**: each open pull request from someone else, in one plain line (what it does
 for them, from its title, and its `url` exactly as gh gave it), since those merge only on the
 human's yes (0014). Claude's own pull
