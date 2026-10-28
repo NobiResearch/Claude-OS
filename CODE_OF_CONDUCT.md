@@ -46,7 +46,7 @@ We agree to restrict the following behaviors in our community. Instances, threat
 
 Tensions can occur between community members even when they are trying their best to collaborate. Not every conflict represents a code of conduct violation, and this Code of Conduct reinforces encouraged behaviors and norms that can help avoid conflicts and minimize harm.
 
-When an incident does occur, it is important to report it promptly. To report a possible violation, use **Report content** in the ··· menu of the comment, issue, pull request or discussion, and choose to report it to the repository's maintainers; only they see it. If it involves a maintainer, or you'd rather not report it to us, [report it to GitHub](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam) instead.
+When an incident does occur, it is important to report it promptly. To report a possible violation, use **Report content** in the ··· menu of the comment, issue, pull request or discussion, and choose **Report to repository admins**; only they see it. If you don't see that option, if it involves a maintainer, or if you'd rather not report it to us, [report it to GitHub](https://docs.github.com/en/communities/maintaining-your-safety-on-github/reporting-abuse-or-spam) instead.
 
 Our Community Moderators are the repository's maintainers. They take reports of violations seriously and will make every effort to respond in a timely manner. They will investigate all reports of code of conduct violations, reviewing messages, logs, and recordings, or interviewing witnesses and other participants. Community Moderators will keep investigation and enforcement actions as transparent as possible while prioritizing safety and confidentiality. In order to honor these values, enforcement actions are carried out in private with the involved parties, but communicating to the whole community may be part of a mutually agreed upon resolution.
 
@@ -84,7 +84,7 @@ Our community spaces are this repository's issues, pull requests and discussions
 
 ## Attribution
 
-This Code of Conduct is adapted from the Contributor Covenant, version 3.0, permanently available at [https://www.contributor-covenant.org/version/3/0/](https://www.contributor-covenant.org/version/3/0/). Ovenbird's adaptation fills in how to report, names the Community Moderators, and adds the last paragraph of Scope.
+This Code of Conduct is adapted from the Contributor Covenant, version 3.0, permanently available at [https://www.contributor-covenant.org/version/3/0/](https://www.contributor-covenant.org/version/3/0/). Ovenbird's adaptation fills in how to report, names the Community Moderators (and calls them that where the original says Community Managers), adds the last paragraph of Scope, and leaves out the template's editorial notes.
 
 Contributor Covenant is stewarded by the Organization for Ethical Source and licensed under CC BY-SA 4.0. To view a copy of this license, visit [https://creativecommons.org/licenses/by-sa/4.0/](https://creativecommons.org/licenses/by-sa/4.0/)
 

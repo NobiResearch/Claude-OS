@@ -14,12 +14,12 @@ ships (3.9 or later).
 - **Asking instead of finding.** Most of what Ovenbird does can be asked for in your own
   words, in the app's chat or in the terminal. `cos ask "…"` answers once in plain text, and
   `cos say "…"` reads text aloud.
-- **The terminal** prints plain text, and every command also prints JSON with `--json`, for
-  your own tools.
+- **The terminal** prints plain text, and most commands (`status`, `clean`, `update` and more)
+  also print JSON with `--json`, for your own tools.
 - **Shortcuts.** ⌃⌥Space brings Ovenbird forward from anywhere, and ⌘K opens the command
   palette, where you can type an app's name or a question.
-- **Names for VoiceOver.** The menu bar item and the dock's app buttons have names VoiceOver
-  can read, and the desktop's notices are marked for screen readers (`aria-live`).
+- **Names for VoiceOver.** The dock's app buttons have names VoiceOver can read, and the
+  desktop's notices are marked for screen readers (`aria-live`).
 - **Zoom.** Pinch on a trackpad to zoom the desktop.
 - **Contrast.** Body text is about 16:1 against its background, and secondary text about 6:1.
 
@@ -27,7 +27,8 @@ ships (3.9 or later).
 
 - **Keyboard and VoiceOver in the desktop.** The dock, window controls and tabs don't all work
   from the keyboard yet, and the desktop hasn't been tested with VoiceOver
-  ([#127](https://github.com/NobiResearch/Ovenbird/issues/127)).
+  ([#127](https://github.com/NobiResearch/Ovenbird/issues/127)). The chat doesn't announce
+  Claude's replies or its Allow / Deny cards to screen readers yet.
 - **Motion.** Only some animations follow Reduce Motion
   ([#139](https://github.com/NobiResearch/Ovenbird/issues/139)).
 - **Appearance.** The desktop is dark only
@@ -36,7 +37,8 @@ ships (3.9 or later).
   asks for.
 - **Text size.** The desktop's text has fixed sizes, so it doesn't follow macOS's text size
   setting.
-- **Color in the terminal.** The boot banner always uses color, even when `NO_COLOR` is set.
+- **Color in Claude Code's status line.** The status line Ovenbird adds to Claude Code
+  (`cos statusline`) always uses color, even when `NO_COLOR` is set.
 
 ## Tell us
 
