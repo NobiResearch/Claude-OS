@@ -283,7 +283,8 @@ def merge_via_pr(branch, commits, sha):
     r = git("push", "--quiet", "-u", "origin", branch, timeout=180)
     if not r.ok:
         core.die("push failed: %s" % r.err[:300])
-    title = commits[0].split(" ", 1)[-1] if commits else branch
+    # Newest first (ahead): the oldest is the night's own change, later ones are touch-ups.
+    title = commits[-1].split(" ", 1)[-1] if commits else branch
     body = ("A change from Ovenbird's nightly evolve loop (`%s`).\n\n%s\n\nThe Guardian and the tests "
             "passed locally before this pull request was opened.\n\n🤖 Generated with "
             "[Claude Code](https://claude.com/claude-code)") % (branch, "\n".join("- " + c for c in commits))

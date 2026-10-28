@@ -245,6 +245,12 @@ class TestMergeViaPR(TempHome):
         merge = [c for c in self.calls if c[:2] == ("pr", "merge")][0]
         self.assertEqual(merge[merge.index("--match-head-commit") + 1], self.SHA)
 
+    def test_the_title_is_the_nights_change_not_a_later_touch_up(self):
+        with mock.patch.object(evolve.time, "sleep"):
+            evolve.merge_via_pr("evolve/x", ["def456 fix a word in the lesson", "abc123 a nightly change"], self.SHA)
+        create = [c for c in self.calls if c[:2] == ("pr", "create")][0]
+        self.assertEqual(create[create.index("--title") + 1], "a nightly change")
+
     def test_ci_that_never_starts_isnt_reported_as_failing(self):
         with mock.patch.object(evolve, "wait_for_ci", return_value=False), \
                 mock.patch.object(core, "die", side_effect=SystemExit) as die:
