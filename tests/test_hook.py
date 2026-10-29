@@ -691,6 +691,62 @@ class TestGhText(TempHome):
         self.assertEqual((said["hookEventName"], said["permissionDecision"]), ("PreToolUse", "deny"))
 
 
+class TestDownloadTripwire(TempHome):
+    """Fable's F5 (29 October): a downloaded copy's DOWNLOAD_DENY rules match a command's first
+    words, so `env gh …` got past them. The pretool hook reads where each command really starts,
+    and only in a download; a mere mention of gh or push is fine."""
+
+    RUNS = ["gh pr list", "gh-axi pr list", "/opt/homebrew/bin/gh pr list", "env gh pr list",
+            "env FOO=1 gh pr list", "command gh pr list", "cd x && gh pr list", "nice -n 5 gh auth status",
+            "timeout 10 gh api user", "ls | xargs gh issue view", "sh -c 'gh pr list'", 'bash -lc "gh auth status"',
+            "/bin/zsh -c 'cd x; gh pr list'", 'eval "gh pr list"', "echo $(gh pr list)", "echo `gh pr list`",
+            "git push", "git push origin main", "git -C x push", "git -c a=b push", "git --git-dir=.git push",
+            "cd x && git -c core.hooksPath=/dev/null push -q", "sh -c 'git push'", "FOO=1 git push"]
+    MENTIONS = ["brew upgrade gh", "cos update apply brew gh --yes", "which gh", "cos friction add 'gh is slow'",
+                "git status", "git log --grep push", "echo push", "time brew upgrade gh", "git -c push.default=simple status",
+                "ls -la", "cat README.md | grep gh", "python3 -m unittest discover -s tests"]
+
+    def test_in_a_download_running_gh_or_pushing_is_denied(self):
+        with mock.patch.object(core, "downloaded", return_value=True):
+            for cmd in self.RUNS:
+                self.assertIn("doesn't use GitHub", hook.download_decision(cmd) or "", repr(cmd))
+            for cmd in self.MENTIONS:
+                self.assertIsNone(hook.download_decision(cmd), repr(cmd))
+            self.assertIsNotNone(hook.download_decision("echo $(echo $(gh pr list))"), "nested, still found")
+            self.assertIn("can't read this command", hook.download_decision("gh pr list 'never closed"))
+
+    def test_the_owner_s_path_is_unchanged(self):
+        with mock.patch.object(core, "downloaded", return_value=False):
+            for cmd in self.RUNS + self.MENTIONS:
+                self.assertIsNone(hook.download_decision(cmd), repr(cmd))
+        # A command that names neither gh nor push never even asks whether this is a download.
+        with mock.patch.object(core, "downloaded", side_effect=AssertionError("asked")):
+            for cmd in ("ls -la", "bin/cos status", "git status", "python3 -m unittest discover -s tests"):
+                self.assertIsNone(hook.download_decision(cmd), repr(cmd))
+
+    def test_the_hook_denies_in_a_download_and_still_runs_its_other_checks(self):
+        def run(command):
+            out = io.StringIO()
+            with mock.patch("sys.stdin", io.StringIO(json.dumps({"tool_name": "Bash", "tool_input": {"command": command}}))), \
+                    redirect_stdout(out):
+                self.assertEqual(hook.pretool(), 0)
+            return out.getvalue()
+        with mock.patch.object(core, "downloaded", return_value=True):
+            said = json.loads(run("env gh pr list"))["hookSpecificOutput"]
+            self.assertEqual(said["permissionDecision"], "deny")
+            self.assertEqual(run("brew upgrade gh"), "")
+            asked = json.loads(run("cos  clean apply x --yes"))["hookSpecificOutput"]
+            self.assertEqual(asked["permissionDecision"], "ask", "the cos ask still applies")
+        with mock.patch.object(core, "downloaded", return_value=False):
+            self.assertEqual(run("env gh pr list"), "", "the owner's gh reads get no opinion, as before")
+        # An error inside the check denies only in a download.
+        with mock.patch.object(hook, "runs_github", side_effect=RuntimeError("boom")):
+            with mock.patch.object(core, "downloaded", return_value=True):
+                self.assertIn("can't read", hook.download_decision("gh pr list"))
+            with mock.patch.object(core, "downloaded", return_value=False):
+                self.assertIsNone(hook.download_decision("gh pr list"))
+
+
 if __name__ == "__main__":
     unittest.main()
 
