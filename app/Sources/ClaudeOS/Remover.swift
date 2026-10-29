@@ -81,7 +81,9 @@ enum Remover {
         let done = NSAlert()
         done.messageText = "Ovenbird is removed"
         done.informativeText = (trashData ? "Its journal and memory go to the Trash as it quits. " : "")
-            + "To finish, drag Ovenbird.app to the Trash."
+            + "What you allowed it, like Calendar and Reminders, Location, Apple Music, controlling Music and "
+            + "notifications, stays allowed until you turn it off in System Settings (Privacy & Security, and "
+            + "Notifications), best before the app is gone.\n\nTo finish, drag Ovenbird.app to the Trash."
         done.addButton(withTitle: "Quit")
         done.runModal()
         if trashData {
