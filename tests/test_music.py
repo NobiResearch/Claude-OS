@@ -139,7 +139,8 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
         from unittest import mock
         from cos import core, shell
         asked = mock.Mock(side_effect=AssertionError("asked Music before anyone asked for music"))
-        fetch_head = core.ROOT / ".git" / "FETCH_HEAD"
+        # Where git keeps it: in a worktree, .git is a file and FETCH_HEAD is elsewhere.
+        fetch_head = core.ROOT / core.run(["git", "-C", str(core.ROOT), "rev-parse", "--git-path", "FETCH_HEAD"]).out.strip()
         before = fetch_head.stat().st_mtime if fetch_head.exists() else None
         # The banner's catch-up line fetches from GitHub: never from a test.
         with mock.patch.object(shell, "_catch_up_line", return_value=None), \
@@ -160,12 +161,17 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
         state = core.home("state", "player.json")
         state.parent.mkdir(parents=True, exist_ok=True)
         state.write_text('["x"]')
-        with mock.patch.object(shell, "_catch_up_line", return_value=None):
+        never = mock.Mock(side_effect=AssertionError("asked Music"))
+        with mock.patch.object(shell, "_catch_up_line", return_value=None), mock.patch.object(core, "osascript", never):
             self.assertIsNone(shell._music_now())
             with mock.patch.object(music, "asked", side_effect=RuntimeError("odd")):
                 self.assertIsNone(shell._music_now())
                 with redirect_stdout(io.StringIO()) as out:
                     shell.boot()
+            # After the marker too: the odd state file costs the music line, not the banner.
+            with mock.patch.object(music, "asked", return_value=True), \
+                    mock.patch.object(core, "app_running", return_value=True):
+                self.assertIsNone(shell._music_now())
         self.assertIn("Ovenbird", out.getvalue())
         self.assertNotIn("music:", out.getvalue())
 

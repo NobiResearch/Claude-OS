@@ -26,14 +26,14 @@ def _music_now(max_age=20):
         if not music.asked() or not core.app_running("Music"):
             own = music.own_player_active()
             return music._own_now(own) if own else None
+        cached = core.cache_get("music-now", max_age=max_age)
+        if cached:
+            return cached["data"]
+        n = music.now()
+        core.cache_put("music-now", n)
+        return n
     except Exception:
         return None
-    cached = core.cache_get("music-now", max_age=max_age)
-    if cached:
-        return cached["data"]
-    n = music.now()
-    core.cache_put("music-now", n)
-    return n
 
 
 def _caught_up_line():
