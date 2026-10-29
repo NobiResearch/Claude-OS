@@ -220,6 +220,11 @@ your home path and git email from ever being committed; a pre-push hook checks e
 a push would publish, messages and email addresses included; and a test runs the same scan
 over the whole tree. Details in [docs/architecture.md](docs/architecture.md#privacy-model).
 
+The downloadable Ovenbird.app is signed with its developer's Apple Developer ID, so its
+signature and its embedded provisioning profile name the account that signed it
+([decision 0015](docs/decisions/0015-claude-os-for-everyone.md)). Nothing about you goes into
+it.
+
 ## Safety
 
 The short version is [above](#what-it-will-and-wont-do). In more detail: evolve's sandbox lets
