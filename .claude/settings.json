@@ -125,5 +125,8 @@
     "type": "command",
     "command": "\"${CLAUDE_PROJECT_DIR:-.}\"/bin/cos statusline",
     "padding": 0
+  },
+  "attribution": {
+    "sessionUrl": false
   }
 }
