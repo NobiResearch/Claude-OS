@@ -6,11 +6,11 @@ under **Unreleased** until then).
 
 ## Unreleased
 
-## 0.8.0 — 2026-10-28
+## 0.8.0 — 2026-10-29
 
 Claude OS becomes **Ovenbird**, gets a mark of its own and opens up to contributors. Claude now
 works on it day and night, in the open: every pull request gets a guardian's review, and what's
-merged can come to your Mac by itself if you want it to (decisions 0005 to 0022).
+merged can come to your Mac by itself if you want it to (decisions 0005 to 0023).
 
 **Ovenbird**
 - **Claude OS is now Ovenbird** ([0019](docs/decisions/0019-the-name.md)): the app, its menus,
@@ -35,7 +35,10 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
 - **`cos security`**: FileVault, SIP, the firewall and Gatekeeper, what each does and how to
   turn it on. `cos security on firewall --yes` turns the firewall on through macOS's own
   password dialog. It only ever turns things on, and the desktop's Security card offers it
-  while the firewall is off ([0008](docs/decisions/0008-firewall-switch.md)).
+  while the firewall is off ([0008](docs/decisions/0008-firewall-switch.md)). Inside a sandbox
+  (Claude Code's, or the nightly evolve run's), where macOS's own firewall tool answers
+  "disabled" whatever the truth, `cos security` and `cos status` say "couldn't tell" (?)
+  instead of off.
 - **`cos backup`**: whether Time Machine is set up, about how much there is to back up, and
   which connected disk could hold it: format, size, whether it's big enough, and plainly when
   Time Machine would erase it. With no disk plugged in, it says what size to get. `cos backup
@@ -144,11 +147,15 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
   touch Ovenbird's safety files. `cos hook check <PR>` says when one is ready for that review,
   names the safety files it changes, and prints the exact merge command.
 - **Night shift** (Settings › Permissions, off until you confirm it in the app's own dialog;
-  [0006](docs/decisions/0006-night-shift-pushes.md)): while you're away, Claude pushes its own
-  `night/…` branches, opens, edits and comments on pull requests, and reads from GitHub with your
-  login, without a card. Never `main`, never a force push, never a change to `.github/`, and the
-  switch never approves a merge. Every commit and pull request text is checked for private data first, and each push is
-  in your journal and the next morning's brief.
+  [0006](docs/decisions/0006-night-shift-pushes.md),
+  [0023](docs/decisions/0023-night-shift-its-own-pull-requests.md)): while you're away, Claude
+  pushes its own `night/…` branches, and opens, edits and comments on its own `night/…` pull
+  requests in this repository, without a card. Never `main`, never a force push, never a change
+  to `.github/`, never a `gh api` call, and the switch never approves a merge or a prompt one of
+  the checked-in ask rules exists to show. Every commit and pull request text is checked for
+  private data first, and each approval is in your journal.
+- **The morning brief** reports what the night shift pushed, never that it merged, and when you
+  ask for it in a session, lists pull requests from other people that wait for your yes.
 - **Nightly evolve branches:** the boot banner, `cos evolve` and the Evolve window say when a
   branch's tests failed. `cos evolve merge` and the Evolve window's Merge take a branch that
   changes safety files only after a review (`--reviewed`), wait for CI to start before watching
@@ -162,6 +169,11 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
   traceback when private state can't be written.
 
 **Safety and privacy**
+- **Fixed: with Night shift on, a crafted pull request command could carry another command
+  past the permission hook.** The hook read `--title x#; <command>` as a title, while the shell
+  ran the command after it. Now anything outside quotes that the shell reads differently (`#`,
+  braces, globs, `~`, `=`, `!`) makes the hook answer nothing, and so does a body file it can't
+  be sure gh would read the same way.
 - **The Guardian reads more before anything leaves the Mac:** every push, commit by commit
   (files, messages, and an author and committer address that must be GitHub's noreply); a pull
   request's title and body; and everything `gh` would publish (comments, reviews, issues, release
@@ -198,6 +210,8 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
   projects' own dependencies, clean-ups and video music, and nothing about the project you're in
   gets recorded. `cos uninstall` removes the links. `cos install --no-daemons` says which
   background jobs are still running.
+- The status line Ovenbird adds to Claude Code (`cos statusline`) is plain text when `NO_COLOR`
+  is set, as [no-color.org](https://no-color.org) asks.
 
 **Contributors**
 - Ovenbird is MIT, every version, including the ones published for a few days under the
@@ -210,6 +224,9 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0022)
 - The README and the architecture page say exactly what's enforced and who merges what.
 - Each pull request records its changelog entry as its own file in `changes/`, so pull requests
   don't conflict over this file.
+- `docs/releasing.md` publishes in a safe order: check the zip, the owner's yes to the name it
+  carries, a draft release pinned to the build's commit, a first launch from that draft's zip in
+  a second macOS account, immutable releases, then publish. The app is for Apple silicon.
 - Thanks to our first contributors, [trleo](https://github.com/trleo) and
   [bfs2021](https://github.com/bfs2021).
 
