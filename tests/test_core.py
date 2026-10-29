@@ -201,9 +201,12 @@ class TestTrends(TempHome):
         from cos import status
         path = core.home(status.TRENDS_FILE)
         path.parent.mkdir(parents=True, exist_ok=True)
-        good = [b'{"date": "2026-10-01", "disk_free": 5}', b'{"date": "2026-10-02", "disk_free": 4}']
-        damaged = [b"null", b"{not json", b"[1, 2]", b"", b"7", b"\xff\xfe junk",
-                   b'{"date": "soon", "disk_free": 1}', b'{"disk_free": 1}', b'{"date": "2026-10-02", "disk_free": "x"}']
+        # The first good row ends in \r (a file once saved with CRLF): still a row, kept as it was.
+        good = [b'{"date": "2026-10-01", "disk_free": 5}\r', b'{"date": "2026-10-02", "disk_free": 4}']
+        damaged = [b"null", b"{not json", b"[1, 2]", b"", b"7", b"\xff\xfe junk", b"one \xe2\x80\xa8 two \x0c three",
+                   b'{"date": "soon", "disk_free": 1}', b'{"disk_free": 1}', b'{"date": "20261002", "disk_free": 1}',
+                   b'{"date": "2026-10-02", "disk_free": "x"}', b'{"date": "2026-10-02", "disk_free": Infinity}',
+                   b'{"date": "2026-10-02", "battery_health": NaN}', b'{"date": "2026-10-02", "disk_free": true}']
         path.write_bytes(b"\n".join([good[0]] + damaged + [good[1], b"\xff"]) + b"\n")
         rows = status.trends()
         self.assertEqual([r["date"] for r in rows], ["2026-10-01", "2026-10-02"])
