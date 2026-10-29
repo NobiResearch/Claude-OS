@@ -120,10 +120,13 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         stack.setCustomSpacing(8, after: note)
         stack.setCustomSpacing(22, after: pulseBox)
         stack.edgeInsets = NSEdgeInsets(top: 28, left: 32, bottom: 24, right: 32)
-        // Everything as wide as the window's margins allow: a longer title is cut short rather
-        // than pushing the whole column past them.
-        for view in [intro, toolsRow.view, claudeRow.view, codeRow.view, skillsBox, note, pulseBox, moveNote, buttons] {
+        for view in [intro, toolsRow.view, claudeRow.view, codeRow.view, moveNote, buttons] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -64).isActive = true
+        }
+        // The checkboxes as wide as their titles (a click beside one doesn't tick it), and never
+        // past the margins: a longer title is cut short rather than pushing the column out.
+        for view in [skillsBox, note, pulseBox] {
+            view.widthAnchor.constraint(lessThanOrEqualTo: stack.widthAnchor, constant: -64).isActive = true
         }
         stack.widthAnchor.constraint(equalToConstant: 620).isActive = true
         return stack

@@ -38,8 +38,8 @@ enum FirstLaunch {
     }
 
     /// Whether Claude Code is signed in for this Mac user, from `claude auth status` (a fifth of
-    /// a second; at most it creates Claude Code's own ~/.claude.json). nil when it can't tell:
-    /// an older Claude Code without `auth`, or no answer.
+    /// a second; it writes only Claude Code's own files: ~/.claude.json, its lock and a backup).
+    /// nil when it can't tell: an older Claude Code without `auth`, or no answer.
     static func claudeSignedIn(_ claude: String, home: String) -> Bool? {
         let env = ["HOME": home, "PATH": AppConfig.releasePath(home: home), "LANG": "en_US.UTF-8"]
         return signedIn(status: run(claude, ["auth", "status", "--json"], environment: env, timeout: 10).output)
