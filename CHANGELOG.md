@@ -150,7 +150,8 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0023)
   [0006](docs/decisions/0006-night-shift-pushes.md),
   [0023](docs/decisions/0023-night-shift-its-own-pull-requests.md)): while you're away, Claude
   pushes its own `night/…` branches, and opens, edits and comments on its own `night/…` pull
-  requests in this repository, without a card. Never `main`, never a force push, never a change
+  requests in this repository, from a checkout whose only remote is origin, without a card.
+  Never `main`, never a force push, never a change
   to `.github/`, never a `gh api` call, and the switch never approves a merge or a prompt one of
   the checked-in ask rules exists to show. Every commit and pull request text is checked for
   private data first, and each approval is in your journal.
@@ -169,8 +170,9 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0023)
   traceback when private state can't be written.
 
 **Safety and privacy**
-- **Fixed: with Night shift on, a crafted pull request command could carry another command
-  past the permission hook.** The hook read `--title x#; <command>` as a title, while the shell
+- **Fixed before this release: with Night shift on, a crafted pull request command could carry
+  another command past the permission hook.** It was on `main` for a few days, in no release.
+  The hook read `--title x#; <command>` as a title, while the shell
   ran the command after it. Now anything outside quotes that the shell reads differently (`#`,
   braces, globs, `~`, `=`, `!`) makes the hook answer nothing, and so does a body file it can't
   be sure gh would read the same way.
@@ -226,7 +228,8 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0023)
   don't conflict over this file.
 - `docs/releasing.md` publishes in a safe order: check the zip, the owner's yes to the name it
   carries, a draft release pinned to the build's commit, a first launch from that draft's zip in
-  a second macOS account, immutable releases, then publish. The app is for Apple silicon.
+  a second macOS account, immutable releases, then publish, never as a pre-release. Nothing
+  merges into main between building and publishing. The app is for Apple silicon.
 - Thanks to our first contributors, [trleo](https://github.com/trleo) and
   [bfs2021](https://github.com/bfs2021).
 
