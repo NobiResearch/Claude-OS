@@ -1,0 +1,1 @@
+- Remove Ovenbird…'s last alert says that what you allowed it (Calendar, Location, notifications, controlling Music) stays in System Settings until you turn it off there.
