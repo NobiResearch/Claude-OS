@@ -139,12 +139,34 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
         from unittest import mock
         from cos import core, shell
         asked = mock.Mock(side_effect=AssertionError("asked Music before anyone asked for music"))
-        with mock.patch.object(core, "app_running", return_value=True), mock.patch.object(core, "osascript", asked), \
+        fetch_head = core.ROOT / ".git" / "FETCH_HEAD"
+        before = fetch_head.stat().st_mtime if fetch_head.exists() else None
+        # The banner's catch-up line fetches from GitHub: never from a test.
+        with mock.patch.object(shell, "_catch_up_line", return_value=None), \
+                mock.patch.object(core, "app_running", return_value=True), mock.patch.object(core, "osascript", asked), \
                 mock.patch.object(sys, "stdin", io.StringIO("{}")), redirect_stdout(io.StringIO()) as out:
             self.assertIsNone(shell._music_now())
             shell.statusline()
             shell.boot()
         asked.assert_not_called()
+        self.assertEqual(fetch_head.stat().st_mtime if fetch_head.exists() else None, before, "no git fetch")
+        self.assertNotIn("music:", out.getvalue())
+
+    def test_an_odd_state_means_no_music_line_never_a_broken_banner(self):
+        import io
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core, shell
+        state = core.home("state", "player.json")
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text('["x"]')
+        with mock.patch.object(shell, "_catch_up_line", return_value=None):
+            self.assertIsNone(shell._music_now())
+            with mock.patch.object(music, "asked", side_effect=RuntimeError("odd")):
+                self.assertIsNone(shell._music_now())
+                with redirect_stdout(io.StringIO()) as out:
+                    shell.boot()
+        self.assertIn("Ovenbird", out.getvalue())
         self.assertNotIn("music:", out.getvalue())
 
     def test_ovenbird_s_own_player_shows_without_asking(self):
