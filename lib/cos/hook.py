@@ -890,6 +890,152 @@ def gh_text_decision(command, cwd):
 DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny"}}
 
 
+# ---------------------------------------------------------------- a downloaded copy and GitHub
+#
+# A copy the app downloaded (0015) doesn't use GitHub or push: core.DOWNLOAD_DENY says so in its
+# settings, but those rules match a command's first words, so `env gh …`, a full path or
+# `sh -c 'gh …'` get past them. This is the same policy, read the way a shell reads a command.
+# A tripwire, not the wall: a download's origin has a push address that goes nowhere.
+
+WRAPPERS = {"env", "command", "exec", "nice", "nohup", "time", "timeout", "xargs", "sudo", "caffeinate"}
+KEYWORDS = {"if", "then", "elif", "else", "fi", "do", "done", "while", "until", "!", "{", "}"}
+SHELL_WORD = re.compile(r"(?:\S*/)?(?:ba|z|da|k)?sh")
+GIT_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
+INNER = re.compile(r"\$\(([^()`]*)\)|`([^`]*)`|[<>]\(([^()`]*)\)")
+MENTIONS_PUSH = re.compile(r"(?<![\w-])push(?![\w-])")
+
+
+def _command_word(words):
+    """Where the command in one simple command starts: past VAR=value, shell keywords (if, do,
+    {, !), wrappers like env or nice, and their flags and numbers. -> index, or None (none, or
+    `command -v`, which only looks a name up)."""
+    k = 0
+    while k < len(words):
+        w = words[k]
+        if re.match(r"[A-Za-z_][A-Za-z0-9_]*=", w) or w.startswith("-") or w.isdigit() or w in KEYWORDS:
+            k += 1
+        elif w in WRAPPERS or w.endswith(tuple("/" + x for x in WRAPPERS)):
+            if w.rsplit("/", 1)[-1] == "command" and k + 1 < len(words) and words[k + 1] in ("-v", "-V"):
+                return None
+            k += 1
+        else:
+            return k
+    return None
+
+
+def _git_pushes(args):
+    """Is git's subcommand, past its global options, push?"""
+    k = 0
+    while k < len(args):
+        a = args[k]
+        if a in GIT_VALUE:
+            k += 2
+        elif a.startswith("-"):
+            k += 1
+        else:
+            return a == "push"
+    return False
+
+
+def _mask(text):
+    """The text, the same length, with what the shell won't expand turned into "_":
+    single-quoted spans (outside double quotes) and backslash-escaped characters. A `…` or
+    $( ) found in it is live; its position is the same in the text."""
+    out, quote, i = list(text), None, 0
+    while i < len(text):
+        c = text[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+            else:
+                out[i] = "_"
+        elif c == "\\":
+            out[i] = "_"
+            if i + 1 < len(text):
+                out[i + 1] = "_"
+            i += 1
+        elif c == "'" and quote is None:
+            quote = "'"
+        elif c == '"':
+            quote = None if quote == '"' else '"'
+        i += 1
+    return "".join(out)
+
+
+def runs_github(text, depth=0):
+    """Does this shell text run gh or gh-axi, or git … push, as a command? True, False, or None
+    when it can't be read for sure."""
+    if depth > 3:
+        return None
+    text = str(text or "").replace("\\\n", "").replace("\n", " ; ")
+    # Live substitutions only: in single quotes, `…` and $( ) are text, unless sh -c or eval
+    # runs that text, which the branches below read whole.
+    masked = _mask(text)
+    live = list(INNER.finditer(masked))
+    for m in live:
+        g = next(n for n in (1, 2, 3) if m.group(n) is not None)
+        inner = text[m.start(g):m.end(g)]
+        if inner.strip() and runs_github(inner, depth + 1) is not False:
+            return True
+    if SUBSTITUTES.search(INNER.sub(lambda m: " " * len(m.group(0)), masked)):
+        return None  # a substitution this doesn't take apart (nested)
+    chars = list(text)
+    for m in live:
+        chars[m.start():m.end()] = " " * (m.end() - m.start())
+    text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), "".join(chars))
+    try:
+        words = _tokens(text, True)
+    except ValueError:
+        return None
+    segment = []
+    for w in words + [";"]:
+        if w not in OPERATORS:
+            segment.append(w)
+            continue
+        k = _command_word(segment)
+        if k is not None:
+            cmd, args = segment[k], segment[k + 1:]
+            if _is_gh(cmd):
+                return True
+            if (cmd == "git" or cmd.endswith("/git")) and _git_pushes(args):
+                return True
+            if cmd in ("eval", "source", "."):
+                if runs_github(" ".join(args), depth + 1) is not False:
+                    return True
+            if SHELL_WORD.fullmatch(cmd):
+                c = next((n for n, a in enumerate(args) if a.startswith("-") and not a.startswith("--")
+                          and "c" in a[1:]), None)
+                if c is not None and c + 1 < len(args) and runs_github(args[c + 1], depth + 1) is not False:
+                    return True
+        segment = []
+    return False
+
+
+def download_decision(command):
+    """-> why to deny, or None. A tripwire for the usual spellings, not the wall (that's the
+    push address that goes nowhere). Only ever in a downloaded copy, and only for a command
+    that runs gh or pushes; a mere mention (`brew upgrade gh`, a friction note) is fine. The
+    text is checked before core.downloaded(), so a command that names neither costs nothing;
+    without its quotes and backslashes, so g''h still reaches the real check."""
+    text = str(command or "")
+    flat = re.sub(r"[\"'\\]", "", text)
+    if not (MENTIONS_GH.search(flat) or MENTIONS_PUSH.search(flat)):
+        return None
+    if not core.downloaded():
+        return None
+    try:
+        runs = runs_github(text)
+    except Exception:
+        runs = None
+    if runs is False:
+        return None
+    if runs is None:
+        return ("Ovenbird can't read this command for sure, and in a downloaded copy it doesn't run gh or "
+                "git push (0015): write it plainly, one command")
+    return ("a downloaded Ovenbird doesn't use GitHub or push (decision 0015): its code comes with the app. "
+            "To work on Ovenbird itself, clone your own fork")
+
+
 def pretool():
     """The PreToolUse hook: print a deny, an ask, or nothing. A deny is the Guardian over what a
     gh command would publish. An ask is a cos call that changes something. Any other error is
@@ -900,9 +1046,14 @@ def pretool():
             return 0
         command = (request.get("tool_input") or {}).get("command")
         try:
+            in_download = download_decision(command)  # a downloaded copy only; denies on its own errors
+        except Exception:
+            in_download = None
+        try:
             denied = gh_text_decision(command, request.get("cwd") or os.getcwd())
         except Exception:
             denied = None  # only a gh text command is ever denied; gh_text_decision says so itself
+        denied = in_download or denied
         if denied:
             out = json.loads(json.dumps(DENY))
             out["hookSpecificOutput"]["permissionDecisionReason"] = denied
