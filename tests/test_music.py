@@ -172,6 +172,7 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
             with mock.patch.object(music, "asked", return_value=True), \
                     mock.patch.object(core, "app_running", return_value=True):
                 self.assertIsNone(shell._music_now())
+        never.assert_not_called()  # _music_now swallows errors, so check it never got that far
         self.assertIn("Ovenbird", out.getvalue())
         self.assertNotIn("music:", out.getvalue())
 
