@@ -199,8 +199,11 @@ if [ "$RELEASE" = 1 ]; then
     zip_app() {
         rm -f "$ZIP"
         ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
-        if zipinfo -1 "$ZIP" | grep -E '(^|/)(__MACOSX|\._)' >/dev/null; then
-            echo "build.sh: the zip has macOS metadata files in it" >&2
+        local entries
+        entries="$(zipinfo -1 "$ZIP")"  # on its own, so a zipinfo failure stops the build
+        if grep -E '(^|/)(__MACOSX|\._)' <<<"$entries" >/dev/null; then
+            rm -f "$ZIP"
+            echo "build.sh: the zip had macOS metadata files in it" >&2
             exit 1
         fi
     }
