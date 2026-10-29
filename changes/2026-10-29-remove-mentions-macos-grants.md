@@ -1,1 +1,1 @@
-- Remove Ovenbird…'s last alert says that what you allowed it (Calendar, Location, notifications, controlling Music) stays in System Settings until you turn it off there.
+- Remove Ovenbird…'s last alert says that what you allowed it (Calendar and Reminders, Location, Apple Music, controlling Music, notifications) stays allowed until you turn it off in System Settings, best before the app is gone.

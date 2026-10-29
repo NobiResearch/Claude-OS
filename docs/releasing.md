@@ -133,8 +133,9 @@ and open it: Ovenbird comes along.
 
 **Remove:** Ovenbird menu › Remove Ovenbird… turns off its background jobs, removes its links
 and moves its code to the Trash; your journal and memory go only if you say so. Then drag the app
-to the Trash. What you allowed it (Calendar, Location, notifications, Music) stays in System
-Settings › Privacy & Security and Notifications until you turn it off there.
+to the Trash. What you allowed it, like Calendar and Reminders, Location, Apple Music and
+notifications, stays allowed until you turn it off in System Settings › Privacy & Security, and
+System Settings › Notifications; best before you drag the app away.
 
 **What's new:** <from CHANGELOG.md>
 
