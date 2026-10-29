@@ -119,9 +119,9 @@ $ cos
 for a Mac with Apple silicon and macOS 14 or later: under **Assets**, the file named
 `Ovenbird-<version>.zip`, not "Source code". Unzip it (Safari may do that for you), move
 Ovenbird.app to Applications and open it. The first launch shows the three things your Mac
-still needs: Apple's command line tools, Claude Code with a Claude plan, and Ovenbird's own code,
-downloaded from this repository into your Library. Nothing is installed until you click. It's
-early, so far tried on only a few Macs; if something breaks,
+still needs: Apple's command line tools, Claude Code signed in with a Claude plan, and Ovenbird's
+own code, downloaded from this repository into your Library. Nothing is installed until you click.
+It's early, so far tried on only one Mac; if something breaks on yours,
 [tell us](https://github.com/NobiResearch/Ovenbird/issues/141).
 
 **From source**, for developers, and the only way on an Intel Mac (where nobody has tried it
