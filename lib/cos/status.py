@@ -253,8 +253,9 @@ def record_trend(s, today=None):
         lines = _trend_lines(_read_trends(path, "surrogateescape"))
     except FileNotFoundError:
         lines = []
-    except OSError:
-        return False  # unreadable isn't empty: writing now would replace the whole history
+    except OSError as e:  # unreadable isn't empty: writing now would replace the whole history
+        core.journal("daemon", "couldn't read %s, so today's trend wasn't recorded: %s" % (TRENDS_FILE, e), ok=False)
+        return False
     last = next((row for row in map(_trend_row, reversed(lines)) if row), None)
     if last and last["date"] == today:
         return False
@@ -265,18 +266,22 @@ def record_trend(s, today=None):
            "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
            "reclaimable": scan["data"].get("safe_bytes") if scan else None}
     lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
-    # Into a file beside it, then renamed over it: a crash or a full disk mid-write can't cut
-    # the history short.
+    # Into a file beside it, on disk, then renamed over it: a crash, a power cut or a full disk
+    # mid-write can't cut the history short. The temp file is private and never a link followed.
     tmp = path.with_name(path.name + ".tmp")
     try:
-        with open(tmp, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
+        fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
             f.write("\n".join(lines) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, path)
-    except OSError:
+    except OSError as e:
         try:
             tmp.unlink()
         except OSError:
             pass
+        core.journal("daemon", "couldn't write %s, so today's trend wasn't recorded: %s" % (TRENDS_FILE, e), ok=False)
         return False
     return True
 
