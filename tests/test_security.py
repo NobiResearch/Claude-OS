@@ -92,6 +92,19 @@ class TestSecurity(TempHome):
             self.assertEqual(ctx.exception.code, 3)
             self.assertEqual(mac.calls, [])
 
+    def test_disabled_inside_a_sandbox_means_unknown(self):
+        # Friction #25: a sandbox keeps socketfilterfw from its service, and it says "disabled".
+        for in_sandbox, expected in ((False, False), (True, None)):
+            with mock.patch.object(security.core, "run", FakeMac(firewall=False)), \
+                    mock.patch.object(security, "sandboxed", return_value=in_sandbox):
+                self.assertIs(security.posture()["firewall"], expected, in_sandbox)
+            with mock.patch.object(security.core, "run", FakeMac(firewall=True)), \
+                    mock.patch.object(security, "sandboxed", return_value=in_sandbox):
+                self.assertIs(security.posture()["firewall"], True, "on is on, sandbox or not")
+        self.assertIsInstance(security.sandboxed(), bool)
+        with mock.patch.dict(os.environ, {"COS_SANDBOXED": "1"}):
+            self.assertTrue(security.sandboxed())
+
     def test_the_read_view_says_how(self):
         state = {"filevault": True, "sip": True, "firewall": False, "gatekeeper": None}
         with redirect_stdout(io.StringIO()) as out:
@@ -104,8 +117,18 @@ class TestSecurity(TempHome):
     def test_root_code_is_protected_and_imports_only_core(self):
         self.assertTrue(hook.protected("lib/cos/security.py"))
         with open(security.__file__) as f:
-            imports = [l.strip() for l in f if l.startswith(("import ", "from "))]
+            lines = f.readlines()
+        imports = [l.strip() for l in lines if l.startswith(("import ", "from "))]
         self.assertEqual(sorted(imports), ["from . import core", "import os", "import re"])
+        nested = [l.strip() for l in lines if l.strip().startswith(("import ", "from ")) and l[0] == " "]
+        self.assertEqual(nested, ["import ctypes"], "the only import inside a function: asking about the sandbox")
+
+    def test_sandbox_check_failing_means_not_sandboxed(self):
+        # Failing toward "not sandboxed" keeps the old reading: "disabled" stays "off".
+        import ctypes
+        with mock.patch.dict(os.environ, {"COS_SANDBOXED": ""}), \
+                mock.patch.object(ctypes, "CDLL", side_effect=OSError("no libSystem")):
+            self.assertIs(security.sandboxed(), False)
 
 
 class TestMutationRegistry(unittest.TestCase):
