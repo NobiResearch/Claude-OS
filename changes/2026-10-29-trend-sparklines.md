@@ -1,0 +1,1 @@
+- Vitals now shows 30-day sparklines for disk free and battery health, once 14 days have been collected; before that it says how many days are in.
