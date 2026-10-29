@@ -175,7 +175,8 @@ if [ "$RELEASE" = 1 ]; then
     fi
     echo "==> checking the provisioning profile"
     /usr/bin/env python3 app/release.py profile "$COS_RELEASE_PROFILE" "$BUNDLE_ID" build/release-entitlements.plist
-    cp "$COS_RELEASE_PROFILE" "$APP/Contents/embedded.provisionprofile"
+    # -X: a downloaded profile carries the address it came from in its extended attributes.
+    cp -X "$COS_RELEASE_PROFILE" "$APP/Contents/embedded.provisionprofile"
 
     echo "==> signing with Developer ID ${SIGN_ID:0:8}…, the hardened runtime and a secure timestamp"
     codesign --force --options runtime --timestamp --entitlements build/release-entitlements.plist \
@@ -193,8 +194,17 @@ if [ "$RELEASE" = 1 ]; then
     fi
 
     ZIP="build/Ovenbird-$VERSION.zip"
-    rm -f "$ZIP"
-    ditto -c -k --keepParent "$APP" "$ZIP"
+    # No extended attributes: macOS tags every file the build makes, and ditto would store the
+    # tags as ._ files, which unzip leaves inside the app, where they break its signature.
+    zip_app() {
+        rm -f "$ZIP"
+        ditto -c -k --norsrc --noextattr --keepParent "$APP" "$ZIP"
+        if zipinfo -1 "$ZIP" | grep -E '(^|/)(__MACOSX|\._)' >/dev/null; then
+            echo "build.sh: the zip has macOS metadata files in it" >&2
+            exit 1
+        fi
+    }
+    zip_app
     if [ "$NOTARIZE" = 1 ]; then
         if [ -z "${COS_NOTARY_PROFILE:-}" ]; then
             echo "build.sh: set COS_NOTARY_PROFILE to your notarytool Keychain profile (or add --no-notarize for a local check)" >&2
@@ -203,8 +213,7 @@ if [ "$RELEASE" = 1 ]; then
         echo "==> notarizing (Apple checks it; a few minutes)"
         xcrun notarytool submit "$ZIP" --keychain-profile "$COS_NOTARY_PROFILE" --wait
         xcrun stapler staple "$APP"
-        rm -f "$ZIP"
-        ditto -c -k --keepParent "$APP" "$ZIP"
+        zip_app
         spctl -a -vv "$APP" 2>&1 | grep -E '^(build|source)' | sed -E 's/(Developer ID Application: ).*/\1<the certificate holder>/' || true
         echo "==> built $ZIP: Developer ID, notarized and stapled (commit ${COMMIT:0:7})"
     else

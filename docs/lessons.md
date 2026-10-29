@@ -109,6 +109,11 @@ add to it when you learn something new. Each lesson: what happened, the rule.
   *Rule:* after creating an App ID, wait a few minutes and test in a fresh launch; the log line
   `[com.apple.amp.iTunesCloud]` names the reason (`log show --predicate 'eventMessage CONTAINS
   "client identifier"'`).
+- **`ditto -c -k` puts extended attributes in the zip as `._` files.** macOS tags every file a
+  build makes (`com.apple.provenance`, which `xattr -c` can't remove), and a downloaded
+  provisioning profile carries the page it came from (`kMDItemWhereFroms`). Finder folds the
+  `._` files back in; `unzip` leaves them inside the app, which breaks its signature. *Rule:*
+  zip a release with `--norsrc --noextattr`, and copy files into it with `cp -X`.
 - **Two Ovenbird apps on one Mac step on each other.** Both register `claude-os://`, and macOS
   sends those links to the one it prefers (the installed one), not the one you're testing; both
   write the per-launch `state/app.nonce`, so a command built for one is refused by the other;
