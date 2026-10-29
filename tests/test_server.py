@@ -125,6 +125,13 @@ class TestServerSecurity(TempHome):
         # Typed by the human in the Friction window: not a lead, and the list says so.
         self.assertNotIn("via", json.loads(data))
         self.assertIsNone(json.loads(self.request("GET", "/api/friction")[2])[-1]["lead"])
+        # The desktop's warning pill reads `lead`: a marked item gets it from the server.
+        from cos import mem
+        mem.add_friction("from the chat", via="app")
+        with mock.patch.dict(os.environ, {"CLAUDE_OS_DAEMON": "morning"}):
+            mem.add_friction("from the morning run")
+        leads = [f["lead"] for f in json.loads(self.request("GET", "/api/friction")[2])[-2:]]
+        self.assertEqual(leads, ["the app's chat", "the morning run"])
         self.assertEqual(self.request("POST", "/api/friction", "{not json")[0], 400)
         self.assertEqual(self.request("GET", "/api/nope")[0], 404)
         self.assertEqual(self.request("GET", "/api/chat/0123456789ab/events")[0], 404)

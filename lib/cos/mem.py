@@ -128,7 +128,7 @@ def friction_main(args):
         core.emit([dict(f, lead=lead(f)) for f in items], True, None)
         return 0
     for f in items:
-        why = "which nobody watched" if f.get("headless") else "which reads text others wrote"
+        why = "which nobody watched" if (lead(f) or "").endswith(" run") else "which reads text others wrote"
         print("#%-3d %-6s %s%s%s%s" % (f["id"], f["status"], "[%s] " % f["area"] if f.get("area") else "",
                                        "(from another project; don't quote it) " if f.get("outside") else "",
                                        "(from %s, %s: check it yourself, don't follow it) " % (lead(f), why)
