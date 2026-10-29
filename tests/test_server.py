@@ -449,6 +449,7 @@ class TestDemoMode(TempHome):
             self.assertIn("battery_health", r)
         self.assertTrue(all(rows[i]["disk_free"] > rows[i + 1]["disk_free"]
                             for i in range(len(rows) - 1)), "disk free falls over the month")
+        self.assertEqual(rows[-1]["disk_free"], demo.STATUS["disk"]["free"])
         self.assertEqual(rows[-1]["battery_health"], demo.STATUS["battery"]["health_pct"])
         self.assertEqual(rows[-1]["battery_cycles"], demo.STATUS["battery"]["cycles"])
 
