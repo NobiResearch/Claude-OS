@@ -1,0 +1,1 @@
+- The boot banner and the status line no longer ask Music.app what's playing until a `cos music` command that Music answered. Before that they show only Ovenbird's own player, so a chat starting isn't what makes macOS ask whether Ovenbird may control Music. The desktop's own now-playing still asks Music while it's open; that's a follow-up.
