@@ -31,7 +31,8 @@ on the zip (or on the app, if Safari unzipped it) should print a value: a copy m
 `gh` or a shared folder isn't quarantined and proves nothing. Then go through the first launch
 from nothing. The command line tools, Claude Code and the download, then Calendar,
 Location, notifications, Music automation and the Apple Music player all prompt and work, and
-Remove Ovenbird… leaves nothing behind but the app.
+Remove Ovenbird… leaves nothing behind but the app and the permissions macOS keeps in System
+Settings (its last alert says so).
 
 Check one thing no one has tested yet: whether the code the downloaded app clones comes out
 quarantined (`xattr -l` on `bin/cos`), and whether `cos` still runs from Terminal and from
@@ -132,7 +133,9 @@ and open it: Ovenbird comes along.
 
 **Remove:** Ovenbird menu › Remove Ovenbird… turns off its background jobs, removes its links
 and moves its code to the Trash; your journal and memory go only if you say so. Then drag the app
-to the Trash.
+to the Trash. What you allowed it, like Calendar and Reminders, Location, Apple Music and
+notifications, stays allowed until you turn it off in System Settings › Privacy & Security, and
+System Settings › Notifications; best before you drag the app away.
 
 **What's new:** <from CHANGELOG.md>
 

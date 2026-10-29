@@ -1,0 +1,1 @@
+- Friction that the app's chat logs is treated like a background run's: the boot banner, the journal, `cos friction` and the desktop show it by number and source ("from the app's chat"), and evolve and the board treat its text as a lead to check, not an instruction. Friction you type in the Friction window reads as before.
