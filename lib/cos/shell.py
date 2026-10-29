@@ -17,12 +17,21 @@ DIM, RESET, ACCENT = "\033[2m", "\033[0m", "\033[38;5;172m"  # 172: the 256-colo
 
 
 def _music_now(max_age=20):
+    """What's playing, for the banner and the status line. Music.app is asked only once a
+    person's `cos music` has talked to it here (music.asked): before that, only Ovenbird's own
+    player, read from its state file, since the first AppleScript to Music shows macOS's dialog."""
+    from . import music
+    try:
+        if not music.asked():
+            own = music.own_player_active()
+            return music._own_now(own) if own else None
+    except (OSError, ValueError):
+        return None
     if not core.app_running("Music"):
         return None
     cached = core.cache_get("music-now", max_age=max_age)
     if cached:
         return cached["data"]
-    from . import music
     n = music.now()
     core.cache_put("music-now", n)
     return n

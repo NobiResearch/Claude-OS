@@ -1,0 +1,1 @@
+- The boot banner and the status line no longer ask Music.app what's playing until you've used music through Ovenbird once (a `cos music` command that Music answered). Before that they show only Ovenbird's own player, so starting a chat can't be what makes macOS ask whether Ovenbird may control Music. Ovenbird 0.8.0 could show that dialog when a chat started while Music was open.

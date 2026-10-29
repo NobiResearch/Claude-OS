@@ -114,3 +114,78 @@ class TestStationSeed(helpers.TempHome):
         self.assertFalse(res["ok"])
         self.assertIn("nothing to start your radio from", res["error"])
         player.assert_not_called()
+
+
+class TestMusicOnlyAfterYouAsk(helpers.TempHome):
+    """Fable's F3 (29 October): the first AppleScript to Music makes macOS ask whether Ovenbird
+    may control it. A session starting (the boot banner) or the status line must never be what
+    asks; a person's `cos music` is."""
+
+    NOW = music.US.join(["playing", "Weightless", "Marconi Union", "Weightless", "480", "12", "40", "false", "off"])
+
+    def setUp(self):
+        super().setUp()
+        music._talked = False
+        self.addCleanup(setattr, music, "_talked", False)
+
+    def args(self, cmd="now"):
+        import types
+        return types.SimpleNamespace(music_cmd=cmd, json=True)
+
+    def test_the_banner_and_the_status_line_never_ask_first(self):
+        import io
+        import sys
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core, shell
+        asked = mock.Mock(side_effect=AssertionError("asked Music before anyone asked for music"))
+        with mock.patch.object(core, "app_running", return_value=True), mock.patch.object(core, "osascript", asked), \
+                mock.patch.object(sys, "stdin", io.StringIO("{}")), redirect_stdout(io.StringIO()) as out:
+            self.assertIsNone(shell._music_now())
+            shell.statusline()
+            shell.boot()
+        asked.assert_not_called()
+        self.assertNotIn("music:", out.getvalue())
+
+    def test_ovenbird_s_own_player_shows_without_asking(self):
+        import json
+        import time
+        from unittest import mock
+        from cos import core, shell
+        state = core.home("state", "player.json")
+        state.parent.mkdir(parents=True, exist_ok=True)
+        state.write_text(json.dumps({"status": "playing", "track": "Dayvan Cowboy", "artist": "Boards of Canada",
+                                     "ts": time.time()}))
+        asked = mock.Mock(side_effect=AssertionError("asked Music"))
+        with mock.patch.object(core, "osascript", asked):
+            n = shell._music_now()
+        self.assertEqual((n["track"], n["player"]), ("Dayvan Cowboy", "Ovenbird"))
+
+    def test_a_person_s_cos_music_that_music_answers_unlocks_it(self):
+        import io
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core, shell
+        answered = core.Result(0, self.NOW, "")
+        with mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", return_value=answered) as osa, redirect_stdout(io.StringIO()):
+            self.assertEqual(music.main(self.args()), 0)
+            self.assertTrue(music.asked())
+            osa.reset_mock()
+            self.assertEqual(shell._music_now()["track"], "Weightless")
+        osa.assert_called()
+
+    def test_not_from_a_background_run_or_when_music_didn_t_answer(self):
+        import io
+        import os
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core
+        with mock.patch.object(core, "app_running", return_value=True), redirect_stdout(io.StringIO()):
+            with mock.patch.object(core, "osascript", return_value=core.Result(1, "", "not allowed")):
+                music.main(self.args())
+            self.assertFalse(music.asked(), "Music didn't answer")
+            with mock.patch.object(core, "osascript", return_value=core.Result(0, self.NOW, "")), \
+                    mock.patch.dict(os.environ, {"CLAUDE_OS_DAEMON": "pulse"}):
+                music.main(self.args())
+            self.assertFalse(music.asked(), "a background run")
