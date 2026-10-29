@@ -122,6 +122,9 @@ class TestServerSecurity(TempHome):
         status, _, data = self.request("POST", "/api/friction", {"text": "test friction"})
         self.assertEqual(status, 200)
         self.assertEqual(json.loads(data)["text"], "test friction")
+        # Typed by the human in the Friction window: not a lead, and the list says so.
+        self.assertNotIn("via", json.loads(data))
+        self.assertIsNone(json.loads(self.request("GET", "/api/friction")[2])[-1]["lead"])
         self.assertEqual(self.request("POST", "/api/friction", "{not json")[0], 400)
         self.assertEqual(self.request("GET", "/api/nope")[0], 404)
         self.assertEqual(self.request("GET", "/api/chat/0123456789ab/events")[0], 404)
