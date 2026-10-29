@@ -268,6 +268,17 @@
     },
   });
 
+  // One 30-day trend line, as an inline SVG: stretched to the card width,
+  // flat when every value is the same. No code is loaded from anywhere else.
+  function sparkline(values) {
+    const w = 280, hgt = 48, pad = 2;
+    const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1;
+    const pts = values.map((v, i) => (pad + i * (w - 2 * pad) / (values.length - 1)).toFixed(1) + "," +
+      (hgt - pad - (v - min) / span * (hgt - 2 * pad)).toFixed(1)).join(" ");
+    return '<svg width="100%" height="48" viewBox="0 0 280 48" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polyline fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" points="' + pts + '"/></svg>';
+  }
+
   // ------------------------------------------------------------ Vitals
   COS.register({
     id: "vitals", title: "Vitals", icon: "vitals", color: "linear-gradient(140deg,#e9727f,#a63a52)", size: [620, 600],
@@ -312,6 +323,47 @@
           paint(s);
         } catch (e) { clear(root).appendChild(h("div", { class: "error-box" }, e.message)); }
       }
+      // Trends: the data changes once a day, so it is fetched
+      // once when the window opens and the drawing is kept across the
+      // 15-second redraws, instead of flashing "Loading trends…" each time.
+      const trends = { rows: null, error: false, busy: false, el: null };
+      function renderTrends(rows) {
+        if (rows.length < 14) return h("div", { class: "muted" }, "collecting (" + rows.length + " of 14 days)");
+        const out = h("div", null);
+        const diskVals = rows.filter((r) => r.disk_free != null).map((r) => r.disk_free);
+        if (diskVals.length >= 14) out.appendChild(h("div", null,
+          h("div", { class: "muted small" }, "Disk free · " + fmt.bytes(diskVals[0]) + " → " + fmt.bytes(diskVals[diskVals.length - 1])),
+          h("div", { html: sparkline(diskVals) })));
+        const healthVals = rows.filter((r) => r.battery_health != null).map((r) => r.battery_health);
+        if (healthVals.length >= 14) out.appendChild(h("div", null,
+          h("div", { class: "muted small" }, "Battery health · " + healthVals[0] + "% → " + healthVals[healthVals.length - 1] + "%"),
+          h("div", { html: sparkline(healthVals) })));
+        if (!out.firstChild) return h("div", { class: "muted" },
+          "collecting (" + Math.max(diskVals.length, healthVals.length) + " of 14 days)");
+        return out;
+      }
+      function trendsCard() {
+        let body;
+        if (trends.rows) body = renderTrends(trends.rows);
+        else if (trends.error) body = h("div", { class: "muted" }, "Couldn't read trends.");
+        else {
+          body = h("div", { class: "muted" }, "Loading trends…");
+          if (!trends.busy) {
+            trends.busy = true;
+            api("/api/trends").then((tr) => {
+              trends.rows = ((tr || {}).rows || []).slice(-30);
+              trends.busy = false;
+              if (trends.el && trends.el.parentNode) { const fresh = trendsCard(); trends.el.replaceWith(fresh); trends.el = fresh; }
+            }).catch(() => {
+              trends.error = true; trends.busy = false;
+              if (trends.el && trends.el.parentNode) { const fresh = trendsCard(); trends.el.replaceWith(fresh); trends.el = fresh; }
+            });
+          }
+        }
+        const el = card("Trends", body);
+        trends.el = el;
+        return el;
+      }
       function paint(s) {
         clear(root);
         const d = s.disk, m = s.memory, b = s.battery, sy = s.system, sec = s.security || {};
@@ -340,6 +392,7 @@
         ));
         root.appendChild(netCard());
         root.appendChild(card("Signals", ...signals));
+        root.appendChild(trendsCard());
         const startupBody = h("div", { class: "muted" }, "Checking what starts with this Mac…");
         root.appendChild(card("Starts with your Mac", startupBody));
         api("/api/startup").then((st) => {

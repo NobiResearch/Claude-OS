@@ -461,6 +461,21 @@ class TestDemoMode(TempHome):
         self.assertIn("**Updates:** %d waiting" % n, demo.BRIEF["text"])
         self.assertTrue(any("%d updates available" % n in line for line in demo.BOOT))
 
+    def test_demo_trends_have_about_thirty_rows(self):
+        """The Vitals sparklines need 30 daily rows to draw from."""
+        from cos import demo
+        rows = demo.GETS["/api/trends"]["rows"]
+        self.assertEqual(len(rows), 30)
+        self.assertEqual([r["date"] for r in rows], sorted(r["date"] for r in rows))
+        for r in rows:
+            self.assertIn("disk_free", r)
+            self.assertIn("battery_health", r)
+        self.assertTrue(all(rows[i]["disk_free"] > rows[i + 1]["disk_free"]
+                            for i in range(len(rows) - 1)), "disk free falls over the month")
+        self.assertEqual(rows[-1]["disk_free"], demo.STATUS["disk"]["free"])
+        self.assertEqual(rows[-1]["battery_health"], demo.STATUS["battery"]["health_pct"])
+        self.assertEqual(rows[-1]["battery_cycles"], demo.STATUS["battery"]["cycles"])
+
     def test_demo_never_reads_or_changes_the_real_machine(self):
         from cos import demo
         app = server.App("t", demo=True)

@@ -5,6 +5,7 @@ Music, the network or ~/.claude-os. Writes do nothing. Chat is a scripted stub t
 shows a tool call and an Allow/Deny card. All names here are invented.
 """
 
+import datetime
 import threading
 import time
 
@@ -165,6 +166,16 @@ SETTINGS = {"calendar": "connected", "notify": {"native": True, "authorization":
             "music": {"apple_music": True, "authorization": "authorized", "error": None, "shortcut": False},
             "weather": {"name": "Lisbon, Portugal", "source": "city"}}
 
+# About 30 made-up daily rows, ending at the demo Mac's current values: the
+# last row is exactly 412 GB free, battery health 96%, 212 cycles, like STATUS.
+_TRENDS_TODAY = datetime.date.today()
+TRENDS = [{"date": (_TRENDS_TODAY - datetime.timedelta(days=29 - i)).isoformat(),
+           "disk_free": round((430 - i * 18 / 29) * GB),
+           "battery_health": 98 - i // 10,
+           "battery_cycles": 183 + i,
+           "updates": 8,
+           "reclaimable": int(41.2 * GB)} for i in range(30)]
+
 GETS = {
     "/api/boot": {"version": "demo", "lines": BOOT},
     "/api/status": STATUS,
@@ -186,7 +197,8 @@ GETS = {
                          "diff": "@@ -38 +38 @@\n-Mark what you showed as read.\n+Prefer the article URL over the comments page.\n"},
     "/api/daemons": DAEMONS,
     "/api/brief": BRIEF,
-    "/api/trends": {"rows": [], "disk_per_week": None},
+    "/api/trends": {"rows": TRENDS,
+                    "disk_per_week": (TRENDS[-1]["disk_free"] - TRENDS[0]["disk_free"]) / 29 * 7},
     "/api/chats": [],
     "/api/weather": WEATHER,
     "/api/settings": SETTINGS,
