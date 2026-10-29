@@ -201,13 +201,20 @@ class TestTrends(TempHome):
         from cos import status
         path = core.home(status.TRENDS_FILE)
         path.parent.mkdir(parents=True, exist_ok=True)
-        good = ['{"date": "2026-10-01", "disk_free": 5}', '{"date": "2026-10-02", "disk_free": 4}']
-        path.write_text("\n".join([good[0], "null", "{not json", "[1, 2]", "", good[1], "7"]) + "\n")
-        self.assertEqual([r["date"] for r in status.trends()], ["2026-10-01", "2026-10-02"])
-        # A damaged last line doesn't stop the next day's record, or count as today's.
+        good = [b'{"date": "2026-10-01", "disk_free": 5}', b'{"date": "2026-10-02", "disk_free": 4}']
+        damaged = [b"null", b"{not json", b"[1, 2]", b"", b"7", b"\xff\xfe junk",
+                   b'{"date": "soon", "disk_free": 1}', b'{"disk_free": 1}', b'{"date": "2026-10-02", "disk_free": "x"}']
+        path.write_bytes(b"\n".join([good[0]] + damaged + [good[1], b"\xff"]) + b"\n")
+        rows = status.trends()
+        self.assertEqual([r["date"] for r in rows], ["2026-10-01", "2026-10-02"])
+        self.assertEqual(status.disk_trend(rows, min_days=2), -7)
+        # The damaged tail neither stops the next day's record nor lets in a second one for today.
         snap = {"disk": {"free": 3}, "battery": {}}
+        self.assertFalse(status.record_trend(snap, today="2026-10-02"))
         self.assertTrue(status.record_trend(snap, today="2026-10-03"))
         self.assertEqual(status.trends()[-1]["date"], "2026-10-03")
+        # Rewriting the file keeps every other line's bytes exactly as they were.
+        self.assertTrue(path.read_bytes().startswith(b"\n".join([good[0]] + damaged + [good[1], b"\xff"]) + b"\n"))
 
 
 if __name__ == "__main__":

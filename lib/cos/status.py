@@ -247,10 +247,12 @@ def record_trend(s, today=None):
     today = today or dt.date.today().isoformat()
     path = core.home(TRENDS_FILE)
     try:
-        lines = path.read_text().splitlines()
+        # surrogateescape: bytes that aren't UTF-8 go back into the file exactly as they were.
+        lines = path.read_text(errors="surrogateescape").splitlines()
     except OSError:
         lines = []
-    if lines and (_trend_row(lines[-1]) or {}).get("date") == today:
+    last = next((row for row in map(_trend_row, reversed(lines)) if row), None)
+    if last and last["date"] == today:
         return False
     b = s.get("battery") or {}
     upd = core.cache_get("updates")
@@ -259,25 +261,32 @@ def record_trend(s, today=None):
            "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
            "reclaimable": scan["data"].get("safe_bytes") if scan else None}
     lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
-    path.write_text("\n".join(lines) + "\n")
+    path.write_text("\n".join(lines) + "\n", errors="surrogateescape")
     return True
 
 
 def _trend_row(line):
-    """One line of trends.jsonl as a row, or None if it's damaged (not JSON, or not an object)."""
+    """One line of trends.jsonl as a row, or None if it's damaged: not a JSON object, or without
+    the ISO date and the numbers (or nulls) that disk_trend() and Vitals' Trends card read."""
+    import datetime as dt
     import json
     try:
         row = json.loads(line)
-    except ValueError:
+        dt.date.fromisoformat(row["date"])
+    except (ValueError, TypeError, KeyError):
         return None
-    return row if isinstance(row, dict) else None
+    for key in ("disk_free", "battery_health"):
+        v = row.get(key)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))):
+            return None
+    return row
 
 
 def trends():
     """The daily rows, oldest first. A damaged line is skipped rather than costing the rest,
     so it can't break Vitals' Trends card, disk_trend() or the next day's record."""
     try:
-        lines = core.home(TRENDS_FILE).read_text().splitlines()
+        lines = core.home(TRENDS_FILE).read_text(errors="replace").splitlines()
     except OSError:
         return []
     return [row for row in map(_trend_row, lines) if row is not None]
