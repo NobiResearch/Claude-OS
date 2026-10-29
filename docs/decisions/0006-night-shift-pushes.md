@@ -121,7 +121,8 @@ changes", and the hook running from something other than a clean main.
      - the Guardian passes its commits and its title.
 
      It makes one `gh pr view` call, with a 15-second limit, and fails closed.
-   - Read-only `gh api <path>` calls are let through.
+   - Read-only `gh api <path>` calls are let through. (No longer: decision 0023 approves no
+     `gh api` call.)
    - `cos hook check <PR>` gives the same answer and prints the command to merge with, so
      the night shift merges only what it checked and leaves the rest open.
 3. **What counts as protected** at merge:
