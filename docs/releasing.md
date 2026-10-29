@@ -81,7 +81,8 @@ runs.
    `xcrun stapler validate` and `lipo -archs` (on `Contents/MacOS/ClaudeOS`) on the app,
    `zipinfo` for `__MACOSX` or extended-attribute entries, and `shasum -a 256` on the zip.
 2. **The name on it** (0015, step 2): `codesign -dv --verbose=2` shows the "Authority=Developer
-   ID Application: …" line every copy will carry. The owner reads it and says yes.
+   ID Application: …" line every copy will carry. The owner reads it and says yes. The embedded
+   provisioning profile names the same developer account, as its team.
 3. **A draft, pinned to the build's commit:** `gh release create v<version>
    build/Ovenbird-<version>.zip --draft --target <commit> --title "Ovenbird <version>"
    --notes-file <notes>`, with the full 40-character commit the app was built from:

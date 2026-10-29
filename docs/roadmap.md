@@ -6,12 +6,11 @@ what, where, and how we'll know it works.
 
 ## Next
 
-1. **Trend sparklines** in Vitals, once `trends.jsonl` holds 14+ days.
-2. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
+1. **`cos shortcuts`** (0004 conditions: `list` free; `run` only as a mutation): when there
    are shortcuts worth running.
-3. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
+2. **"Leave in time"** and **a brief timed to the first event**: when the calendar has
    events (0004, 0005). Calendar.app's own "Time to Leave" may already be enough.
-4. **A light and dark app icon** (0022): docs/brand has both variants as Icon Composer layers,
+3. **A light and dark app icon** (0022): docs/brand has both variants as Icon Composer layers,
    but following macOS's appearance needs an `.icon` compiled by Xcode's `actool`, which the
    build doesn't use yet (it needs only the Command Line Tools). Take a second look at the light
    icon's likeness to Reminders first.
@@ -76,7 +75,7 @@ what, where, and how we'll know it works.
 - v0.8: Claude OS became Ovenbird with its own mark (0019, 0022); the night shift's pull
   requests (0006) and the board live on the desktop (0007); `cos security`, `cos net`,
   `cos backup` and `cos power` (0008, 0010, 0012); `/music` `/tidy` `/update` `/startup` in any
-  folder (0009); Keep Ovenbird up to date (0011); a downloadable app, built but not released
-  (0015); the repository is Claude's, and every pull request gets a guardian's review (0013,
+  folder (0009); Keep Ovenbird up to date (0011); the first downloadable app, signed and
+  notarized, released on GitHub (0015); the repository is Claude's, and every pull request gets a guardian's review (0013,
   0020); settings safe for strangers (0017); MIT, contributor docs and the first outside
   contributors (0014, 0016, 0018).
