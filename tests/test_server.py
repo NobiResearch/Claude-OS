@@ -405,6 +405,29 @@ class TestChatEvents(TempHome):
         self.assertEqual(self.s.state, "idle")
         self.assertEqual([e["seq"] for e in self.s.events], [1, 2, 3, 4, 5, 6])
 
+    def test_not_signed_in_says_what_to_do_once(self):
+        # What Claude Code 2.1 sends when this Mac user never signed in (recorded).
+        h = self.s._handle
+        h({"type": "assistant", "error": "authentication_failed", "message": {
+            "model": "<synthetic>", "content": [{"type": "text", "text": "Not logged in · Please run /login"}]}})
+        h({"type": "result", "subtype": "success", "is_error": True, "result": "Not logged in · Please run /login"})
+        self.assertEqual(self.types(), ["result"])
+        self.assertIn("isn't signed in for this Mac user", self.s.events[0]["text"])
+        self.assertIn("claude auth login", self.s.events[0]["text"])
+        # Any other error still reads as Claude Code said it.
+        h({"type": "result", "is_error": True, "result": "API Error: overloaded"})
+        self.assertEqual(self.s.events[1]["text"], "API Error: overloaded")
+
+    def test_other_sign_in_errors_read_as_claude_code_said(self):
+        # Claude Code tags a wrong API key (and a network hiccup) "authentication_failed" too.
+        h = self.s._handle
+        said = "Invalid API key · Fix external API key"
+        h({"type": "assistant", "error": "authentication_failed", "parent_tool_use_id": None,
+           "message": {"model": "<synthetic>", "content": [{"type": "text", "text": said}]}})
+        h({"type": "result", "is_error": True, "result": said})
+        self.assertEqual(self.types(), ["text", "result"])
+        self.assertEqual(self.s.events[1]["text"], said)
+
     def test_permission_round_trip_is_journaled(self):
         self.s._handle({"type": "control_request", "request_id": "r1", "request": {
             "subtype": "can_use_tool", "tool_name": "Bash", "input": {"command": "bin/cos clean apply logs --yes"}}})

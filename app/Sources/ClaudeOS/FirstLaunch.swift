@@ -37,6 +37,42 @@ enum FirstLaunch {
             .first(where: isExecutable)
     }
 
+    /// Whether Claude Code is signed in for this Mac user, from `claude auth status` (a fifth of
+    /// a second; it writes only Claude Code's own files: ~/.claude.json, its lock and a backup).
+    /// nil when it can't tell: an older Claude Code without `auth`, or no answer.
+    static func claudeSignedIn(_ claude: String, home: String) -> Bool? {
+        let env = ["HOME": home, "PATH": AppConfig.releasePath(home: home), "LANG": "en_US.UTF-8"]
+        return signedIn(status: run(claude, ["auth", "status", "--json"], environment: env, timeout: 10).output)
+    }
+
+    static func signedIn(status json: String) -> Bool? {
+        let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any]
+        return object?["loggedIn"] as? Bool
+    }
+
+    /// Claude Code's own sign-in, in Terminal: its /login only works in a terminal, and the
+    /// browser does the rest. A fresh Mac user's shell has no PATH to Claude Code, so it's set.
+    static func signInScript(claude: String, home: String) -> String {
+        "#!/bin/sh\n"
+            + "# Ovenbird: sign in to Claude Code for this Mac user, then go back to Ovenbird.\n"
+            + "export PATH=\(shellQuoted(AppConfig.releasePath(home: home)))\n"
+            + "\(shellQuoted(claude)) auth login && echo && echo 'Signed in. You can close this window and go back to Ovenbird.'\n"
+    }
+
+    static func shellQuoted(_ s: String) -> String {
+        "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    /// The sign-in script as a .command file, which Terminal runs when it opens it; nil if it
+    /// couldn't be written.
+    static func writeSignInScript(claude: String, home: String) -> URL? {
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent("Sign in to Claude Code.command")
+        try? FileManager.default.removeItem(at: url)
+        let ok = FileManager.default.createFile(atPath: url.path, contents: Data(signInScript(claude: claude, home: home).utf8),
+                                                attributes: [.posixPermissions: 0o700])
+        return ok ? url : nil
+    }
+
     static func folder(_ path: String, entries: (String) -> [String]?, isClaudeOS: (String) -> Bool) -> Folder {
         guard let names = entries(path) else { return .absent }
         if names.allSatisfy({ $0 == ".DS_Store" }) { return .empty }

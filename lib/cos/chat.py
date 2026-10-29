@@ -12,6 +12,7 @@ Events are normalized into a small vocabulary for the UI:
 
 import json
 import os
+import shutil
 import subprocess
 import threading
 import time
@@ -21,6 +22,14 @@ from . import core
 
 MAX_RESULT_CHARS = 6000
 IDLE_SECONDS = 4 * 3600
+
+
+def not_signed_in():
+    """Claude Code's own answer, "Please run /login", is a dead end here: /login only works in
+    a terminal. A Mac user who never signed in (a new account, a fresh install) gets this
+    instead, with the full path: a new user's Terminal doesn't find Homebrew's Claude Code."""
+    return ("Claude Code isn't signed in for this Mac user. Open Terminal, type \"%s auth login\", "
+            "finish in your browser, then start a new chat." % (shutil.which("claude") or "claude"))
 
 
 def claude_command():
@@ -45,6 +54,7 @@ class Session:
         self.cost = 0.0
         self.events = []
         self.pending = {}
+        self.signed_out = False
         self._cond = threading.Condition()
         self._write_lock = threading.Lock()
         self._seq = 0
@@ -124,7 +134,13 @@ class Session:
             if ev.get("type") == "content_block_delta" and delta.get("type") == "text_delta":
                 self._emit("text_delta", text=delta.get("text", ""))
         elif t == "assistant":
-            for block in (msg.get("message") or {}).get("content") or []:
+            content = (msg.get("message") or {}).get("content") or []
+            # Only "Not logged in": a wrong API key or a network error is "authentication_failed" too.
+            if (msg.get("error") == "authentication_failed" and msg.get("parent_tool_use_id") is None
+                    and any((b.get("text") or "").startswith("Not logged in") for b in content)):
+                self.signed_out = True  # the result says what to do, once
+                return
+            for block in content:
                 if block.get("type") == "text" and block.get("text"):
                     self._emit("text", text=block["text"])
                 elif block.get("type") == "tool_use":
@@ -155,9 +171,10 @@ class Session:
         elif t == "result":
             self.cost += msg.get("total_cost_usd") or 0
             self.state = "idle"
+            text = (not_signed_in() if self.signed_out else msg.get("result")) if msg.get("is_error") else None
+            self.signed_out = False
             self._emit("result", is_error=bool(msg.get("is_error")), cost=msg.get("total_cost_usd"),
-                       total_cost=round(self.cost, 4), duration_ms=msg.get("duration_ms"),
-                       text=msg.get("result") if msg.get("is_error") else None)
+                       total_cost=round(self.cost, 4), duration_ms=msg.get("duration_ms"), text=text)
 
     # ------------------------------------------------------------ api
 

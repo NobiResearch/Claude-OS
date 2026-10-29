@@ -108,13 +108,14 @@ merged can come to your Mac by itself if you want it to (decisions 0005 to 0023)
 - `cos config` can only turn the autonomy switches (Night shift, Keep up to date) off. Turning
   them on takes the app's own dialog, which code in the desktop page can't click.
 
-**A downloadable Ovenbird.app** (built, not released yet; [0015](docs/decisions/0015-claude-os-for-everyone.md))
+**A downloadable Ovenbird.app** ([0015](docs/decisions/0015-claude-os-for-everyone.md))
 - `app/build.sh --release` builds it with nothing from the builder's Mac inside, scanned before
   it's signed, signed with Developer ID and the hardened runtime, notarized and stapled.
   `docs/releasing.md` has the steps. Building, notarizing and publishing all ask first.
 - On first launch, a checklist shows what the Mac still needs (Apple's command line tools,
-  Claude Code, Ovenbird itself), with one button each and nothing installed before a click.
-  Two extras, the skills in Claude Code and the two-hourly vitals check, start off.
+  Claude Code, signed in for this Mac user, and Ovenbird itself), with one button each and
+  nothing installed before a click. Two extras, the skills in Claude Code and the two-hourly
+  vitals check, start off. If Claude Code isn't signed in, the chat says how to sign in, too.
 - It follows its app: open a newer Ovenbird.app and the code comes along. Updates says when a
   newer app is out (it asks GitHub at most once a day), and a warning says when the code needs a
   newer app. It has no night shift and no Branches tab.
