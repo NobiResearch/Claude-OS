@@ -924,17 +924,66 @@ def merge_command(number, sha):
     return "gh pr merge %d --squash --delete-branch --match-head-commit %s" % (number, sha)
 
 
+def _safety_label(path):
+    """Which of the gate's entries a path falls under, never the path itself: a fork names its
+    own files, and a file name is text someone else wrote."""
+    for entry in PROTECTED:
+        if path.startswith(entry):  # the same test protected() makes
+            return entry
+    if path.startswith("lib/") and not path.startswith("lib/cos/"):
+        return "lib/ (a module Python finds before the standard library's)"
+    return "compiled Python (__pycache__, .pyc or .pth)"
+
+
+def fork_pr(number, pr):
+    """A pull request from someone else's fork (0014): never ready from here, it waits for the
+    human's yes. Its checks ran the fork's own copy of the workflow, so a green check proves
+    nothing, and the safety files it touches come from GitHub's file list (it stops at 100):
+    its commits aren't fetched. Nothing of its title, body, comments or file names is printed.
+    decide_merge still refuses it. -> (why, the merge command for after the yes)."""
+    sha = str(pr.get("headRefOid") or "")
+    command = "gh pr merge %d --squash --match-head-commit %s" % (number, sha) if SHA.fullmatch(sha) else None
+    lines = ["the human's yes (0014): #%d is from a fork, so its checks ran the fork's own workflow and a "
+             "green check proves nothing" % number]
+    if pr.get("state") != "OPEN":
+        lines[0] = "#%d is from a fork and isn't open" % number
+    files = pr.get("files") if isinstance(pr.get("files"), list) else []
+    paths = [str(f.get("path")) for f in files if isinstance(f, dict) and f.get("path")]
+    total = pr.get("changedFiles")
+    if not isinstance(total, int) or len(paths) < total:
+        lines.append("GitHub listed %d of %s changed files, so which safety files it touches isn't known"
+                     % (len(paths), total if isinstance(total, int) else "?"))
+    else:
+        touched = sorted({_safety_label(p) for p in paths if protected(p)})
+        lines.append("it changes Ovenbird's safety files: %s" % ", ".join(touched) if touched
+                     else "it changes none of Ovenbird's safety files")
+    lines.append("test it here before anyone says yes, never with gh pr checkout in the live checkout: fetch "
+                 "pull/%d/head into a worktree under ~/.claude-os/dev, run every git command there with -c "
+                 "core.hooksPath=/dev/null -c core.fsmonitor=false, run its tests through main's sandbox "
+                 "(from the live checkout: evolve.run_tests on that worktree), and no swift test or build of it "
+                 "without the human" % number)
+    if command:
+        lines.append("only after the human's yes (0014): " + command)
+    return "\n    ".join(lines), command
+
+
 def check_pr(number, cwd=None):
     """Is #number ready for its guardian review and merge? -> (ready, why, the exact command).
     The pull request is judged whatever the Night shift switch says (0020): the switch only
-    decides whether the hook may run git and gh for a clone's Claude."""
-    view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid"], cwd=cwd or os.getcwd(), timeout=15)
+    decides whether the hook may run git and gh for a clone's Claude. One from a fork is never
+    ready (fork_pr)."""
+    view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid,isCrossRepository,state,changedFiles,files"],
+                    cwd=cwd or os.getcwd(), timeout=15)
     try:
-        sha = json.loads(view.out).get("headRefOid") if view.ok else None
-    except (ValueError, AttributeError):
-        sha = None
-    if not sha or not SHA.fullmatch(sha):
+        pr = json.loads(view.out) if view.ok else None
+    except ValueError:
+        pr = None
+    sha = pr.get("headRefOid") if isinstance(pr, dict) else None
+    if not sha or not SHA.fullmatch(str(sha)):
         return False, "couldn't read pull request #%d" % number, None
+    if pr.get("isCrossRepository"):
+        why, command = fork_pr(number, pr)
+        return False, why, command
     command = merge_command(number, sha)
     cfg = core.config()
     cfg["autonomy"] = dict(cfg.get("autonomy") or {}, night_shift=True)
