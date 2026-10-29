@@ -98,14 +98,15 @@ def _evolve_line():
 
 
 def _friction_line():
-    """Open friction, and the latest one's text, unless a background run logged it: that text
-    could come from a feed item, and the banner puts it in front of every session."""
+    """Open friction, and the latest one's text, unless it's only a lead (a background run or
+    the app's chat logged it, mem.lead): that text could come from a feed item, and the banner
+    puts it in front of every session."""
     from . import mem
     open_f = [f for f in mem.frictions() if f["status"] == "open"]
     if not open_f:
         return None
     last = open_f[-1]
-    latest = ("#%d, from the %s run (cos friction)" % (last["id"], last["headless"]) if last.get("headless")
+    latest = ("#%d, from %s (cos friction)" % (last["id"], mem.lead(last)) if mem.lead(last)
               else last["text"][:90])
     return "  friction: %d open (cos friction) — latest: %s" % (len(open_f), latest)
 

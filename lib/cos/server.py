@@ -751,7 +751,7 @@ def make_handler(app):
 
     def r_friction(h, q, b):
         from . import mem
-        h._json(mem.frictions())
+        h._json([dict(f, lead=mem.lead(f)) for f in mem.frictions()])
 
     def r_friction_add(h, q, b):
         from . import mem
