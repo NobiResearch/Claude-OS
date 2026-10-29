@@ -167,10 +167,10 @@ SETTINGS = {"calendar": "connected", "notify": {"native": True, "authorization":
             "weather": {"name": "Lisbon, Portugal", "source": "city"}}
 
 # About 30 made-up daily rows, ending at the demo Mac's current values: the
-# last row is 412 GB free, battery health 96%, 212 cycles, like STATUS.
+# last row is exactly 412 GB free, battery health 96%, 212 cycles, like STATUS.
 _TRENDS_TODAY = datetime.date.today()
 TRENDS = [{"date": (_TRENDS_TODAY - datetime.timedelta(days=29 - i)).isoformat(),
-           "disk_free": int((430 - i * 0.6) * GB),
+           "disk_free": round((430 - i * 18 / 29) * GB),
            "battery_health": 98 - i // 10,
            "battery_cycles": 183 + i,
            "updates": 8,
