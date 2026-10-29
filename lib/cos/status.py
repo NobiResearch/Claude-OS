@@ -247,10 +247,12 @@ def record_trend(s, today=None):
     today = today or dt.date.today().isoformat()
     path = core.home(TRENDS_FILE)
     try:
-        lines = path.read_text().splitlines()
+        # surrogateescape: bytes that aren't UTF-8 go back into the file exactly as they were.
+        lines = _trend_lines(_read_trends(path, "surrogateescape"))
     except OSError:
         lines = []
-    if lines and json.loads(lines[-1]).get("date") == today:
+    last = next((row for row in map(_trend_row, reversed(lines)) if row), None)
+    if last and last["date"] == today:
         return False
     b = s.get("battery") or {}
     upd = core.cache_get("updates")
@@ -259,16 +261,53 @@ def record_trend(s, today=None):
            "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
            "reclaimable": scan["data"].get("safe_bytes") if scan else None}
     lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
-    path.write_text("\n".join(lines) + "\n")
+    with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
+        f.write("\n".join(lines) + "\n")
     return True
 
 
-def trends():
+def _read_trends(path, errors):
+    """trends.jsonl as text, with newline="": text mode would turn \\r\\n and \\r into \\n."""
+    with open(path, encoding="utf-8", errors=errors, newline="") as f:
+        return f.read()
+
+
+def _trend_lines(text):
+    """trends.jsonl's lines, split on "\\n" only: splitlines() would also split on \\r, \\f, U+2028
+    and more, and the next record would write those back as "\\n"."""
+    lines = text.split("\n")
+    return lines[:-1] if lines[-1] == "" else lines
+
+
+def _trend_row(line):
+    """One line of trends.jsonl as a row, or None if it's damaged: not a JSON object, or without
+    the YYYY-MM-DD date and the finite numbers (or nulls) that disk_trend() and Vitals' Trends
+    card read. (The browser can't parse Infinity or NaN.)"""
+    import datetime as dt
     import json
+    import math
     try:
-        return [json.loads(l) for l in core.home(TRENDS_FILE).read_text().splitlines() if l.strip()]
-    except (OSError, ValueError):
+        row = json.loads(line)
+        if dt.date.fromisoformat(row["date"]).isoformat() != row["date"]:
+            return None  # Python 3.11+ also accepts "20261029"
+    except (ValueError, TypeError, KeyError):
+        return None
+    for key in ("disk_free", "battery_health"):
+        v = row.get(key)
+        if v is not None and (isinstance(v, bool) or not isinstance(v, (int, float))
+                              or (isinstance(v, float) and not math.isfinite(v))):
+            return None
+    return row
+
+
+def trends():
+    """The daily rows, oldest first. A damaged line is skipped rather than costing the rest,
+    so it can't break Vitals' Trends card, disk_trend() or the next day's record."""
+    try:
+        lines = _trend_lines(_read_trends(core.home(TRENDS_FILE), "replace"))
+    except OSError:
         return []
+    return [row for row in map(_trend_row, lines) if row is not None]
 
 
 def disk_trend(rows, min_days=7):

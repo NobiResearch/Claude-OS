@@ -1,0 +1,1 @@
+- A damaged line in `~/.claude-os/trends.jsonl` (not a JSON row with a date, or bytes that aren't text) now costs only itself: Vitals' Trends card, the weekly disk trend in `cos status` and the next day's record keep working, where one bad line used to drop the whole history or stop the daily record.
