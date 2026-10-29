@@ -266,8 +266,9 @@ def record_trend(s, today=None):
            "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
            "reclaimable": scan["data"].get("safe_bytes") if scan else None}
     lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
-    # Into a file beside it, on disk, then renamed over it: a crash, a power cut or a full disk
-    # mid-write can't cut the history short. The temp file is private and never a link followed.
+    # Into a file beside it, then renamed over it: a crash or a full disk mid-write can't cut the
+    # history short, and fsync makes a power cut far less likely to (macOS's fsync stops short of
+    # the drive's own cache). The temp file is private and never a link followed.
     tmp = path.with_name(path.name + ".tmp")
     try:
         fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
