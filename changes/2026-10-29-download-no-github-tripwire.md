@@ -1,1 +1,1 @@
-- In a downloaded Ovenbird, Claude can't run `gh` or `git push` however the command is written (through `env`, a full path or `sh -c`); mentioning them, as in `brew upgrade gh`, is fine.
+- In a downloaded Ovenbird, Claude can't run `gh` or `git push` in the usual spellings (through `env`, a full path, `sh -c`, `if`/`do` blocks or quote-split words); mentioning them, as in `brew upgrade gh` or `command -v gh`, is fine. It's a tripwire: the download's push address goes nowhere either way.

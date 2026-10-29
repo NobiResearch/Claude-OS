@@ -701,10 +701,15 @@ class TestDownloadTripwire(TempHome):
             "timeout 10 gh api user", "ls | xargs gh issue view", "sh -c 'gh pr list'", 'bash -lc "gh auth status"',
             "/bin/zsh -c 'cd x; gh pr list'", 'eval "gh pr list"', "echo $(gh pr list)", "echo `gh pr list`",
             "git push", "git push origin main", "git -C x push", "git -c a=b push", "git --git-dir=.git push",
-            "cd x && git -c core.hooksPath=/dev/null push -q", "sh -c 'git push'", "FOO=1 git push"]
+            "cd x && git -c core.hooksPath=/dev/null push -q", "sh -c 'git push'", "FOO=1 git push",
+            # shell keywords, quote-split words, and backticks in double quotes (they run)
+            "if gh auth status; then echo ok; fi", "for x in a; do gh pr view x; done", "{ gh pr list; }",
+            "! gh pr list", "g''h pr list", 'echo "`gh pr list`"', "git pu''sh"]
     MENTIONS = ["brew upgrade gh", "cos update apply brew gh --yes", "which gh", "cos friction add 'gh is slow'",
                 "git status", "git log --grep push", "echo push", "time brew upgrade gh", "git -c push.default=simple status",
-                "ls -la", "cat README.md | grep gh", "python3 -m unittest discover -s tests"]
+                "ls -la", "cat README.md | grep gh", "python3 -m unittest discover -s tests", "git stash push",
+                # a lookup, and backticks in single quotes (only text)
+                "command -v gh", "command -V gh", "cos friction add 'running `gh pr list` fails here' --area hook"]
 
     def test_in_a_download_running_gh_or_pushing_is_denied(self):
         with mock.patch.object(core, "downloaded", return_value=True):
@@ -722,6 +727,10 @@ class TestDownloadTripwire(TempHome):
         # A command that names neither gh nor push never even asks whether this is a download.
         with mock.patch.object(core, "downloaded", side_effect=AssertionError("asked")):
             for cmd in ("ls -la", "bin/cos status", "git status", "python3 -m unittest discover -s tests"):
+                self.assertIsNone(hook.download_decision(cmd), repr(cmd))
+        # With the real core.downloaded() and no install record (the owner's Mac), no process runs.
+        with mock.patch.object(core, "run", side_effect=AssertionError("a process on the owner's path")):
+            for cmd in self.RUNS:
                 self.assertIsNone(hook.download_decision(cmd), repr(cmd))
 
     def test_the_hook_denies_in_a_download_and_still_runs_its_other_checks(self):
@@ -745,6 +754,12 @@ class TestDownloadTripwire(TempHome):
                 self.assertIn("can't read", hook.download_decision("gh pr list"))
             with mock.patch.object(core, "downloaded", return_value=False):
                 self.assertIsNone(hook.download_decision("gh pr list"))
+        # And if the check itself blows up, the gh text Guardian still denies what it denies.
+        secret = "sk-ant-" + "a" * 30
+        with mock.patch.object(hook, "download_decision", side_effect=RuntimeError("boom")):
+            said = json.loads(run('gh pr comment 1 --body "%s"' % secret))["hookSpecificOutput"]
+        self.assertEqual(said["permissionDecision"], "deny")
+        self.assertIn("Guardian", said["permissionDecisionReason"])
 
 
 if __name__ == "__main__":

@@ -898,6 +898,7 @@ DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecisio
 # A tripwire, not the wall: a download's origin has a push address that goes nowhere.
 
 WRAPPERS = {"env", "command", "exec", "nice", "nohup", "time", "timeout", "xargs", "sudo", "caffeinate"}
+KEYWORDS = {"if", "then", "elif", "else", "fi", "do", "done", "while", "until", "!", "{", "}"}
 SHELL_WORD = re.compile(r"(?:\S*/)?(?:ba|z|da|k)?sh")
 GIT_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
 INNER = re.compile(r"\$\(([^()`]*)\)|`([^`]*)`|[<>]\(([^()`]*)\)")
@@ -905,14 +906,17 @@ MENTIONS_PUSH = re.compile(r"(?<![\w-])push(?![\w-])")
 
 
 def _command_word(words):
-    """Where the command in one simple command starts: past VAR=value, wrappers like env or
-    nice, and their flags and numbers. -> index, or None."""
+    """Where the command in one simple command starts: past VAR=value, shell keywords (if, do,
+    {, !), wrappers like env or nice, and their flags and numbers. -> index, or None (none, or
+    `command -v`, which only looks a name up)."""
     k = 0
     while k < len(words):
         w = words[k]
-        if re.match(r"[A-Za-z_][A-Za-z0-9_]*=", w) or w.startswith("-") or w.isdigit():
+        if re.match(r"[A-Za-z_][A-Za-z0-9_]*=", w) or w.startswith("-") or w.isdigit() or w in KEYWORDS:
             k += 1
         elif w in WRAPPERS or w.endswith(tuple("/" + x for x in WRAPPERS)):
+            if w.rsplit("/", 1)[-1] == "command" and k + 1 < len(words) and words[k + 1] in ("-v", "-V"):
+                return None
             k += 1
         else:
             return k
@@ -939,11 +943,12 @@ def runs_github(text, depth=0):
     if depth > 3:
         return None
     text = str(text or "").replace("\\\n", "").replace("\n", " ; ")
-    for groups in INNER.findall(text):
+    live = _active(text)  # in single quotes, `…` and $( ) are only text
+    for groups in INNER.findall(live):
         inner = next(g for g in groups if g is not None and g != "") if any(groups) else ""
         if inner and runs_github(inner, depth + 1) is not False:
             return True
-    if SUBSTITUTES.search(INNER.sub(" ", text)):
+    if SUBSTITUTES.search(INNER.sub(" ", live)):
         return None  # a substitution this doesn't take apart (nested)
     text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), INNER.sub(" ", text))
     try:
@@ -975,11 +980,14 @@ def runs_github(text, depth=0):
 
 
 def download_decision(command):
-    """-> why to deny, or None. Only ever in a downloaded copy, and only for a command that runs
-    gh or pushes; a mere mention (`brew upgrade gh`, a friction note) is fine. The text is
-    checked before core.downloaded(), so a command that names neither costs nothing."""
+    """-> why to deny, or None. A tripwire for the usual spellings, not the wall (that's the
+    push address that goes nowhere). Only ever in a downloaded copy, and only for a command
+    that runs gh or pushes; a mere mention (`brew upgrade gh`, a friction note) is fine. The
+    text is checked before core.downloaded(), so a command that names neither costs nothing;
+    without its quotes and backslashes, so g''h still reaches the real check."""
     text = str(command or "")
-    if not (MENTIONS_GH.search(text) or MENTIONS_PUSH.search(text)):
+    flat = re.sub(r"[\"'\\]", "", text)
+    if not (MENTIONS_GH.search(flat) or MENTIONS_PUSH.search(flat)):
         return None
     if not core.downloaded():
         return None
