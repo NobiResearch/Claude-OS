@@ -219,6 +219,27 @@ class TestTrends(TempHome):
         # Rewriting the file keeps every other line's bytes exactly as they were.
         self.assertTrue(path.read_bytes().startswith(b"\n".join([good[0]] + damaged + [good[1], b"\xff"]) + b"\n"))
 
+    def test_a_failed_read_or_write_leaves_the_history_alone(self):
+        from cos import status
+        snap = {"disk": {"free": 3}, "battery": {}}
+        self.assertTrue(status.record_trend(snap, today="2026-10-01"))
+        path = core.home(status.TRENDS_FILE)
+        before = path.read_bytes()
+        # Unreadable isn't empty: no record, and the history isn't replaced.
+        with mock.patch.object(status, "_read_trends", side_effect=PermissionError(13, "Permission denied")):
+            self.assertFalse(status.record_trend(snap, today="2026-10-02"))
+        self.assertEqual(path.read_bytes(), before)
+        # A full disk mid-write: the old file stays whole, nothing is left beside it, and pulse
+        # gets False rather than an exception.
+        with mock.patch.object(status.os, "replace", side_effect=OSError(28, "No space left on device")):
+            self.assertFalse(status.record_trend(snap, today="2026-10-02"))
+        self.assertEqual(path.read_bytes(), before)
+        self.assertEqual([p.name for p in path.parent.iterdir() if p.name.startswith("trends")], ["trends.jsonl"])
+        # The next write goes through, the same way.
+        self.assertTrue(status.record_trend(snap, today="2026-10-02"))
+        self.assertEqual([r["date"] for r in status.trends()], ["2026-10-01", "2026-10-02"])
+        self.assertFalse(path.with_name(path.name + ".tmp").exists())
+
 
 if __name__ == "__main__":
     import unittest

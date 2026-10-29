@@ -1,0 +1,1 @@
+- The daily trends record is written to a file beside `trends.jsonl` and renamed over it, so a crash or a full disk mid-write can't cut the history short. If the file can't be read, that day's record is skipped instead of starting the history over, and a failed write no longer stops the 2-hourly vitals check before its low-disk warning.

@@ -241,7 +241,9 @@ TRENDS_KEEP = 730  # two years of daily lines
 
 
 def record_trend(s, today=None):
-    """Append one snapshot per day (idempotent), for trend lines once enough days exist."""
+    """Append one snapshot per day (idempotent), for trend lines once enough days exist.
+    False when there's nothing to add, or when the file couldn't be read or written: then it's
+    left as it was, and pulse goes on to its disk warning (a full disk is when writes fail)."""
     import datetime as dt
     import json
     today = today or dt.date.today().isoformat()
@@ -249,8 +251,10 @@ def record_trend(s, today=None):
     try:
         # surrogateescape: bytes that aren't UTF-8 go back into the file exactly as they were.
         lines = _trend_lines(_read_trends(path, "surrogateescape"))
-    except OSError:
+    except FileNotFoundError:
         lines = []
+    except OSError:
+        return False  # unreadable isn't empty: writing now would replace the whole history
     last = next((row for row in map(_trend_row, reversed(lines)) if row), None)
     if last and last["date"] == today:
         return False
@@ -261,8 +265,19 @@ def record_trend(s, today=None):
            "battery_cycles": b.get("cycles"), "updates": upd["data"].get("total") if upd else None,
            "reclaimable": scan["data"].get("safe_bytes") if scan else None}
     lines = (lines + [json.dumps(row)])[-TRENDS_KEEP:]
-    with open(path, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
-        f.write("\n".join(lines) + "\n")
+    # Into a file beside it, then renamed over it: a crash or a full disk mid-write can't cut
+    # the history short.
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        with open(tmp, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
+            f.write("\n".join(lines) + "\n")
+        os.replace(tmp, path)
+    except OSError:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        return False
     return True
 
 
