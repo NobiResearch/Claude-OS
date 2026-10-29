@@ -704,7 +704,10 @@ class TestDownloadTripwire(TempHome):
             "cd x && git -c core.hooksPath=/dev/null push -q", "sh -c 'git push'", "FOO=1 git push",
             # shell keywords, quote-split words, and backticks in double quotes (they run)
             "if gh auth status; then echo ok; fi", "for x in a; do gh pr view x; done", "{ gh pr list; }",
-            "! gh pr list", "g''h pr list", 'echo "`gh pr list`"', "git pu''sh"]
+            "! gh pr list", "g''h pr list", 'echo "`gh pr list`"', "git pu''sh",
+            # substitutions inside text that sh -c or eval runs
+            "sh -c 'echo $(gh pr list)'", "bash -c 'x=`gh auth token`'", "eval 'echo $(gh pr list)'",
+            "sh -c 'echo $(git push)'", 'sh -c "echo \\$(gh pr list)"', "sh -c 'cd x && $(gh pr list)'"]
     MENTIONS = ["brew upgrade gh", "cos update apply brew gh --yes", "which gh", "cos friction add 'gh is slow'",
                 "git status", "git log --grep push", "echo push", "time brew upgrade gh", "git -c push.default=simple status",
                 "ls -la", "cat README.md | grep gh", "python3 -m unittest discover -s tests", "git stash push",

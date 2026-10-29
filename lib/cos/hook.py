@@ -937,20 +937,52 @@ def _git_pushes(args):
     return False
 
 
+def _mask(text):
+    """The text, the same length, with what the shell won't expand turned into "_":
+    single-quoted spans (outside double quotes) and backslash-escaped characters. A `…` or
+    $( ) found in it is live; its position is the same in the text."""
+    out, quote, i = list(text), None, 0
+    while i < len(text):
+        c = text[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+            else:
+                out[i] = "_"
+        elif c == "\\":
+            out[i] = "_"
+            if i + 1 < len(text):
+                out[i + 1] = "_"
+            i += 1
+        elif c == "'" and quote is None:
+            quote = "'"
+        elif c == '"':
+            quote = None if quote == '"' else '"'
+        i += 1
+    return "".join(out)
+
+
 def runs_github(text, depth=0):
     """Does this shell text run gh or gh-axi, or git … push, as a command? True, False, or None
     when it can't be read for sure."""
     if depth > 3:
         return None
     text = str(text or "").replace("\\\n", "").replace("\n", " ; ")
-    live = _active(text)  # in single quotes, `…` and $( ) are only text
-    for groups in INNER.findall(live):
-        inner = next(g for g in groups if g is not None and g != "") if any(groups) else ""
-        if inner and runs_github(inner, depth + 1) is not False:
+    # Live substitutions only: in single quotes, `…` and $( ) are text, unless sh -c or eval
+    # runs that text, which the branches below read whole.
+    masked = _mask(text)
+    live = list(INNER.finditer(masked))
+    for m in live:
+        g = next(n for n in (1, 2, 3) if m.group(n) is not None)
+        inner = text[m.start(g):m.end(g)]
+        if inner.strip() and runs_github(inner, depth + 1) is not False:
             return True
-    if SUBSTITUTES.search(INNER.sub(" ", live)):
+    if SUBSTITUTES.search(INNER.sub(lambda m: " " * len(m.group(0)), masked)):
         return None  # a substitution this doesn't take apart (nested)
-    text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), INNER.sub(" ", text))
+    chars = list(text)
+    for m in live:
+        chars[m.start():m.end()] = " " * (m.end() - m.start())
+    text = REDIRECT.sub(lambda m: m.group(0).replace("&", "@"), "".join(chars))
     try:
         words = _tokens(text, True)
     except ValueError:
