@@ -120,6 +120,17 @@ class TestCli(TempHome):
         self.assertIn("Ovenbird", r.stdout)
         self.assertIn("Test", r.stdout)
 
+    def test_statusline_has_no_color_with_no_color_set(self):
+        env = dict(os.environ)
+        env.pop("NO_COLOR", None)
+        colored = subprocess.run([sys.executable, COS, "statusline"], input="{}", capture_output=True, text=True,
+                                 timeout=30, env=env)
+        self.assertIn("\033[", colored.stdout)
+        plain = subprocess.run([sys.executable, COS, "statusline"], input="{}", capture_output=True, text=True,
+                               timeout=30, env=dict(env, NO_COLOR="1"))
+        self.assertIn("Ovenbird", plain.stdout)
+        self.assertNotIn("\033[", plain.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

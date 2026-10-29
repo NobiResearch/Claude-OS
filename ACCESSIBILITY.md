@@ -15,7 +15,8 @@ ships (3.9 or later).
   words, in the app's chat or in the terminal. `cos ask "…"` answers once in plain text, and
   `cos say "…"` reads text aloud.
 - **The terminal** prints plain text, and most commands (`status`, `clean`, `update` and more)
-  also print JSON with `--json`, for your own tools.
+  also print JSON with `--json`, for your own tools. The status line Ovenbird adds to Claude
+  Code drops its color when `NO_COLOR` is set.
 - **Shortcuts.** ⌃⌥Space brings Ovenbird forward from anywhere, and ⌘K opens the command
   palette, where you can type an app's name or a question.
 - **Names for VoiceOver.** The dock's app buttons have names VoiceOver can read, and the
@@ -37,8 +38,6 @@ ships (3.9 or later).
   asks for.
 - **Text size.** The desktop's text has fixed sizes, so it doesn't follow macOS's text size
   setting.
-- **Color in Claude Code's status line.** The status line Ovenbird adds to Claude Code
-  (`cos statusline`) always uses color, even when `NO_COLOR` is set.
 
 ## Tell us
 
