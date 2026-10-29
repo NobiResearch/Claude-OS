@@ -26,8 +26,37 @@ US, RS = "\x1f", "\x1e"   # unit / record separators keep AppleScript output par
 AS_US, AS_RS = "(character id 31)", "(character id 30)"
 
 
+_talked = False  # did this process get an answer from Music.app?
+
+
 def _tell(body, timeout=10):
-    return core.osascript('tell application "Music"\n%s\nend tell' % body, timeout=timeout)
+    global _talked
+    r = core.osascript('tell application "Music"\n%s\nend tell' % body, timeout=timeout)
+    _talked = _talked or r.ok
+    return r
+
+
+ASKED_FILE = ("state", "music-asked.flag")  # a suffix, or core.home makes it a folder
+
+
+def asked():
+    """Has a person's `cos music` talked to Music.app on this Mac? Only then do the boot banner
+    and the status line ask Music what's playing: the first AppleScript to it makes macOS ask
+    whether Ovenbird may control Music, and that dialog should follow someone asking for music,
+    not a session starting."""
+    return core.home(*ASKED_FILE).is_file()
+
+
+def _note_asked():
+    """After a `cos music` command that Music.app answered, never in a background run."""
+    if not _talked or os.environ.get("CLAUDE_OS_DAEMON") or asked():
+        return
+    try:
+        path = core.home(*ASKED_FILE)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.touch()
+    except OSError:
+        pass
 
 
 def _records(text):
@@ -692,6 +721,13 @@ def history(days):
 
 
 def main(args):
+    try:
+        return _main(args)
+    finally:
+        _note_asked()
+
+
+def _main(args):
     c = args.music_cmd or "now"
     if c == "now":
         core.emit(now(), args.json, render_now)
