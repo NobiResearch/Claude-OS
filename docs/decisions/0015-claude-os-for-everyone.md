@@ -143,22 +143,26 @@ notifications and Music automation).
   the provisioning profile's download address. A plain `unzip` leaves them inside the app and
   breaks its signature. #159 zips without extended attributes and stops the build if any are
   in it.
-- The first-launch check ran twice, in a second macOS user account on the same Mac, from the
-  draft release's zip. The first run found two things:
-  - Claude Code installed for the whole Mac but not signed in for that user, so the chat's
-    first answer was a dead end ("Please run /login", which only works in a terminal);
+- The first-launch check ran twice from the draft release's zip, both times in a second macOS
+  user account on the same Mac. The first run found two things:
+  - the checklist found Claude Code, but it wasn't signed in for that user, so the chat's first
+    answer was a dead end ("Please run /login", which only works in a terminal);
   - a checkbox that ran past the window's margin.
 
   #160 fixed both. The release was rebuilt from that commit and the draft's zip replaced. The
-  second run, in a fresh account, passed on the human's word.
+  second run passed on the human's word.
 - **Not on record as checked** in either run (step 1's full check, docs/releasing.md):
+  - the command line tools and Claude Code from nothing: on the same Mac both were already
+    installed, so neither install path (`xcode-select --install`, the link to Anthropic's page)
+    ran;
   - the zip's quarantine (`xattr -p`) and the cloned code's (`xattr -l` on `bin/cos`);
-  - `cos` from Terminal there;
+  - `cos` from Terminal and from Claude Code there;
   - Calendar, Location, notifications, Music automation and the Apple Music player;
   - Remove Ovenbird….
 
-  The next release's first-launch check covers them.
-- Published as the latest release, never as a pre-release, with immutable releases on. The
+  The next release's first-launch check covers them. The install paths need a Mac without
+  them.
+- Published as the latest release, not as a pre-release, with immutable releases on. The
   README links `releases/latest` (#154). The notes say it has been tried on one Mac.
 
 ## Not now

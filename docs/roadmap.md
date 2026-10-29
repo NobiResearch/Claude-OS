@@ -76,6 +76,6 @@ what, where, and how we'll know it works.
   requests (0006) and the board live on the desktop (0007); `cos security`, `cos net`,
   `cos backup` and `cos power` (0008, 0010, 0012); `/music` `/tidy` `/update` `/startup` in any
   folder (0009); Keep Ovenbird up to date (0011); the first downloadable app, signed and
-  notarized, released on GitHub (0015); the repository is Claude's, and every pull request gets a guardian's review (0013,
-  0020); settings safe for strangers (0017); MIT, contributor docs and the first outside
-  contributors (0014, 0016, 0018).
+  notarized, released on GitHub (0015); the repository is Claude's, and every pull request
+  gets a guardian's review (0013, 0020); settings safe for strangers (0017); MIT, contributor
+  docs and the first outside contributors (0014, 0016, 0018).
