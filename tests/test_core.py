@@ -197,6 +197,18 @@ class TestTrends(TempHome):
         self.assertAlmostEqual(status.disk_trend(rows), -7 * 2 ** 30)
         self.assertIsNone(status.disk_trend(rows[:3]), "no trend from too little data")
 
+    def test_a_damaged_line_costs_only_itself(self):
+        from cos import status
+        path = core.home(status.TRENDS_FILE)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        good = ['{"date": "2026-10-01", "disk_free": 5}', '{"date": "2026-10-02", "disk_free": 4}']
+        path.write_text("\n".join([good[0], "null", "{not json", "[1, 2]", "", good[1], "7"]) + "\n")
+        self.assertEqual([r["date"] for r in status.trends()], ["2026-10-01", "2026-10-02"])
+        # A damaged last line doesn't stop the next day's record, or count as today's.
+        snap = {"disk": {"free": 3}, "battery": {}}
+        self.assertTrue(status.record_trend(snap, today="2026-10-03"))
+        self.assertEqual(status.trends()[-1]["date"], "2026-10-03")
+
 
 if __name__ == "__main__":
     import unittest

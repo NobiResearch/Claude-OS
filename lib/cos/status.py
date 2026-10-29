@@ -250,7 +250,7 @@ def record_trend(s, today=None):
         lines = path.read_text().splitlines()
     except OSError:
         lines = []
-    if lines and json.loads(lines[-1]).get("date") == today:
+    if lines and (_trend_row(lines[-1]) or {}).get("date") == today:
         return False
     b = s.get("battery") or {}
     upd = core.cache_get("updates")
@@ -263,12 +263,24 @@ def record_trend(s, today=None):
     return True
 
 
-def trends():
+def _trend_row(line):
+    """One line of trends.jsonl as a row, or None if it's damaged (not JSON, or not an object)."""
     import json
     try:
-        return [json.loads(l) for l in core.home(TRENDS_FILE).read_text().splitlines() if l.strip()]
-    except (OSError, ValueError):
+        row = json.loads(line)
+    except ValueError:
+        return None
+    return row if isinstance(row, dict) else None
+
+
+def trends():
+    """The daily rows, oldest first. A damaged line is skipped rather than costing the rest,
+    so it can't break Vitals' Trends card, disk_trend() or the next day's record."""
+    try:
+        lines = core.home(TRENDS_FILE).read_text().splitlines()
+    except OSError:
         return []
+    return [row for row in map(_trend_row, lines) if row is not None]
 
 
 def disk_trend(rows, min_days=7):

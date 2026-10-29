@@ -1,0 +1,1 @@
+- A damaged line in `~/.claude-os/trends.jsonl` now costs only itself: Vitals' Trends card, the weekly disk trend and the next day's record keep working, where one bad line used to drop the whole history.
