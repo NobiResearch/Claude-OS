@@ -268,6 +268,17 @@
     },
   });
 
+  // One 30-day trend line, as an inline SVG: values scaled to the card width,
+  // flat when every value is the same. No code is loaded from anywhere else.
+  function sparkline(values) {
+    const w = 280, hgt = 48, pad = 2;
+    const min = Math.min(...values), max = Math.max(...values), span = (max - min) || 1;
+    const pts = values.map((v, i) => (pad + i * (w - 2 * pad) / (values.length - 1)).toFixed(1) + "," +
+      (hgt - pad - (v - min) / span * (hgt - 2 * pad)).toFixed(1)).join(" ");
+    return '<svg width="100%" height="48" viewBox="0 0 280 48" role="img" aria-hidden="true">' +
+      '<polyline fill="none" stroke="currentColor" stroke-width="1.5" points="' + pts + '"/></svg>';
+  }
+
   // ------------------------------------------------------------ Vitals
   COS.register({
     id: "vitals", title: "Vitals", icon: "vitals", color: "linear-gradient(140deg,#e9727f,#a63a52)", size: [620, 600],
@@ -340,6 +351,25 @@
         ));
         root.appendChild(netCard());
         root.appendChild(card("Signals", ...signals));
+        const trendsBody = h("div", { class: "muted" }, "Loading trends…");
+        root.appendChild(card("Trends", trendsBody));
+        api("/api/trends").then((tr) => {
+          const rows = ((tr || {}).rows || []).slice(-30);
+          if (rows.length < 14) {
+            trendsBody.textContent = "collecting (" + rows.length + " of 14 days)";
+            return;
+          }
+          clear(trendsBody);
+          const diskVals = rows.filter((r) => r.disk_free != null).map((r) => r.disk_free);
+          if (diskVals.length >= 14) trendsBody.appendChild(h("div", null,
+            h("div", { class: "muted small" }, "Disk free · " + fmt.bytes(diskVals[0]) + " → " + fmt.bytes(diskVals[diskVals.length - 1])),
+            h("div", { html: sparkline(diskVals) })));
+          const healthVals = rows.filter((r) => r.battery_health != null).map((r) => r.battery_health);
+          if (healthVals.length >= 14) trendsBody.appendChild(h("div", null,
+            h("div", { class: "muted small" }, "Battery health · " + healthVals[0] + "% → " + healthVals[healthVals.length - 1] + "%"),
+            h("div", { html: sparkline(healthVals) })));
+          if (!trendsBody.firstChild) trendsBody.textContent = "collecting (" + rows.length + " of 14 days)";
+        }).catch(() => { trendsBody.textContent = "Couldn't read trends."; });
         const startupBody = h("div", { class: "muted" }, "Checking what starts with this Mac…");
         root.appendChild(card("Starts with your Mac", startupBody));
         api("/api/startup").then((st) => {
