@@ -168,7 +168,7 @@ cos power                        what keeps the Mac or display awake (read-only)
 cos backup [setup]               Time Machine, and which connected disk could hold your backups
 cos feeds                        unread headlines from a curated list (etc/feeds.txt) + yours
 cos friction add "…"             log what went wrong; evolve turns friction into fixes
-cos remember "…" · memory        teach Ovenbird about you; shown to Claude at every boot
+cos remember "…" · memory [--forget]          teach Ovenbird about you; shown to Claude at every boot
 cos daemon list|install|run      background jobs via launchd
 cos evolve [review|merge]        see what Ovenbird changed about itself
 cos guard · doctor · notify · say · log · brief · config

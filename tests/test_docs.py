@@ -21,8 +21,8 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..")
 # Not syscalls, so not in the syscall table or block. Each is a way in or a piece of plumbing,
 # documented where it belongs instead: `cos` itself boots (boot), `ask` is a one-shot answer
 # with no session, `app`/`serve` are the desktop, `statusline` is Claude Code's status line,
-# and `install`/`uninstall`/`version` are lifecycle and plumbing (see lib/cos/cli.py's INTRO
-# and CLAUDE.md's "Apps (skills)" section).
+# and `install`/`uninstall`/`version` are lifecycle and plumbing (see CLAUDE.md's
+# "Apps (skills)" section).
 INTERNAL = {"ask", "boot", "statusline", "serve", "app", "install", "uninstall", "version"}
 
 
@@ -64,6 +64,8 @@ def _readme_syscalls(text):
             continue
         if not in_code:
             continue
+        if not line.strip().startswith("cos "):  # a wrapped description is not a command line
+            continue
         command_part = re.split(r"\s{2,}", line.strip())[0]  # stop at the description gap
         for segment in command_part.split("·"):
             segment = segment.strip()
@@ -88,6 +90,11 @@ class TestDocsListEveryCommand(unittest.TestCase):
         documented = _claude_syscalls(self._read("CLAUDE.md"))
         missing = sorted((cli.COMMANDS - INTERNAL) - documented)
         self.assertEqual([], missing, "CLAUDE.md's syscall table is missing: %s" % missing)
+
+    def test_a_wrapped_description_is_not_a_command(self):
+        # A description that wraps onto its own line must not count as documenting a command.
+        text = "### Syscalls\n\n```\ncos power   what keeps the Mac awake\npower users see more\n```\n"
+        self.assertEqual({"power"}, _readme_syscalls(text))
 
     def test_every_user_command_is_in_readme(self):
         documented = _readme_syscalls(self._read("README.md"))
