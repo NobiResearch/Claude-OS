@@ -172,6 +172,21 @@ final class FirstLaunchTests: XCTestCase {
         XCTAssertNil(FirstLaunch.claudeCode(home: "/Users/x", isExecutable: { _ in false }))
     }
 
+    func testSignedInIsWhatClaudeCodeSays() {
+        // `claude auth status --json` from Claude Code 2.1, signed out and in (recorded, trimmed).
+        XCTAssertEqual(FirstLaunch.signedIn(status: #"{"loggedIn": false, "authMethod": "none"}"#), false)
+        XCTAssertEqual(FirstLaunch.signedIn(status: #"{"loggedIn": true, "authMethod": "claude.ai"}"#), true)
+        XCTAssertNil(FirstLaunch.signedIn(status: "error: unknown command 'auth'"), "an older Claude Code")
+        XCTAssertNil(FirstLaunch.signedIn(status: ""))
+    }
+
+    func testTheSignInScriptRunsThatClaudeCode() {
+        let script = FirstLaunch.signInScript(claude: "/Users/o'k/.local/bin/claude", home: "/Users/o'k")
+        XCTAssertTrue(script.hasPrefix("#!/bin/sh\n"))
+        XCTAssertTrue(script.contains("\n'/Users/o'\\''k/.local/bin/claude' auth login && "), script)
+        XCTAssertTrue(script.contains("export PATH='/Users/o'\\''k/.local/bin:/opt/homebrew/bin:"), script)
+    }
+
     func testTheInstallFolderIsUsedOnlyWhenEmpty() {
         func folder(_ entries: [String]?, claudeOS: Bool = false) -> FirstLaunch.Folder {
             FirstLaunch.folder("/f", entries: { _ in entries }, isClaudeOS: { _ in claudeOS })

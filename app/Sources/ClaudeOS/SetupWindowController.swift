@@ -12,6 +12,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     private let onReady: () -> Void
     private var tools: String?
     private var claude: String?
+    private var signedIn: Bool?
     private var folder: FirstLaunch.Folder = .absent
     private var working = false
     private var problem: String?
@@ -22,8 +23,9 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     private let toolsRow = Row(title: "Apple's command line tools")
     private let claudeRow = Row(title: "Claude Code")
     private let codeRow = Row(title: "Ovenbird itself")
-    private let skillsBox = NSButton(checkboxWithTitle: "Use /music, /tidy, /update and /startup in Claude Code from any folder "
-                                     + "(adds the `cos` command to ~/.local/bin)", target: nil, action: nil)
+    private let skillsBox = NSButton(checkboxWithTitle: "Use /music, /tidy, /update and /startup in Claude Code from any folder",
+                                     target: nil, action: nil)
+    private let skillsNote = NSTextField(labelWithString: "Adds the command “cos” to ~/.local/bin.")
     private let pulseBox = NSButton(checkboxWithTitle: "Check this Mac's vitals every 2 hours in the background (no AI, no cost)",
                                     target: nil, action: nil)
     private let moveNote = NSTextField(wrappingLabelWithString: "")
@@ -89,6 +91,10 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         let optional = NSTextField(labelWithString: "Optional, and off unless you tick them:")
         optional.font = .systemFont(ofSize: 13, weight: .semibold)
         for box in [skillsBox, pulseBox] { box.state = .off }
+        skillsNote.font = .systemFont(ofSize: 11)
+        skillsNote.textColor = .secondaryLabelColor
+        let note = NSStackView(views: [skillsNote])  // under the checkbox's title, not its box
+        note.edgeInsets = NSEdgeInsets(top: 0, left: 20, bottom: 0, right: 0)
 
         moveNote.textColor = .systemOrange
         moveNote.isHidden = true
@@ -102,7 +108,7 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         buttons.setHuggingPriority(.defaultLow, for: .horizontal)
 
         let stack = NSStackView(views: [heading, intro, toolsRow.view, claudeRow.view, codeRow.view,
-                                        optional, skillsBox, pulseBox, moveNote, buttons])
+                                        optional, skillsBox, note, pulseBox, moveNote, buttons])
         stack.orientation = .vertical
         stack.alignment = .leading
         stack.spacing = 14
@@ -110,10 +116,13 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
         stack.setCustomSpacing(22, after: intro)
         stack.setCustomSpacing(24, after: codeRow.view)
         stack.setCustomSpacing(6, after: optional)
-        stack.setCustomSpacing(6, after: skillsBox)
+        stack.setCustomSpacing(2, after: skillsBox)
+        stack.setCustomSpacing(8, after: note)
         stack.setCustomSpacing(22, after: pulseBox)
         stack.edgeInsets = NSEdgeInsets(top: 28, left: 32, bottom: 24, right: 32)
-        for view in [intro, toolsRow.view, claudeRow.view, codeRow.view, moveNote, buttons] {
+        // Everything as wide as the window's margins allow: a longer title is cut short rather
+        // than pushing the whole column past them.
+        for view in [intro, toolsRow.view, claudeRow.view, codeRow.view, skillsBox, note, pulseBox, moveNote, buttons] {
             view.widthAnchor.constraint(equalTo: stack.widthAnchor, constant: -64).isActive = true
         }
         stack.widthAnchor.constraint(equalToConstant: 620).isActive = true
@@ -125,6 +134,12 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
     @objc func refresh() {
         tools = FirstLaunch.developerDir()
         claude = FirstLaunch.claudeCode(home: home)
+        // Asked again on every return to the app until it says yes: signing in happens in Terminal.
+        if let path = claude {
+            if signedIn != true { signedIn = FirstLaunch.claudeSignedIn(path, home: home) }
+        } else {
+            signedIn = nil
+        }
         if !working { folder = FirstLaunch.folder(target.path) }
         if tools != nil { poll?.invalidate(); poll = nil }
         render()
@@ -140,12 +155,17 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
                          button: "Install…")
         }
 
-        if let path = claude {
+        if let path = claude, signedIn == false {
+            claudeRow.set(.todo, "Found (\(tilde(path))), but not signed in for this Mac user. Sign in with your Claude account: "
+                          + "Terminal opens, your browser does the rest, then come back here. The desktop works without it; "
+                          + "the chat doesn't.", button: "Sign In…")
+        } else if let path = claude {
             claudeRow.set(.done, "Found (\(tilde(path))). Ovenbird talks with you through it, on your Claude plan.", button: nil)
         } else {
             claudeRow.set(.todo, "Ovenbird talks with you through Claude Code, on your Claude plan. Install it from Anthropic's "
                           + "page, then come back here. The desktop works without it; the chat doesn't.", button: "Get Claude Code…")
         }
+        claudeRow.button.action = claude == nil ? #selector(getClaudeCode) : #selector(signIn)
 
         let place = "~/" + AppConfig.installFolder
         let version = config.commit.map { String($0.prefix(7)) } ?? "?"
@@ -208,6 +228,15 @@ final class SetupWindowController: NSObject, NSWindowDelegate {
 
     @objc private func getClaudeCode() {
         NSWorkspace.shared.open(FirstLaunch.claudeCodePage)
+    }
+
+    /// Claude Code's sign-in in Terminal, whatever opens .command files here by default.
+    @objc private func signIn() {
+        guard let path = claude, let script = FirstLaunch.writeSignInScript(claude: path, home: home) else { return }
+        let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
+        NSWorkspace.shared.open([script], withApplicationAt: terminal, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+            if let error = error { log("couldn't open the sign-in in Terminal: \(error.localizedDescription)") }
+        }
     }
 
     @objc private func showFolder() {
