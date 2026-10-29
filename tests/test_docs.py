@@ -93,8 +93,10 @@ class TestDocsListEveryCommand(unittest.TestCase):
 
     def test_a_wrapped_description_is_not_a_command(self):
         # A description that wraps onto its own line must not count as documenting a command.
-        text = "### Syscalls\n\n```\ncos power   what keeps the Mac awake\npower users see more\n```\n"
-        self.assertEqual({"power"}, _readme_syscalls(text))
+        # The wrapped word ("power") is deliberately not documented on any other line: the
+        # old parser took the first word of every line, so that is what it got wrong.
+        text = "### Syscalls\n\n```\ncos status   vitals\npower users see more\n```\n"
+        self.assertEqual({"status"}, _readme_syscalls(text))
 
     def test_every_user_command_is_in_readme(self):
         documented = _readme_syscalls(self._read("README.md"))
