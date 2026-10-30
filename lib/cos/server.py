@@ -165,7 +165,7 @@ def with_artwork(n):
 
 
 def confirm_natively(what, wait=120):
-    """Ask in Ovenbird.app's own native dialog, which code in the page can't click (0006).
+    """Ask in Ovenbird.app's own native dialog, which code in the page can't click (0006, 0011).
     -> True (yes), False (no, or no answer in time) or None (the app couldn't be asked)."""
     import uuid
     if not core.app_running("ClaudeOS"):
@@ -549,7 +549,6 @@ def make_handler(app):
                            "authorization": st.get("authorization", "not asked yet"), "error": st.get("error"),
                            "shortcut": music.shortcut_installed()},
                  "weather": {"name": place.get("name"), "source": place.get("source")},
-                 "night_shift": bool(cfg["autonomy"].get("night_shift")),
                  "catch_up": bool(cfg["autonomy"].get("catch_up")),
                  "downloaded": core.downloaded()})
 
@@ -565,28 +564,10 @@ def make_handler(app):
         core.run(["open", music.MEDIA_PANE], timeout=10)  # off here doesn't revoke it in macOS; show where
         h._json({"apple_music": False})
 
-    def r_settings_night(h, q, b):
-        on = bool(b.get("on"))
-        if on and core.downloaded():
-            return h._json({"night_shift": False, "error": "A downloaded Ovenbird has no night shift: its Claude "
-                            "doesn't push to GitHub or merge pull requests."})
-        if on:
-            # The page can call this route, but only the human can click the app's own dialog.
-            answer = confirm_natively("night")
-            if answer is not True:
-                core.journal("action", "Night shift stayed off (%s)" % (
-                    "declined in the app window" if answer is False else "couldn't ask in Ovenbird.app"), via="app")
-                return h._json({"night_shift": False, "confirmed": answer,
-                                "error": None if answer is False else "Night shift can only be turned on in Ovenbird.app"})
-        core.config_set("autonomy.night_shift", on)
-        core.journal("action", "Night shift turned %s%s" % ("on" if on else "off", " (confirmed in the app window)" if on else ""),
-                     via="app")
-        h._json({"night_shift": on})
-
     def r_settings_catch_up(h, q, b):
         on = bool(b.get("on"))
         if on:
-            answer = confirm_natively("catch-up")  # like Night shift: the page can't click it
+            answer = confirm_natively("catch-up")  # the page can call this route, but can't click the dialog
             if answer is not True:
                 core.journal("action", "Keep Ovenbird up to date stayed off (%s)" % (
                     "declined in the app window" if answer is False else "couldn't ask in Ovenbird.app"), via="app")
@@ -872,7 +853,6 @@ def make_handler(app):
         ("POST", "/api/agenda/connect"): r_agenda_connect,
         ("POST", "/api/settings/music"): r_settings_music,
         ("POST", "/api/settings/notify"): r_settings_notify,
-        ("POST", "/api/settings/night"): r_settings_night,
         ("POST", "/api/settings/catch-up"): r_settings_catch_up,
         ("POST", "/api/restart"): r_restart,
         ("GET", "/api/weather"): r_weather,

@@ -1,33 +1,20 @@
-"""cos hook permission — answer Claude Code's push prompts for the night shift (0006).
+"""cos hook — Ovenbird's tripwires around Claude's own cos, git and gh calls.
 
-Claude Code runs this as a PermissionRequest hook, just before it would ask the human. While
-the human has "Night shift" on in Settings, it approves pushes and nothing that merges:
+- `cos hook pretool` is a PreToolUse hook (decision 0017). Before every Bash call it asks for a
+  cos call that changes something, however it's spelled; it denies a gh command when the
+  Guardian finds a problem in the text it would publish; and in a downloaded copy it denies gh
+  and git push.
+- `cos hook check <branch|PR>` answers without acting. Would this push go out clean: a night/*
+  branch of this repository, every commit and message read by the Guardian, nothing in
+  `.github/` (CI runs a branch's workflow the moment it's pushed)? Is this pull request ready
+  for its guardian review (decision 0020), and what's the exact merge command? With no
+  argument it lists the night's pull requests and what each waits for.
 
-- **Pushing** `git push [-q] -u origin night/<name>` from a checkout of this repository, to
-  the remote it was cloned from, after the Guardian has checked every commit and message it
-  would publish. A pushed branch runs nothing that matters, so it may change anything except
-  `.github/` (CI runs a branch's workflow the moment it's pushed).
-- **Never merging.** A merge is where code starts to run, and every pull request gets a
-  guardian agent's review first (decision 0020). For `gh pr merge <N> --squash
-  --delete-branch --match-head-commit <sha>` it says at best that the pull request is ready
-  for that review, and the human's prompt appears.
-
-- **Claude's own pull requests** (decision 0023): `gh pr create|edit|comment` with a title and
-  a body, once the Guardian has read them, only in a checkout of this repository whose only
-  remote is origin (and the hook's own checkout a clean main, as for a push), and only for a
-  `night/*` pull request of this repository: opening one
-  into main, or editing or commenting on one that's open. Never a `gh api` call, and never a
-  command one of the checked-in ask rules covers.
-
-Every approval goes in the journal. With the switch off, or in a downloaded copy, it approves
-nothing (decision 0017: a stranger's clone sees a card for `gh`). Anything else, any doubt,
-any error: it prints nothing and the human's normal prompt appears. This is a tripwire
-against drift and mistakes, not a wall: Claude works with the human's own GitHub login, and
-decision 0006 lists the spellings these rules don't catch.
-
-`cos hook check <branch|PR>` answers without acting: would this push go through, and is this
-pull request ready for its review (with the exact merge command)? With no argument it lists
-the night's pull requests and what each waits for.
+Nothing here approves anything. Until decision 0024 a PermissionRequest hook, behind the Night
+shift switch, approved pushes and pull request text for Claude. The owner's own settings allow
+git and gh (0013), so it never ran for them, and anyone else's clone gets Claude Code's normal
+card for both (0017). These are tripwires against drift and mistakes, not a wall: Claude works
+with the human's own GitHub login.
 """
 
 import json
@@ -38,18 +25,17 @@ import sys
 
 from . import core
 
-ALLOW = {"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": {"behavior": "allow"}}}
-COMMAND = re.compile(r"[A-Za-z0-9._/ -]+")  # no quotes, $, ;, &, |, <, >, globs, :, +, @, ~ or newlines
 BRANCH = re.compile(r"night/[A-Za-z0-9._-]+")
 SHA = re.compile(r"[0-9a-f]{40}")
-# Every pull request gets a guardian agent's review before it merges (decision 0020), so the
-# hook never merges one on its own: at best it's ready for that review.
+# Every pull request gets a guardian agent's review before it merges (decision 0020), so
+# `cos hook check` never calls one ready to merge: at best it's ready for that review.
 READY = "ready once a guardian agent has reviewed it (0020)"
+DOWNLOADED = "a downloaded Ovenbird doesn't push or merge (decision 0015)"
 GITHUB = re.compile(r"(?:https://github\.com/|git@github\.com:)([\w.-]+)/([\w.-]+?)(?:\.git)?$")
 # The files a guardian's review reads first (every pull request gets one, 0020), and the ones
 # the human's update cards, evolve's --reviewed and the boot banner single out. They
-# include the code this hook leans on (core, cli, evolve's guard_branch), the server that
-# flips the switch and the app's Allow/Deny path, so one night's merge can't loosen the next.
+# include the code these checks lean on (core, cli, evolve's guard_branch), the server and
+# the app's Allow/Deny path, so one night's merge can't loosen the next.
 PROTECTED = (".claude/", ".github/", "githooks/", "bin/", "CLAUDE.md", "etc/daemons.json",
              "lib/cos/guard.py", "lib/cos/hook.py", "lib/cos/daemon.py",
              "lib/cos/core.py", "lib/cos/cli.py", "lib/cos/evolve.py", "lib/cos/server.py",
@@ -83,8 +69,8 @@ def changed(git, base, branch):
 
 
 def clean_main(base):
-    """The hook runs from the live checkout, so that checkout must be main with nothing of
-    the gate changed locally: no edits, no untracked files, no commits origin hasn't got."""
+    """`cos hook check` runs from the live checkout, so that checkout must be main with nothing
+    of the gate changed locally: no edits, no untracked files, no commits origin hasn't got."""
     from . import evolve
     root = str(core.ROOT)
     def git(*args):
@@ -94,166 +80,6 @@ def clean_main(base):
     status = git("status", "--porcelain", "--", "lib", "bin", ".claude", "CLAUDE.md", "etc", "githooks")
     local = git("diff", "--no-renames", "--name-only", base, "HEAD")
     return status.ok and not status.out.strip() and local.ok and not any(protected(p) for p in local.out.splitlines())
-
-
-# ---------------------------------------------------------------- the commands
-
-def _words(command):
-    if not isinstance(command, str) or not COMMAND.fullmatch(command):
-        return None
-    return command.split()
-
-
-def parse_push(command):
-    """The one command the night shift may push with -> its branch, or None."""
-    words = _words(command)
-    if not words or words[:2] != ["git", "push"]:
-        return None
-    rest = words[2:]
-    if rest[:1] in (["-q"], ["--quiet"]):
-        rest = rest[1:]
-    if len(rest) != 3 or rest[:2] != ["-u", "origin"]:
-        return None
-    branch = rest[2]
-    if not BRANCH.fullmatch(branch) or ".." in branch or branch.endswith((".", ".lock", "main", "master")):
-        return None
-    return branch
-
-
-def parse_merge(command):
-    """The one command the night shift may merge with -> (PR number, the commit it checked),
-    or None. Pinning the commit means GitHub merges exactly what was checked here."""
-    words = _words(command)
-    if not words or len(words) != 8 or words[:3] != ["gh", "pr", "merge"]:
-        return None
-    if words[4:7] != ["--squash", "--delete-branch", "--match-head-commit"]:
-        return None
-    if not words[3].isdigit() or not SHA.fullmatch(words[7]):
-        return None
-    return int(words[3]), words[7]
-
-
-PR_TEXT = {("gh", "pr", "create"), ("gh", "pr", "edit"), ("gh", "pr", "comment")}
-EXPANDS = re.compile(r"[$`\n\r\x00]")  # nothing the shell would expand, and one line
-# Outside quotes, the shell gives these a meaning shlex doesn't: `#` only starts a comment at
-# the start of a word (`x#; rm` runs rm), braces and globs turn one word into several (`^` too,
-# with zsh's EXTENDED_GLOB from a profile), `~` and `=` can become paths in zsh (`=ls`, and
-# `x==ls` with MAGIC_EQUAL_SUBST), and `!` is history in an interactive shell.
-UNQUOTED = re.compile(r"[#{}~*?\[\]^!=]")
-LONGEST = 64 * 1024  # longer and shlex gets slow; it's no pull request title anyway
-
-
-def parse_pr_text(command):
-    """`gh pr create|edit|comment` publishing only a title and a body -> {"verb", "texts",
-    "body_file", "number", "head", "base"}, or None. Titles have spaces, so this parses quotes,
-    but anything a shell would expand or chain makes it None, and so does `-R`: gh picks the
-    repository from the checkout, which the decision checks."""
-    if not isinstance(command, str) or len(command) > LONGEST or EXPANDS.search(command) \
-            or UNQUOTED.search(_bare(command)):
-        return None
-    try:
-        lex = shlex.shlex(command, posix=True, punctuation_chars=True)
-        lex.whitespace_split = True
-        lex.commenters = ""
-        words = list(lex)
-    except ValueError:
-        return None
-    if any(w and set(w) <= set("();<>|&") for w in words) or tuple(words[:3]) not in PR_TEXT:
-        return None
-    texts, body_file, number, refs, rest, i = [], None, None, {}, words[3:], 0
-    while i < len(rest):
-        w, value = rest[i], rest[i + 1] if i + 1 < len(rest) else None
-        if w in ("--title", "-t", "--body", "-b") and value is not None:
-            texts.append(value)
-            i += 2
-        elif w in ("--body-file", "-F") and value not in (None, "-") and not value.startswith("~") \
-                and body_file is None:
-            # A `~` that got this far was quoted, so gh opens `<cwd>/~/…` while expanduser
-            # would read the home folder: not the same file.
-            body_file = value
-            i += 2
-        elif w in ("--base", "-B", "--head", "-H") and value and re.fullmatch(r"[A-Za-z0-9_./-]+", value):
-            key = "base" if w in ("--base", "-B") else "head"
-            if key in refs:
-                return None
-            refs[key] = value
-            i += 2
-        elif w == "--draft":
-            i += 1
-        elif re.fullmatch(r"[0-9]+", w) and number is None and words[2] in ("edit", "comment"):
-            number = int(w)
-            i += 1
-        else:
-            return None
-    if not texts and body_file is None:
-        return None
-    return {"verb": words[2], "texts": texts, "body_file": body_file, "number": number,
-            "head": refs.get("head"), "base": refs.get("base")}
-
-
-def asked_by_rule(command, root=None):
-    """Does one of the checked-in ask rules cover this command? The hook never answers a
-    prompt those rules exist to show (publishing a release, notarizing, deleting the
-    repository). None when the rules can't be read, and then it answers nothing at all."""
-    import fnmatch
-    try:
-        with open(os.path.join(str(root or core.ROOT), ".claude", "settings.json")) as f:
-            asks = json.load(f)["permissions"]["ask"]
-    except Exception:
-        return None
-    rules = [a[len("Bash("):-1] for a in asks if isinstance(a, str) and a.startswith("Bash(") and a.endswith(")")]
-    rules = [r[:-2] + "*" if r.endswith(":*") else r for r in rules]  # the older prefix spelling
-    return any(fnmatch.fnmatchcase(str(command), rule) for rule in rules)
-
-
-def decide_pr_text(parsed, facts):
-    """Claude's own pull request, in this repository, and the Guardian over what it publishes."""
-    from . import guard
-    why = _common(facts)
-    if why:
-        return False, why
-    if facts.get("remotes") != ["origin"]:
-        return False, "gh could pick another repository: origin isn't the only remote"
-    if any(r != "remote.origin.gh-resolved base" for r in facts.get("resolved") or []):
-        return False, "gh's default repository was set by hand"
-    if os.environ.get("GH_REPO") or os.environ.get("GH_HOST", "github.com") != "github.com":
-        return False, "GH_REPO or GH_HOST points gh somewhere else"
-    main, n = facts.get("main"), parsed["number"]
-    if parsed["base"] is not None and parsed["base"] != main:
-        return False, "a pull request goes into %s only" % main
-    if parsed["verb"] == "create":
-        head = parsed["head"] or facts.get("branch")
-        if not BRANCH.fullmatch(str(head or "")):
-            return False, "only a night/* branch's own pull request"
-        what = "opened a pull request from %s" % head
-    else:
-        if n is None or parsed["head"] is not None:
-            return False, "names no pull request of its own"
-        pr = facts.get("pr") or {}
-        owner_repo = GITHUB.match(facts["url"]).groups()
-        if str(pr.get("url", "")).lower() != ("https://github.com/%s/%s/pull/%d" % (owner_repo + (n,))).lower():
-            return False, "#%d isn't a pull request of this repository" % n
-        if pr.get("state") != "OPEN" or pr.get("isCrossRepository") or not BRANCH.fullmatch(str(pr.get("headRefName"))):
-            return False, "#%d isn't one of Claude's own open night/* pull requests" % n
-        what = "%s #%d" % ("edited" if parsed["verb"] == "edit" else "commented on", n)
-    texts = [("title", t) for t in parsed["texts"]]
-    if parsed["body_file"]:
-        path = facts.get("body")
-        if not path:
-            return False, "the body file isn't from the repository or the session's temp folder"
-        if not os.path.isfile(path) or facts.get("body_link"):
-            return False, "the body file isn't a plain file"
-        try:
-            if os.path.getsize(path) > 256 * 1024:
-                return False, "the body file is too big to check"
-            with open(path, errors="replace") as f:
-                texts.append(("body", f.read()))
-        except OSError:
-            return False, "couldn't read the body file"
-    problems = guard.text_problems(texts)
-    if problems:
-        return False, "the Guardian found %d problem(s) in what this would publish" % len(problems)
-    return True, what
 
 
 # ---------------------------------------------------------------- what's true
@@ -308,38 +134,13 @@ def inspect_pr(number, sha, cwd):
     return facts
 
 
-def inspect_text(parsed, cwd):
-    """What a pull request text decision needs to know: which repository gh would talk to,
-    the branch, where the body file really is, and (for edit and comment) the pull request."""
-    def git(*args):
-        return core.run(["git", "-C", cwd] + list(args), timeout=20)
-    base, facts = _repo(git)
-    remotes = git("remote")
-    facts["remotes"] = remotes.out.split() if remotes.ok else None
-    facts["resolved"] = git("config", "--get-regexp", r"^remote\..*\.gh-resolved$").out.splitlines()
-    facts["branch"] = git("symbolic-ref", "--short", "HEAD").out
-    facts["body"] = _body_file_ok(parsed["body_file"], cwd) if parsed["body_file"] else None
-    # gh opens the path as written, so it must be the file the Guardian reads, not a link to it.
-    named = os.path.abspath(os.path.join(cwd, os.path.expanduser(parsed["body_file"] or "")))
-    facts["body_link"] = bool(parsed["body_file"]) and os.path.realpath(named) != named
-    if parsed["number"] is not None:
-        view = core.run(["gh", "pr", "view", str(parsed["number"]), "--json",
-                         "url,state,isCrossRepository,headRefName"], cwd=cwd, timeout=15)
-        try:
-            pr = json.loads(view.out) if view.ok else None
-        except ValueError:
-            pr = None
-        facts["pr"] = pr if isinstance(pr, dict) else None
-    return facts
-
-
 # ---------------------------------------------------------------- deciding
 
 def _common(facts):
     if not facts.get("same_repo"):
         return "not a checkout of Ovenbird"
     if not facts.get("clean_main"):
-        return "the hook isn't running from a clean main"
+        return "the live checkout isn't a clean main"
     url = facts.get("url") or ""
     if not url or facts.get("push_url") != url or not GITHUB.match(url):
         return "origin isn't a plain GitHub remote"
@@ -368,7 +169,7 @@ def decide_push(branch, facts):
         return False, "couldn't list what the branch changes"
     ci = [p for p in facts["paths"] if p.startswith(NEVER_PUSHED)]
     if ci:
-        return False, "changes CI (%s): the hook never pushes that, since a branch's workflow runs once it's pushed" % ", ".join(ci[:3])
+        return False, "changes CI (%s): a branch's workflow runs once it's pushed, so that push waits for the human's yes" % ", ".join(ci[:3])
     if facts.get("problems"):
         return False, "the Guardian found %d problem(s)" % len(facts["problems"])
     return True, "%s at %s" % (branch, facts["head"][:8])
@@ -401,56 +202,6 @@ def decide_merge(number, sha, facts):
     where = ("; it changes Ovenbird's safety files (%s), so the review looks there first" % ", ".join(touched[:3])
              if touched else "")
     return False, READY + where
-
-
-def decide(request, cfg, look=inspect, look_pr=inspect_pr, look_text=inspect_text):
-    """-> (approve, why). Pure apart from the `look`s, which read the repository."""
-    if os.environ.get("CLAUDE_OS_DAEMON"):
-        return False, "inside a background job"
-    if request.get("tool_name") != "Bash":
-        return False, "not a shell command"
-    command = (request.get("tool_input") or {}).get("command")
-    if not (cfg.get("autonomy") or {}).get("night_shift"):
-        return False, "night shift is off"
-    if core.downloaded():
-        return False, "a downloaded Ovenbird doesn't push or merge (decision 0015)"
-    rule = asked_by_rule(command)
-    if rule is None:
-        return False, "couldn't read the checked-in ask rules"
-    if rule:
-        return False, "a checked-in ask rule covers this"
-    cwd = request.get("cwd") or str(core.ROOT)
-    pr_text = parse_pr_text(command)
-    if pr_text:
-        return decide_pr_text(pr_text, look_text(pr_text, cwd))
-    branch = parse_push(command)
-    if branch:
-        return decide_push(branch, look(branch, cwd))
-    merge = parse_merge(command)
-    if merge:
-        return decide_merge(merge[0], merge[1], look_pr(merge[0], merge[1], cwd))
-    return False, "not the exact push or merge the night shift may use"
-
-
-def permission():
-    """The hook itself: read the request on stdin, print an approval or nothing. Never fails
-    loudly: for a PermissionRequest hook, exit code 2 means deny."""
-    try:
-        request = json.loads(sys.stdin.read() or "{}")
-        approve, why = decide(request, core.config())
-        command = str((request.get("tool_input") or {}).get("command", ""))[:200]
-        if approve and parse_push(command):
-            core.journal("action", "night shift: pushed " + why, via="hook")  # it never merges (0020)
-        elif approve:
-            core.journal("action", "night shift: %s: %s" % (why, command), via="hook")
-        elif not approve and command.startswith(("git push", "gh pr merge", "gh-axi pr merge", "gh pr create",
-                                                 "gh pr edit", "gh pr comment")):
-            core.journal("permission", "night shift: asked the human (%s): %s" % (why, command), via="hook")
-        if approve:
-            print(json.dumps(ALLOW))
-    except BaseException:  # noqa: B036 — any doubt falls through to the human's prompt
-        pass
-    return 0
 
 
 # ---------------------------------------------------------------- cos hook pretool (0017)
@@ -544,9 +295,8 @@ def pretool_decision(command, patterns):
 
 # ---------------------------------------------------------------- the Guardian over gh text
 #
-# With `gh *` allowed (0013), no prompt is ever about to show for the owner, so the
-# PermissionRequest hook's check of pull request text never ran (Fable's review, F5/F8). This
-# one runs before every Bash call: it reads what a gh command would publish and denies it when
+# With `gh *` allowed (0013), no prompt is ever about to show for the owner, so a check that
+# waited for one never ran (Fable's review, F5/F8). This one runs before every Bash call: it reads what a gh command would publish and denies it when
 # the Guardian finds a problem. A deny goes back to Claude, never to a card.
 
 PUBLISHES = {(s, v) for s in ("pr", "issue") for v in ("create", "edit", "comment", "close", "reopen")} | {
@@ -1147,11 +897,25 @@ def fork_pr(number, pr, paths=None):
     return "\n    ".join(lines)
 
 
-def check_pr(number, cwd=None):
+def check_push(branch, cwd=None, look=inspect):
+    """Would `git push -u origin <branch>` go out clean? -> (ok, why). Only a night/* branch,
+    and never from a background job or a downloaded copy (0015)."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return False, "inside a background job"
+    if core.downloaded():
+        return False, DOWNLOADED
+    if not BRANCH.fullmatch(str(branch)) or ".." in branch or branch.endswith((".", ".lock", "main", "master")):
+        return False, "only a night/* branch, named plainly"
+    return decide_push(branch, look(branch, cwd or os.getcwd()))
+
+
+def check_pr(number, cwd=None, look_pr=inspect_pr):
     """Is #number ready for its guardian review and merge? -> (ready, why, the exact command).
-    The pull request is judged whatever the Night shift switch says (0020): the switch only
-    decides whether the hook may run git and gh for a clone's Claude. One from a fork is never
-    ready (fork_pr)."""
+    One from a fork is never ready (fork_pr), and a downloaded copy merges nothing (0015)."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return False, "inside a background job", None  # it would be GitHub with the human's login
+    if core.downloaded():
+        return False, DOWNLOADED, None
     view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid,isCrossRepository,state,changedFiles,files"],
                     cwd=cwd or os.getcwd(), timeout=15)
     try:
@@ -1163,11 +927,8 @@ def check_pr(number, cwd=None):
         return False, "couldn't read pull request #%d" % number, None
     if pr.get("isCrossRepository"):
         return False, fork_pr(number, pr, _fork_paths(str(sha), cwd or os.getcwd())), None
-    command = merge_command(number, sha)
-    cfg = core.config()
-    cfg["autonomy"] = dict(cfg.get("autonomy") or {}, night_shift=True)
-    _, why = decide({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd or os.getcwd()}, cfg)
-    return why.startswith(READY), why, command
+    _, why = decide_merge(number, sha, look_pr(number, sha, cwd or os.getcwd()))
+    return why.startswith(READY), why, merge_command(number, sha)
 
 
 def waiting(cwd=None):
@@ -1213,8 +974,6 @@ def render_waiting(rows):
 
 
 def main(args):
-    if args.hook_cmd == "permission":
-        return permission()
     if args.hook_cmd == "pretool":
         return pretool()
     target = args.target
@@ -1229,8 +988,7 @@ def main(args):
         core.emit({"pr": int(target), "ready": approve, "why": why, "command": command}, args.json,
                   lambda d: print(("✓ %s: %s" % (d["why"], d["command"])) if d["ready"] else "✗ waits: " + d["why"]))
         return 0 if approve else 1
-    approve, why = decide({"tool_name": "Bash", "tool_input": {"command": "git push -u origin %s" % target},
-                           "cwd": os.getcwd()}, core.config())
+    approve, why = check_push(target)
     core.emit({"branch": target, "approve": approve, "why": why}, args.json,
-              lambda d: print(("✓ would push on its own: " if d["approve"] else "✗ would ask the human: ") + d["why"]))
+              lambda d: print(("✓ clean to push: " if d["approve"] else "✗ don't push: ") + d["why"]))
     return 0 if approve else 1

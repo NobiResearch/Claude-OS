@@ -2,11 +2,11 @@ import AppKit
 
 /// Yes/no questions only the human can answer, asked in a native dialog (decisions 0006, 0011).
 ///
-/// Turning Night shift on lets Claude push and work on pull requests on its own, so the
+/// Turning Keep Ovenbird up to date on lets merged code reach this Mac by itself, so the
 /// desktop page can't do it alone: code in the page could call the API, but it can't click
-/// this dialog. `cos serve` opens claude-os://confirm/night?rid=…&nonce=… (the nonce is this
+/// this dialog. `cos serve` opens claude-os://confirm/catch-up?rid=…&nonce=… (the nonce is this
 /// launch's, which the page never sees), and the answer goes to
-/// ~/.claude-os/state/confirm-night.json with the request's id, a file the page can't write.
+/// ~/.claude-os/state/confirm-catch-up.json with the request's id, a file the page can't write.
 @MainActor
 enum Confirm {
     private struct Question {
@@ -16,13 +16,6 @@ enum Confirm {
     }
 
     private static let questions: [String: Question] = [
-        "night": Question(
-            title: "Turn on Night shift?",
-            body: "While you're away, Claude may push its own night/… branches of Ovenbird and open, edit and "
-                + "comment on its own pull requests for them, without asking you. Every commit and every pull "
-                + "request's text is checked for private data first. Merging isn't part of it: the switch never "
-                + "approves a merge. You can turn it off any time in Settings.",
-            yes: "Turn On"),
         "catch-up": Question(
             title: "Keep Ovenbird up to date?",
             body: "When a pull request is merged on GitHub, Ovenbird brings it to this Mac by itself: when the app "
