@@ -524,9 +524,9 @@ DEFAULT_CONFIG = {
     "weather": {},
     "notify": {"enabled": True, "native": False},
     "pulse": {"low_disk_gb": 20, "backup_check": True},
-    # Only the human turns these on, in Ovenbird.app's own dialog: Night shift (0006), and
-    # Keep Ovenbird up to date (0011), which pins the origin it was turned on for.
-    "autonomy": {"night_shift": False, "catch_up": False, "catch_up_url": None},
+    # Only the human turns this on, in Ovenbird.app's own dialog: Keep Ovenbird up to date
+    # (0011), which pins the origin it was turned on for.
+    "autonomy": {"catch_up": False, "catch_up_url": None},
 }
 
 

@@ -65,9 +65,7 @@ Ovenbird can see a lot of your Mac, so here's the deal in plain words.
   brings in what's merged on GitHub, and on this project's GitHub Claude merges its own pull
   requests: once CI passes and a guardian agent has reviewed them, without a person reading them
   first. Pull requests from anyone else wait for a person. Leave it off if you'd rather look at
-  each update first; Updates lists what's waiting. The **night shift**, which lets Claude push
-  its own branches and work on its own pull requests without a card (never a merge), also turns
-  on only in the app's own dialog, and a downloaded copy has none.
+  each update first; Updates lists what's waiting.
 
 ## The desktop
 
@@ -88,7 +86,7 @@ hotkey ⌃⌥Space) hosting a desktop with its own menu bar, dock and draggable 
 - **Journal**, **Memory**, **Settings**: background jobs, and **Permissions**: "Apple Music
   in Ovenbird" (MusicKit: catalog songs, your library, playlists and radio play right in
   Ovenbird), weather for a city or your location, your calendar and reminders (read-only),
-  notifications with Ovenbird's own name, Night shift, and Keep Ovenbird up to date
+  notifications with Ovenbird's own name, and Keep Ovenbird up to date
   (what's merged on GitHub comes to this Mac by itself). Everything is off until you turn it on.
 
 ⌘K opens the command palette: type an app name, or just ask. Prefer a browser?
@@ -181,7 +179,7 @@ cos remember "…" · memory        teach Ovenbird about you; shown to Claude at
 cos daemon list|install|run      background jobs via launchd
 cos evolve [review|merge]        see what Ovenbird changed about itself
 cos guard · doctor · notify · say · log · brief · config
-cos hook check [<branch>|<PR>]   is this pull request ready for its guardian review, and the merge command
+cos hook check [<branch>|<PR>]   is this branch clean to push? Is this pull request ready for its review?
 ```
 
 ### The board

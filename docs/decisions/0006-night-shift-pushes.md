@@ -1,6 +1,6 @@
 # 0006 — Night shift: Claude pushes its own branches while the human sleeps
 
-- **Status:** accepted
+- **Status:** accepted; its switch and PermissionRequest hook are gone, by [0024](0024-no-night-shift-switch.md)
 - **Date:** 2026-10-25
 - **Decided by:** the board (fifth meeting), on the human's request
 

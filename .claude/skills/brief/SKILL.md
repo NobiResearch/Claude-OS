@@ -15,14 +15,11 @@ Write a briefing the human would actually want to read with their coffee. Two mi
 - `bin/cos update --json` (cached data is fine; don't `--fetch` here).
 - `bin/cos feeds --since 24 --json --limit 80`: last day's unread items.
 - `bin/cos friction` and `bin/cos evolve`: what the OS itself needs. Headless, `cos evolve`
-  doesn't list the night shift's pull requests (a background run never asks GitHub); the
-  night's pushes are in the journal below.
-- `bin/cos log --days 1 --kind action`: what the night shift did ("night shift: …"), such as
-  its pushes.
-  The night shift never merges (0020): Claude merges its pull requests in a session, after a
-  guardian's review, and those merges aren't in this log ("evolve merged …" lines are evolve
-  branches). Where git is already allowed, pushes don't reach the hook either, so this list
-  can be empty after a busy night.
+  doesn't list the night shift's pull requests (a background run never asks GitHub).
+- `bin/cos log --days 1 --kind action`: what Ovenbird did overnight. The night shift's pushes
+  and merges aren't in it: Claude makes them in a session, a merge only after a guardian's
+  review (0020), and git and gh don't write to the journal ("evolve merged …" lines are
+  evolve branches), so this list can be empty after a busy night.
 - In a session only, never headless: `gh pr list --state open --json
   number,title,url,author,isCrossRepository`, read-only. A pull request is from someone else
   when `isCrossRepository` is true or its author isn't the login gh is signed in as, never because of
@@ -62,7 +59,7 @@ for them, from its title, and its `url` exactly as gh gave it), since those merg
 human's yes (0014). Claude's own pull
 requests merge after a guardian's review (0020) and don't wait for the human; name one only if
 it's still open and touches the safety checks themselves (hook, guard, evolve, settings,
-CLAUDE.md, the Night shift switch), marked "read this one".
+CLAUDE.md), marked "read this one".
 If last night's evolve run ended with `Couldn't record:`, at most one line: "Last night evolve
 couldn't record: <area>: <what>", and the command that keeps it, in single quotes:
 `bin/cos friction add '<what>' --area <area>`. Those lines come from a model run nobody

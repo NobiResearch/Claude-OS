@@ -133,13 +133,12 @@ def build_parser():
     nt.add_argument("--speed", action="store_true",
                     help="measure throughput with macOS's networkQuality (about 20 seconds; uses data)")
     cmd("power", "what keeps the Mac awake? (read-only)")
-    hk = cmd("hook", "Claude Code hooks (night shift pushes, 0006; every merge waits for a guardian's review, 0020)")
+    hk = cmd("hook", "Claude Code's PreToolUse hook (0017), and the checks before a push or merge (0020)")
     hk_sub = hk.add_subparsers(dest="hook_cmd", required=True)
-    hk_sub.add_parser("permission", help="PermissionRequest hook: reads Claude Code's request on stdin")
     hk_sub.add_parser("pretool", help="PreToolUse hook: a card for any cos call that changes something, however it's spelled")
-    hk_check = hk_sub.add_parser("check", help="would the night shift push this branch on its own? Is this pull request "
-                                               "ready for its guardian review, and what merges it? With nothing: the "
-                                               "night's pull requests and what each waits for")
+    hk_check = hk_sub.add_parser("check", help="is this branch clean to push? Is this pull request ready for its "
+                                               "guardian review, and what merges it? With nothing: the night's pull "
+                                               "requests and what each waits for")
     hk_check.add_argument("target", nargs="?", help="a night/* branch or a pull request number")
     ca_ = cmd("cal", "today's events and due reminders")
     ca_.add_argument("--refresh", action="store_true")
@@ -311,9 +310,9 @@ def config_cmd(args):
         value = json.loads(args.value)
     except ValueError:
         value = args.value
-    if args.key.split(".")[0] == "autonomy" and (value or args.key not in ("autonomy.night_shift", "autonomy.catch_up")):
-        # Night shift and Keep Ovenbird up to date: only the app's own dialog turns them on (or
-        # pins the repository); here they can only be turned off, one at a time.
+    if args.key.split(".")[0] == "autonomy" and (value or args.key != "autonomy.catch_up"):
+        # Keep Ovenbird up to date: only the app's own dialog turns it on (and pins the
+        # repository); here it can only be turned off.
         core.die("turn that on in Ovenbird.app: Settings › Permissions asks in its own dialog", 2)
     if isinstance(core.DEFAULT_CONFIG.get(args.key), dict) and not isinstance(value, dict):
         # core.config ignores a section that isn't one: `notify false` would quietly change nothing.

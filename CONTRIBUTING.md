@@ -96,7 +96,7 @@ Anything that breaks the rules above, and:
   stays on the Mac.
 - **More room for background jobs:** a daemon that's on by default (other than `pulse`), or
   wider limits for background jobs or the sandbox. Nobody watches them run.
-- **Loosening a protection:** the guard, the git hooks, the permission hook, the permission
+- **Loosening a protection:** the guard, the git hooks, the pretool hook, the permission
   settings, Claude Code hooks or CI (`guard.py`, `githooks/`, `hook.py`,
   `.claude/settings.json`, `.github/workflows/`). That's always its own pull request, with a
   reason. These are what keep a mistake small.

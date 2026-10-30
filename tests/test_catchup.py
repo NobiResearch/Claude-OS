@@ -231,12 +231,16 @@ class TestKeepUpToDate(Repos):
 
     def test_only_the_apps_dialog_turns_it_on(self):
         from cos import cli
-        for key in ("autonomy.catch_up", "autonomy.night_shift"):
+        with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
+            cli.main(["config", "autonomy.catch_up", "true"])
+        self.assertEqual(cm.exception.code, 2)
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(cli.main(["config", "autonomy.catch_up", "false"]), 0, "off is always fine")
+        # Night shift is gone (0024): its old key isn't a switch cos config sets either way.
+        for value in ("true", "false"):
             with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
-                cli.main(["config", key, "true"])
-            self.assertEqual(cm.exception.code, 2, key)
-            with redirect_stdout(io.StringIO()):
-                self.assertEqual(cli.main(["config", key, "false"]), 0, "off is always fine")
+                cli.main(["config", "autonomy.night_shift", value])
+            self.assertEqual(cm.exception.code, 2, value)
 
 
 class TestReviewFindings(Repos):
