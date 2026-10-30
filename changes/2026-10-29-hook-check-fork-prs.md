@@ -1,0 +1,1 @@
+- `cos hook check <N>` on a pull request from a fork says it waits for your yes, that its checks ran the fork's own workflow, which safety files it touches, how to test it safely, and the pinned merge command for after your yes.

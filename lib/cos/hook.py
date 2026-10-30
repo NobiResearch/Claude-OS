@@ -76,9 +76,10 @@ def protected(path):
 def changed(git, base, branch):
     """Every path the branch touches, or None if git can't say. --no-renames: git lists a
     moved file under its new name only, so moving .claude/settings.json away would look
-    like a new file in docs/."""
-    r = git("diff", "--no-renames", "--name-only", "%s...%s" % (base, branch))
-    return r.out.splitlines() if r.ok else None
+    like a new file in docs/. -z: otherwise git quotes a name with a non-ASCII byte, a quote
+    or a backslash, and ".github/workflows/ø.yml" in quotes wouldn't look protected."""
+    r = git("diff", "--no-renames", "--name-only", "-z", "%s...%s" % (base, branch))
+    return [p for p in r.out.split("\0") if p] if r.ok else None
 
 
 def clean_main(base):
@@ -1075,17 +1076,93 @@ def merge_command(number, sha):
     return "gh pr merge %d --squash --delete-branch --match-head-commit %s" % (number, sha)
 
 
+def _safety_label(path):
+    """Which of the gate's entries a path falls under, never the path itself: a fork names its
+    own files, and a file name is text someone else wrote."""
+    for entry in PROTECTED:
+        if path.startswith(entry):  # the same test protected() makes
+            return entry
+    if path.startswith("lib/") and not path.startswith("lib/cos/"):
+        return "lib/ (a module Python finds before the standard library's)"
+    return "compiled Python (__pycache__, .pyc or .pth)"
+
+
+SAFE_GIT = "git -c core.hooksPath=/dev/null -c core.fsmonitor=false"  # a fork's githooks/ never run
+
+
+def _fork_paths(sha, cwd):
+    """Every path a fork's head commit changes, from local git with --no-renames (GitHub names
+    a moved file only by its new path), or why there's no list. Nothing is fetched."""
+    def git(*args):
+        return core.run(["git", "-C", cwd, "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
+                        + list(args), timeout=20)
+    if not SHA.fullmatch(sha) or not git("cat-file", "-e", sha + "^{commit}").ok:
+        return "its head commit isn't here, and nothing was fetched"
+    from . import evolve
+    paths = changed(git, "origin/" + evolve.main_branch(cwd), sha)
+    return paths if paths is not None else "its head commit is here, but git couldn't list what it changes"
+
+
+def fork_pr(number, pr, paths=None):
+    """A pull request from someone else's fork (0014): never ready from here, it waits for the
+    human's yes. Its checks ran the fork's own copy of the workflow, so a green check proves
+    nothing. Which safety files it touches comes from `paths` (local git's list, _fork_paths), or
+    else, when that's a reason there's none, from GitHub's file list, trusted only when it's
+    complete and renames nothing. Nothing of its title, body, comments or file names is
+    printed, and no merge command stands on its own: it's in the text, after "only after the
+    human's yes". decide_merge still refuses it. -> why it waits."""
+    sha = str(pr.get("headRefOid") or "")
+    open_ = pr.get("state") == "OPEN"
+    lines = ["the human's yes (0014): #%d is from a fork, so its checks ran the fork's own workflow and a "
+             "green check proves nothing" % number if open_ else "#%d is from a fork and isn't open" % number]
+    if not isinstance(paths, list):
+        lines.append(paths if isinstance(paths, str) else "its head commit isn't here, and nothing was fetched")
+        files = pr.get("files") if isinstance(pr.get("files"), list) else []
+        listed = [f for f in files if isinstance(f, dict) and f.get("path")]
+        total = pr.get("changedFiles")
+        if not isinstance(total, int) or len(listed) < total:
+            lines.append("GitHub listed %d of %s changed files, so which safety files it touches isn't known"
+                         % (len(listed), total if isinstance(total, int) else "?"))
+            listed = None
+        elif any(f.get("changeType") not in ("ADDED", "MODIFIED", "DELETED") for f in listed):
+            lines.append("it moves files, and GitHub names a moved file only by its new path, so which safety "
+                         "files it touches isn't known until it's fetched")
+            listed = None
+        paths = [str(f["path"]) for f in listed] if listed is not None else None
+    if paths is not None:
+        touched = sorted({_safety_label(p) for p in paths if protected(p)})
+        lines.append("it changes Ovenbird's safety files: %s" % ", ".join(touched) if touched
+                     else "it changes none of Ovenbird's safety files")
+    lines.append("test it here before anyone says yes, from the live checkout and never with gh pr checkout: "
+                 "%s fetch origin +pull/%d/head:fork-%d; check that git rev-parse fork-%d is %s (a fork can be "
+                 "force-pushed); %s diff --no-renames --stat origin/main...fork-%d; its tests in a fresh temp "
+                 "clone, sandboxed, with main's code: /usr/bin/python3 -c \"import sys; sys.path.insert(0, 'lib'); "
+                 "from cos import evolve; t = evolve.test_commit('fork-%d'); print('tests pass' if t and t.ok "
+                 "else 'tests fail or could not run')\"; then git branch -D fork-%d; no swift test or build of it "
+                 "without the human" % (SAFE_GIT, number, number, number, sha or "the pinned commit",
+                                        SAFE_GIT, number, number, number))
+    if open_ and SHA.fullmatch(sha):
+        lines.append("only after the human's yes (0014): gh pr merge %d --squash --match-head-commit %s"
+                     % (number, sha))
+    return "\n    ".join(lines)
+
+
 def check_pr(number, cwd=None):
     """Is #number ready for its guardian review and merge? -> (ready, why, the exact command).
     The pull request is judged whatever the Night shift switch says (0020): the switch only
-    decides whether the hook may run git and gh for a clone's Claude."""
-    view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid"], cwd=cwd or os.getcwd(), timeout=15)
+    decides whether the hook may run git and gh for a clone's Claude. One from a fork is never
+    ready (fork_pr)."""
+    view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid,isCrossRepository,state,changedFiles,files"],
+                    cwd=cwd or os.getcwd(), timeout=15)
     try:
-        sha = json.loads(view.out).get("headRefOid") if view.ok else None
-    except (ValueError, AttributeError):
-        sha = None
-    if not sha or not SHA.fullmatch(sha):
+        pr = json.loads(view.out) if view.ok else None
+    except ValueError:
+        pr = None
+    sha = pr.get("headRefOid") if isinstance(pr, dict) else None
+    if not sha or not SHA.fullmatch(str(sha)):
         return False, "couldn't read pull request #%d" % number, None
+    if pr.get("isCrossRepository"):
+        return False, fork_pr(number, pr, _fork_paths(str(sha), cwd or os.getcwd())), None
     command = merge_command(number, sha)
     cfg = core.config()
     cfg["autonomy"] = dict(cfg.get("autonomy") or {}, night_shift=True)
@@ -1099,8 +1176,8 @@ def waiting(cwd=None):
     run never asks: it would be GitHub with the human's login (Fable's review, F12)."""
     if os.environ.get("CLAUDE_OS_DAEMON"):
         return None
-    r = core.run(["gh", "pr", "list", "--state", "open", "--limit", "50", "--json", "number,title,headRefName,url"],
-                 cwd=cwd or str(core.ROOT), timeout=20)
+    r = core.run(["gh", "pr", "list", "--state", "open", "--limit", "50", "--json",
+                  "number,title,headRefName,url,isCrossRepository"], cwd=cwd or str(core.ROOT), timeout=20)
     try:
         prs = json.loads(r.out) if r.ok else None
     except ValueError:
@@ -1110,6 +1187,11 @@ def waiting(cwd=None):
     rows = []
     for pr in prs:
         if not BRANCH.fullmatch(str(pr.get("headRefName"))):
+            continue
+        if pr.get("isCrossRepository") is not False:
+            # A fork can name its branch night/* too: its number only, never its title or branch.
+            rows.append({"number": pr["number"], "fork": True, "ready": False,
+                         "why": "#%d is from a fork: cos hook check %d" % (pr["number"], pr["number"])})
             continue
         approve, why, command = check_pr(pr["number"], cwd)
         rows.append({"number": pr["number"], "title": pr.get("title"), "branch": pr["headRefName"], "url": pr.get("url"),
@@ -1123,6 +1205,9 @@ def render_waiting(rows):
     elif not rows:
         print("No night shift pull requests are open.")
     for r in rows or []:
+        if r.get("fork"):
+            print("#%d\n    waits: %s" % (r["number"], r["why"]))
+            continue
         print("#%d %s (%s)\n    %s\n    %s" % (r["number"], r["title"], r["branch"],
                                           r["why"] if r["ready"] else "waits: " + r["why"], r["url"]))
 
