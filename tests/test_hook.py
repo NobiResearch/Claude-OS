@@ -344,8 +344,20 @@ class TestPretool(TempHome):
                     "true # it's\ncos config autonomy.catch_up true",
                     # piped to a shell, the text is a script; and too long to read in time
                     "echo 'cos clean apply x --yes' | sh", "printf 'cos  clean apply x --yes' |& bash",
-                    "cos status # " + "x" * (64 * 1024)):
+                    "cos status # " + "x" * (64 * 1024), "cos status " + "x" * (16 * 1024),
+                    # the second review: quotes that pair up inside comments and heredocs, a ' in
+                    # "$( )", $' that moves the cut, and a shell started in another command
+                    "# Don't touch\ncos clean apply downloads-old --yes  # that's the one",
+                    "cos status # it's fine\ncos config autonomy.catch_up true # isn't it",
+                    "cat <<EOF > /dev/null\ndon't\nEOF\ncos clean apply x --yes\ncat <<EOF >/dev/null\nit's\nEOF",
+                    'echo "$(echo \' " \' ; cos clean apply x --yes ; echo \' " \' ; (true))"',
+                    "printf $'a\\'b' ; echo 'p; q' ; cos clean apply x --yes #'",
+                    'cmd="cos clean apply x --yes"; eval $cmd', "x='cos update apply brew --yes' && bash -c \"$x\"",
+                    "zsh <<<'bin/cos daemon install brief'", "bash <<<'cos clean apply x --yes'",
+                    "source <(echo 'cos clean apply x --yes')", "bash < cmds.txt; cos status"):
             self.assertIsNotNone(self.decide(cmd), repr(cmd[:80]))
+        # An escaped backslash before a newline isn't a line continuation: the next line runs.
+        self.assertIsNotNone(self.decide("echo \\\\\ncos  clean apply x --yes"))
 
     def test_reading_and_everything_else_has_no_opinion(self):
         for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",
@@ -354,7 +366,8 @@ class TestPretool(TempHome):
                     "cos status 2>&1 | tail", "cos music play 'x y'",
                     # the night shift's own commands mention cos without running it: no card nobody answers
                     'git commit -m "$(cat msg)" lib/cos/x.py', "gh pr merge 1 --match-head-commit $(git -C x rev-parse HEAD)",
-                    "git ls-files lib/cos"):
+                    "git ls-files lib/cos", 'git commit -q -m "Open source the cos hook"',
+                    'bin/cos friction close 34 --note "see #35"', "bin/cos hook check night/x"):
             self.assertIsNone(self.decide(cmd), repr(cmd))
 
     def test_text_in_another_command_never_makes_a_cos_call_ask(self):
@@ -364,14 +377,15 @@ class TestPretool(TempHome):
                     "printf -- '- %s: cos hook pretool asked' \"$(date '+%H:%M')\" >> log.md; bin/cos log add x",
                     'bin/cos friction add "a \\"b\\" c" --area hook',
                     'git commit -m "fix cos guard"; bin/cos status',
-                    "echo '$(cos  clean apply x --yes)'",  # single quotes: only text
                     "cd x && python3 -m unittest discover -s tests > out.log 2>&1; grep -E '^OK' out.log; bin/cos guard --all"):
             self.assertIsNone(self.decide(cmd), repr(cmd))
         # What runs cos still asks, wherever it sits.
         for cmd in ('git commit -m "x \\"y\\""; cos  clean apply x --yes',
                     'echo "$(cos  clean apply x --yes)"', "sh -c 'cos clean apply x --yes'",
                     'eval "cos clean apply x --yes"', "bash -lc \"bin/cos update apply brew --yes\"",
-                    "printf '%s' \"$(date)\"; cos clean apply x --yes"):
+                    "printf '%s' \"$(date)\"; cos clean apply x --yes",
+                    # what a substitution hands a cos call isn't known, even if it names no cos
+                    "cos clean $(echo apply) x --yes", 'cos clean "$(echo apply)" x', "cos clean `echo apply` x"):
             self.assertIsNotNone(self.decide(cmd), repr(cmd))
 
     def test_the_hook_prints_an_ask_or_nothing(self):

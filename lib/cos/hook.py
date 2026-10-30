@@ -232,7 +232,19 @@ def _tokens(text, posix):
 
 MENTIONS_COS = re.compile(r"(^|[^\w-])cos\b")
 PIECES = r"[\s;&|()`\"'{}<>$]+"
-TOO_LONG = 64 * 1024  # longer and the regexes below get slow; no command of the night's is
+TOO_LONG = 16 * 1024  # longer and the shell regexes get slow (the hook has 10 s); no night's command is
+# What the quote reading here can't follow: a heredoc (its lines aren't commands), $'…' (its \'
+# doesn't end it) and a comment (its `don't` isn't a quote; found outside quotes, once the rest
+# reads right). A command with one is read whole, as this hook read every command before
+# friction #35.
+UNFOLLOWED = re.compile(r"<<(?!<)|\$'")
+COMMENT = re.compile(r"(?:^|[\s;&|()])#")
+CONTINUED = re.compile(r"(?<!\\)((?:\\\\)*)\\\n")  # a backslash-newline whose backslash isn't escaped
+
+
+def _names_cos(text):
+    """Is cos one of the words, wherever it is: in quotes, `$( )` or braces too?"""
+    return any(_is_cos(piece) for piece in re.split(PIECES, text))
 
 
 def _segments(text):
@@ -270,63 +282,95 @@ def cos_calls(command):
     """Every cos call in a shell command -> [(canonical, words)]: "cos clean apply x --yes", and
     the leading subcommand words as written, up to the first that isn't a plain word (a quote,
     a redirection, `$…`, braces). None when the command runs cos and can't be read for sure.
-    Each command in it is read on its own (_segments)."""
+
+    A plain command is read one simple command at a time (_segments), so text in another one
+    (a commit message's escaped quotes) can't make a cos call unreadable (friction #35). One
+    that has what the quote reading can't follow is read whole (_whole_cos_calls), and one that
+    starts a shell anywhere asks."""
     text = str(command or "")
     if not MENTIONS_COS.search(text):
         return []
-    if len(text) > TOO_LONG or PIPED_TO_SHELL.search(_bare(text)):
-        return None  # `… | sh` runs text the shell first read as data, and cos may be in it
-    text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
+    if len(text) > TOO_LONG:
+        return None
+    bare = _bare(text)
+    if SHELLS.search(bare) or PIPED_TO_SHELL.search(bare) or FED_TO_SHELL.search(bare):
+        return None  # eval, sh -c, `| sh`, `zsh <<<`: a shell runs text it read as data, maybe cos
+    text = CONTINUED.sub(r"\1", text).replace("\n", " ; ")  # line continuations, then one command a line
+    plain = None if UNFOLLOWED.search(text) else _without_substitutions(text)
+    if plain is None or COMMENT.search(_bare(plain)):
+        return _whole_cos_calls(text)
     calls = []
-    for segment in _segments(text):
+    for segment in _segments(plain):
         if MENTIONS_COS.search(segment):
             found = _segment_cos_calls(segment)
-            if found is None:
-                return None
+            if found is None or (found and SUBSTITUTED in segment):
+                return None  # what a substitution gives a cos call isn't known: `cos clean $(…) x`
             calls += found
     return calls
 
 
-def _segment_cos_calls(text):
-    """cos_calls for one simple command (it may hold quotes, `$( )` and parentheses)."""
-    # It runs cos if cos is a word outside quotes, or inside text a shell will run: a live
-    # `$( )` or backticks (found with _mask, so single-quoted ones are only text), or the
-    # quoted script of sh -c or eval. A cos inside a commit message's quotes runs nothing.
-    def names_cos(s):
-        return any(_is_cos(piece) for piece in re.split(PIECES, s))
-    inside = " ".join(text[m.start():m.end()] for m in INNER.finditer(_mask(text)))
-    shell_runs_quoted = bool(SHELLS.search(text) or inside)
-    runs_cos = names_cos(_bare(text)) or names_cos(inside) or (bool(SHELLS.search(text)) and names_cos(text))
-    if "$'" in text and names_cos(text):
-        return None  # $'…' quoting isn't modelled: its \' doesn't end it
-    try:
-        cooked = _tokens(text, True)
-    except ValueError:
-        # Unbalanced quotes: then the quotes were misread, here and in runs_cos (a `don't` in a
-        # comment or a heredoc), so any cos word counts.
-        return None if names_cos(text) else []
+SUBSTITUTED = "\x00"  # what stands in for a substitution: no command has one of its own
+
+
+def _without_substitutions(text):
+    """The text with each simple $( ), <( ) or backticks as one word, SUBSTITUTED: one that names
+    no cos, like "$(date '+%H:%M')" in a journal line, and whose first `)` or backtick is surely
+    its end (its quotes pair up, and no `case`, backslash or `#` could move it). None if one
+    names cos or isn't simple. cos_calls still asks when a cos call gets one."""
+    if SUBSTITUTED in text:
+        return None
+    for m in INNER.finditer(text):
+        body = next(g for g in m.groups() if g is not None)
+        if _names_cos(body) or re.search(r"\bcase\b|[\\#]", body):
+            return None
+        try:
+            shlex.split(body)
+        except ValueError:
+            return None
+    out = INNER.sub(SUBSTITUTED, text)
+    return None if SUBSTITUTES.search(out) else out
+
+
+def _calls(cooked, raw):
     calls = []
     for i, token in enumerate(cooked):
         if not _is_cos(token):
             continue
         argv, plain = [], []
-        for c in cooked[i + 1:]:
+        for c, r in zip(cooked[i + 1:], raw[i + 1:]):
             if c in OPERATORS:
                 break
             argv.append(c)
-            # As the shell left it: `$X`, `${…}`, braces, globs and `~` still show, and a quote
-            # around a plain word ('clean') changes nothing cos would see.
-            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(c):
-                plain.append(c)
+            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
+                plain.append(r)
         calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
-    masked = _mask(text)
-    if runs_cos and ("`" in text or "$(" in text or "<(" in text):
-        return None
-    if names_cos(masked) and SUBSTITUTES.search(masked):
-        return None  # a live $( ) that INNER can't take apart ("$( (cos …) )") may run it
-    if runs_cos and shell_runs_quoted and not calls:
-        return None  # sh -c 'cos …' or eval: the call is inside text this doesn't take apart
     return calls
+
+
+def _segment_cos_calls(text):
+    """cos_calls for one simple command with no shell, comment, heredoc, $'…' or substitution
+    in it (cos_calls reads those whole). A cos inside a commit message's quotes runs nothing,
+    and a quote around a plain word ('clean') changes nothing cos would see."""
+    try:
+        cooked = _tokens(text, True)
+    except ValueError:
+        return None if _names_cos(text) else []  # quotes that don't pair up: any cos word counts
+    return _calls(cooked, cooked)
+
+
+def _whole_cos_calls(text):
+    """The whole command at once, with a cos word anywhere counting, in quotes too: it asks
+    unless the shell's reading and the raw one agree, and whenever a substitution could run cos."""
+    runs_cos = _names_cos(text)
+    try:
+        cooked, raw = _tokens(text, True), _tokens(text, False)
+    except ValueError:
+        return None if runs_cos else []
+    if len(cooked) != len(raw):
+        return None
+    if runs_cos and (SUBSTITUTES.search(text) or "$'" in text):
+        return None  # what a substitution or $'…' (whose \' doesn't end it) turns into isn't known
+    return _calls(cooked, raw)
 
 
 def ask_patterns(root=None):
@@ -410,6 +454,7 @@ SHELLS = re.compile(r"\beval\b|\bsource\b|(?:^|[;&|(]\s*)\.\s+\S"
                     r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*\s-[A-Za-z]*[cs][A-Za-z]*\b"  # sh -c, bash -lc, -o x -c
                     r"|\|\s*" + _SHELL + r"\b")
 PIPED_TO_SHELL = re.compile(r"\|&?\s*" + _SHELL + r"\b")  # across commands: cos_calls cuts at |
+FED_TO_SHELL = re.compile(r"(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*<")  # zsh <<<'…', bash < file
 FLAG_LIKE = re.compile(r"--?[A-Za-z][\w-]*(?:=.*)?")
 REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
 
