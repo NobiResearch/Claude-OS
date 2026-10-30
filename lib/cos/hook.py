@@ -912,6 +912,8 @@ def check_push(branch, cwd=None, look=inspect):
 def check_pr(number, cwd=None, look_pr=inspect_pr):
     """Is #number ready for its guardian review and merge? -> (ready, why, the exact command).
     One from a fork is never ready (fork_pr), and a downloaded copy merges nothing (0015)."""
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return False, "inside a background job", None  # it would be GitHub with the human's login
     if core.downloaded():
         return False, DOWNLOADED, None
     view = core.run(["gh", "pr", "view", str(number), "--json", "headRefOid,isCrossRepository,state,changedFiles,files"],

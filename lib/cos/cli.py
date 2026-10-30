@@ -310,6 +310,8 @@ def config_cmd(args):
         value = json.loads(args.value)
     except ValueError:
         value = args.value
+    if args.key == "autonomy.night_shift":
+        core.die("Night shift is gone (decision 0024): there's no switch to set", 2)
     if args.key.split(".")[0] == "autonomy" and (value or args.key != "autonomy.catch_up"):
         # Keep Ovenbird up to date: only the app's own dialog turns it on (and pins the
         # repository); here it can only be turned off.

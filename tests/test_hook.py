@@ -148,6 +148,10 @@ class TestMerge(TempHome):
         with mock.patch.object(hook.core, "downloaded", return_value=True), \
                 mock.patch.object(hook.core, "run", side_effect=AssertionError("it asked GitHub")):
             self.assertEqual(hook.check_pr(31), (False, hook.DOWNLOADED, None))
+        # Nor does a background job: it would be GitHub with the human's login.
+        with mock.patch.dict(os.environ, {"CLAUDE_OS_DAEMON": "evolve"}), \
+                mock.patch.object(hook.core, "run", side_effect=AssertionError("it asked GitHub")):
+            self.assertFalse(hook.check_pr(31)[0])
 
     def test_cos_hook_check_on_a_fork_says_what_waits_and_never_ready(self):
         # Fable's F2 (29 October): a fork's checks ran the fork's own workflow. `cos hook check`
@@ -362,6 +366,14 @@ class TestPretool(TempHome):
         # Decision 0024: no hook answers a prompt on the human's behalf.
         self.assertNotIn("PermissionRequest", hooks)
         self.assertFalse(hasattr(hook, "permission"))
+        # A session that still has the old entry gets usage on stderr, nothing on stdout, and a
+        # failure its `|| true` turns into no answer: Claude Code's normal card.
+        from contextlib import redirect_stderr
+        from cos import cli
+        with redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as cm:
+            cli.main(["hook", "permission"])
+        self.assertNotEqual(cm.exception.code, 0)
+        self.assertEqual(out.getvalue(), "")
 
 
 class TestGhText(TempHome):

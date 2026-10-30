@@ -241,6 +241,8 @@ class TestKeepUpToDate(Repos):
             with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as cm:
                 cli.main(["config", "autonomy.night_shift", value])
             self.assertEqual(cm.exception.code, 2, value)
+        with redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            cli.main(["config", "autonomy.night_shift", "false"])
 
 
 class TestReviewFindings(Repos):
