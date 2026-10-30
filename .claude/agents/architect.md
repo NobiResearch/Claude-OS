@@ -38,10 +38,21 @@ CONDITIONS:
 
 ## How to look (without a card for the human)
 
-Read and search files with the Read, Grep and Glob tools, not Bash (`cat`, `grep`, `sed`,
-`stat`, `ls`, `find`): those tools never stop to ask. Use Bash only to run something, in the
-spellings the allow rules already cover, one plain command per call:
-`python3 -m unittest discover -s tests` (in a worktree: `cd <worktree> && python3 -m unittest
-discover -s tests`, never `/usr/bin/python3`), `bin/cos …` from the repository root, `git …`.
-A command that would show the human a permission card waits until someone answers it, maybe
-all night: skip it, and say what you couldn't check.
+Inside the repository, and in `~/.claude-os/dev` once the owner allows it, the Read, Grep and
+Glob tools never stop to ask: read and search with them, not with `cat`, `grep`, `sed`, `stat`,
+`ls` or `find`. If Grep or Glob is missing, `git -C <worktree> grep`, `git -C <worktree>
+ls-files` and `git -C <worktree> show HEAD:<path>` read exactly what would merge.
+
+Use Bash only to run something, one plain command per call, in spellings the owner's allow
+rules cover:
+- read-only git: `git log`, `diff`, `show`, `grep`, `ls-files`, `rev-parse`;
+- the tests of one of Ovenbird's own branches: `python3 -m unittest discover -s <worktree>/tests`;
+- `bin/cos …` from the repository root. `bin/cos hook check <branch|PR>` is a branch's
+  private-data scan; `bin/cos guard --all` scans main.
+
+Someone else's pull request (from a fork): never run its code, not its tests and not its
+`bin/cos`. Its tests run only through the sandboxed command `bin/cos hook check <PR>` prints,
+and that card is the human's (0014).
+
+A command that would show the human a card waits until someone answers it, maybe all night:
+skip it, say what you couldn't check, and lower your CONFIDENCE.
