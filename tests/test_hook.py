@@ -576,6 +576,25 @@ class TestPretool(TempHome):
                     'git log "$(bin/cos  update apply brew --yes)"', 'echo don\\\'t "$(cos  clean apply x --yes)"'):
             self.assertIn("can't read", self.decide(cmd), cmd)
 
+    def test_quotes_it_would_misread_still_ask(self):
+        # The guardian's review of #170: where the quotes can't be read the way the shell reads
+        # them (a `don't` in a comment or a heredoc, $'…'), or a live $( ) can't be taken apart,
+        # any cos word asks, as it did before each command was read on its own.
+        for cmd in ("# don't forget\ncos clean apply x --yes", "true # it's fine\ncos  clean apply x --yes",
+                    "cat <<EOF > /dev/null\ndon't\nEOF\ncos  clean apply x --yes",
+                    "git commit -q -F - <<'EOF'\nIt's done\nEOF\nbin/cos  update apply brew --yes",
+                    "printf $'it\\'s\\n'; cos  clean apply x --yes", "printf $'it\\'s\n'; cos  clean apply x --yes",
+                    "echo $'a\\'b' ; cos  clean apply x --yes #'", "echo \\\\\n'true' ; cos  clean apply x --yes",
+                    'echo "$( (cos  clean apply x --yes) )"', 'echo "$( (cos security on firewall --yes) )"',
+                    'echo "$(cos  clean apply x --yes; echo $((1+1)))"',
+                    'echo "$(case x in x) cos  clean apply x --yes;; esac)"',
+                    'echo "$(echo "it\'s"; cos  clean apply x --yes)"', "$'cos' clean apply x --yes",
+                    "true # it's\ncos config autonomy.catch_up true",
+                    # piped to a shell, the text is a script; and too long to read in time
+                    "echo 'cos clean apply x --yes' | sh", "printf 'cos  clean apply x --yes' |& bash",
+                    "cos status # " + "x" * (64 * 1024)):
+            self.assertIsNotNone(self.decide(cmd), repr(cmd[:80]))
+
     def test_reading_and_everything_else_has_no_opinion(self):
         for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",
                     "git status", "cosmos clean apply", "ls -la", "cos evolve merge evolve/x --yes", "",

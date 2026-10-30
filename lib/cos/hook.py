@@ -481,6 +481,7 @@ def _tokens(text, posix):
 
 MENTIONS_COS = re.compile(r"(^|[^\w-])cos\b")
 PIECES = r"[\s;&|()`\"'{}<>$]+"
+TOO_LONG = 64 * 1024  # longer and the regexes below get slow; no command of the night's is
 
 
 def _segments(text):
@@ -522,6 +523,8 @@ def cos_calls(command):
     text = str(command or "")
     if not MENTIONS_COS.search(text):
         return []
+    if len(text) > TOO_LONG or PIPED_TO_SHELL.search(_bare(text)):
+        return None  # `… | sh` runs text the shell first read as data, and cos may be in it
     text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
     calls = []
     for segment in _segments(text):
@@ -543,10 +546,14 @@ def _segment_cos_calls(text):
     inside = " ".join(text[m.start():m.end()] for m in INNER.finditer(_mask(text)))
     shell_runs_quoted = bool(SHELLS.search(text) or inside)
     runs_cos = names_cos(_bare(text)) or names_cos(inside) or (bool(SHELLS.search(text)) and names_cos(text))
+    if "$'" in text and names_cos(text):
+        return None  # $'…' quoting isn't modelled: its \' doesn't end it
     try:
         cooked = _tokens(text, True)
     except ValueError:
-        return None if runs_cos else []
+        # Unbalanced quotes: then the quotes were misread, here and in runs_cos (a `don't` in a
+        # comment or a heredoc), so any cos word counts.
+        return None if names_cos(text) else []
     calls = []
     for i, token in enumerate(cooked):
         if not _is_cos(token):
@@ -561,8 +568,11 @@ def _segment_cos_calls(text):
             if len(plain) == len(argv) - 1 and PLAIN.fullmatch(c):
                 plain.append(c)
         calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
+    masked = _mask(text)
     if runs_cos and ("`" in text or "$(" in text or "<(" in text):
         return None
+    if names_cos(masked) and SUBSTITUTES.search(masked):
+        return None  # a live $( ) that INNER can't take apart ("$( (cos …) )") may run it
     if runs_cos and shell_runs_quoted and not calls:
         return None  # sh -c 'cos …' or eval: the call is inside text this doesn't take apart
     return calls
@@ -649,6 +659,7 @@ _SHELL = r"(?:\S*/)?(?:ba|z|da|k)?sh"
 SHELLS = re.compile(r"\beval\b|\bsource\b|(?:^|[;&|(]\s*)\.\s+\S"
                     r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*\s-[A-Za-z]*[cs][A-Za-z]*\b"  # sh -c, bash -lc, -o x -c
                     r"|\|\s*" + _SHELL + r"\b")
+PIPED_TO_SHELL = re.compile(r"\|&?\s*" + _SHELL + r"\b")  # across commands: cos_calls cuts at |
 FLAG_LIKE = re.compile(r"--?[A-Za-z][\w-]*(?:=.*)?")
 REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
 
