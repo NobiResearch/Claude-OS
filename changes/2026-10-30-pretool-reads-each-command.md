@@ -1,0 +1,1 @@
+- Ovenbird's pretool hook reads each command in a Bash call on its own, so quotes in another command (a commit message, a printf line) no longer make it ask about a `cos` call it can read. On one night's 271 commands it asked once instead of 17 times. What runs `cos` still asks, wherever it sits, now also inside `sh -c '…'` and `eval`.

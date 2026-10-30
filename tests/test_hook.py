@@ -586,6 +586,23 @@ class TestPretool(TempHome):
                     "git ls-files lib/cos"):
             self.assertIsNone(self.decide(cmd), repr(cmd))
 
+    def test_text_in_another_command_never_makes_a_cos_call_ask(self):
+        # Friction #35: one card like this stopped a night shift for eight hours. Each command
+        # is read on its own, and text a shell won't run (quotes, a commit message) runs no cos.
+        for cmd in ('bin/cos guard --all | tail -1; git add -A && git commit -q -m "a \\"quoted\\" cos word\\n\\nmore"',
+                    "printf -- '- %s: cos hook pretool asked' \"$(date '+%H:%M')\" >> log.md; bin/cos log add x",
+                    'bin/cos friction add "a \\"b\\" c" --area hook',
+                    'git commit -m "fix cos guard"; bin/cos status',
+                    "echo '$(cos  clean apply x --yes)'",  # single quotes: only text
+                    "cd x && python3 -m unittest discover -s tests > out.log 2>&1; grep -E '^OK' out.log; bin/cos guard --all"):
+            self.assertIsNone(self.decide(cmd), repr(cmd))
+        # What runs cos still asks, wherever it sits.
+        for cmd in ('git commit -m "x \\"y\\""; cos  clean apply x --yes',
+                    'echo "$(cos  clean apply x --yes)"', "sh -c 'cos clean apply x --yes'",
+                    'eval "cos clean apply x --yes"', "bash -lc \"bin/cos update apply brew --yes\"",
+                    "printf '%s' \"$(date)\"; cos clean apply x --yes"):
+            self.assertIsNotNone(self.decide(cmd), repr(cmd))
+
     def test_the_hook_prints_an_ask_or_nothing(self):
         def run(command, tool="Bash"):
             out = io.StringIO()

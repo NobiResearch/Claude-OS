@@ -479,36 +479,92 @@ def _tokens(text, posix):
     return list(lex)
 
 
+MENTIONS_COS = re.compile(r"(^|[^\w-])cos\b")
+PIECES = r"[\s;&|()`\"'{}<>$]+"
+
+
+def _segments(text):
+    """The text cut where the shell starts a new command (; & && | || and newlines), outside
+    quotes and escapes; `2>&1` and `&>` are redirections, not cuts. Each cos call is then read
+    on its own, so text in another command (a commit message's escaped quotes) can't make it
+    unreadable (friction #35). Parentheses stay: `$( )` belongs to its command."""
+    out, cur, quote, i = [], [], None, 0
+    while i < len(text):
+        c = text[i]
+        if quote:
+            cur.append(c)
+            if c == "\\" and quote == '"' and i + 1 < len(text):
+                cur.append(text[i + 1])
+                i += 1
+            elif c == quote:
+                quote = None
+        elif c == "\\" and i + 1 < len(text):
+            cur += [c, text[i + 1]]
+            i += 1
+        elif c in "'\"":
+            quote = c
+            cur.append(c)
+        elif c in ";|" or (c == "&" and not (cur and cur[-1] in "<>") and text[i + 1:i + 2] != ">"):
+            out.append("".join(cur))
+            cur = []
+        else:
+            cur.append(c)
+        i += 1
+    out.append("".join(cur))
+    return [s for s in out if s.strip()]
+
+
 def cos_calls(command):
     """Every cos call in a shell command -> [(canonical, words)]: "cos clean apply x --yes", and
     the leading subcommand words as written, up to the first that isn't a plain word (a quote,
-    a redirection, `$…`, braces). None when the command runs cos and can't be read for sure."""
+    a redirection, `$…`, braces). None when the command runs cos and can't be read for sure.
+    Each command in it is read on its own (_segments)."""
     text = str(command or "")
-    if not re.search(r"(^|[^\w-])cos\b", text):
+    if not MENTIONS_COS.search(text):
         return []
     text = text.replace("\\\n", "").replace("\n", " ; ")  # line continuations, then one command a line
-    # A cos call anywhere in the text, inside `$( )`, backticks or quotes too.
-    runs_cos = any(_is_cos(piece) for piece in re.split(r"[\s;&|()`\"'{}<>$]+", text))
+    calls = []
+    for segment in _segments(text):
+        if MENTIONS_COS.search(segment):
+            found = _segment_cos_calls(segment)
+            if found is None:
+                return None
+            calls += found
+    return calls
+
+
+def _segment_cos_calls(text):
+    """cos_calls for one simple command (it may hold quotes, `$( )` and parentheses)."""
+    # It runs cos if cos is a word outside quotes, or inside text a shell will run: a live
+    # `$( )` or backticks (found with _mask, so single-quoted ones are only text), or the
+    # quoted script of sh -c or eval. A cos inside a commit message's quotes runs nothing.
+    def names_cos(s):
+        return any(_is_cos(piece) for piece in re.split(PIECES, s))
+    inside = " ".join(text[m.start():m.end()] for m in INNER.finditer(_mask(text)))
+    shell_runs_quoted = bool(SHELLS.search(text) or inside)
+    runs_cos = names_cos(_bare(text)) or names_cos(inside) or (bool(SHELLS.search(text)) and names_cos(text))
     try:
-        cooked, raw = _tokens(text, True), _tokens(text, False)
+        cooked = _tokens(text, True)
     except ValueError:
         return None if runs_cos else []
-    if len(cooked) != len(raw):
-        return None
     calls = []
     for i, token in enumerate(cooked):
         if not _is_cos(token):
             continue
         argv, plain = [], []
-        for c, r in zip(cooked[i + 1:], raw[i + 1:]):
+        for c in cooked[i + 1:]:
             if c in OPERATORS:
                 break
             argv.append(c)
-            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(r):
-                plain.append(r)
+            # As the shell left it: `$X`, `${…}`, braces, globs and `~` still show, and a quote
+            # around a plain word ('clean') changes nothing cos would see.
+            if len(plain) == len(argv) - 1 and PLAIN.fullmatch(c):
+                plain.append(c)
         calls.append((" ".join(["cos"] + argv), plain, len(plain) < len(argv)))
     if runs_cos and ("`" in text or "$(" in text or "<(" in text):
         return None
+    if runs_cos and shell_runs_quoted and not calls:
+        return None  # sh -c 'cos …' or eval: the call is inside text this doesn't take apart
     return calls
 
 
