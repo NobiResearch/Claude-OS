@@ -1023,30 +1023,12 @@
               : "Waiting for macOS to ask you.")),
           notifyToggle));
 
-        // Night shift (decision 0006): Claude pushes its own night/* branches while you're away.
-        // A downloaded copy has none: the repository isn't the person's (0015).
-        const nightToggle = h("input", { type: "checkbox", class: "switch" });
-        nightToggle.checked = !!s.night_shift;
-        nightToggle.addEventListener("change", async () => {
-          // Turning it on is confirmed in Ovenbird.app's own dialog, which page code can't click.
-          if (nightToggle.checked) toast("Confirm in the dialog that just opened…");
-          const r = await api("/api/settings/night", { body: { on: nightToggle.checked } });
-          if (nightToggle.checked && !r.night_shift) toast(r.error || "Night shift stays off.", r.error ? "bad" : "");
-          draw();
-        });
-        if (!s.downloaded || s.night_shift) box.appendChild(h("div", { class: "daemon" },
-          h("div", { class: "grow" },
-            h("div", { class: "daemon-name" }, "Night shift", s.night_shift ? pill("ok", "on") : pill("note", "off")),
-            h("div", { class: "small" }, "Let Claude push its own night/… branches and open, edit and comment on its own pull requests for them while you're away. Never a force push; every commit and every pull request's text is checked for private data first. Merging isn't part of it: the switch never approves a merge."),
-            h("div", { class: "muted small" }, s.night_shift ? "On: each push, and each pull request it opens, edits or comments on, is in your journal." : "Off: Night shift approves nothing.")),
-          nightToggle));
-
         // Keep Ovenbird up to date (decision 0011): what's merged on GitHub comes to this Mac by itself.
         // A downloaded copy follows its app's releases instead (0015), so it has no such switch.
         const upToggle = h("input", { type: "checkbox", class: "switch" });
         upToggle.checked = !!s.catch_up;
         upToggle.addEventListener("change", async () => {
-          // Like Night shift, turning it on is confirmed in Ovenbird.app's own dialog.
+          // Turning it on is confirmed in Ovenbird.app's own dialog, which page code can't click.
           if (upToggle.checked) toast("Confirm in the dialog that just opened…");
           const r = await api("/api/settings/catch-up", { body: { on: upToggle.checked } });
           if (upToggle.checked && !r.catch_up) toast(r.error || "It stays off.", r.error ? "bad" : "");

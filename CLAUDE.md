@@ -70,7 +70,7 @@ that review either way, then `--reviewed` (0020). Discard only on the human's ye
 | `daemon list\|install\|uninstall\|run\|logs` | background jobs |
 | `evolve [review\|merge\|discard <branch>]` | self-improvement branches |
 | `guard [--all]` · `doctor` · `config [key] [value]` | hygiene |
-| `hook check [<branch>\|<PR>]` | would the night shift push this branch on its own? Is this pull request ready for its guardian review, and what's the exact merge command? Alone: the night's pull requests that wait (`hook permission` is the hook itself) |
+| `hook check [<branch>\|<PR>]` | is this branch clean to push (a `night/*` branch, the Guardian over every commit, nothing in `.github/`)? Is this pull request ready for its guardian review, and what's the exact merge command? Alone: the night's pull requests that wait (`hook pretool` is the PreToolUse hook) |
 
 ## When you're in the app
 

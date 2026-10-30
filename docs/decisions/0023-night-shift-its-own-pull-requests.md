@@ -1,6 +1,6 @@
 # 0023 — Night shift answers only for its own pull requests
 
-- **Status:** accepted
+- **Status:** accepted; superseded by [0024](0024-no-night-shift-switch.md), which removes the hook it narrowed
 - **Date:** 2026-10-28
 - **Decided by:** the board (night of 28–29 October), on friction #28
 - **Amends:** 0006 and 0020

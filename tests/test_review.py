@@ -52,7 +52,7 @@ class TestReviewFindings(TempHome):
         core.save_json(core.home("config.json"), {"autonomy": True, "music": "on", "extra": 3})
         cfg = core.config()
         self.assertIsInstance(cfg["autonomy"], dict)
-        self.assertFalse(cfg["autonomy"].get("night_shift"))  # a hand edit never turns anything on
+        self.assertFalse(cfg["autonomy"].get("catch_up"))  # a hand edit never turns anything on
         self.assertIsInstance(cfg["music"], dict)
         self.assertEqual(cfg["extra"], 3)  # a section with no default is kept as written
 

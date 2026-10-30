@@ -182,7 +182,7 @@ class TestServerSecurity(TempHome):
         last = [e for e in core.read_journal(days=1, kind="music") if e.get("via") == "app"][-1]
         self.assertEqual((last["event"], last["catalog_id"], last["label"]), ("radio", "456", "Song — Artist"))
 
-    def answer_dialog(self, approved, what="night"):
+    def answer_dialog(self, approved, what):
         """Stand in for Ovenbird.app: when the confirm link opens, write the dialog's answer."""
         from urllib.parse import parse_qs, urlparse
         from cos import core
@@ -196,37 +196,17 @@ class TestServerSecurity(TempHome):
             return real_run(cmd, **kw)
         return fake_run
 
-    def test_night_shift_turns_on_only_through_the_apps_own_dialog(self):
+    def test_there_is_no_night_shift_switch(self):
+        # Decision 0024: nothing approves a push for Claude, so there's nothing to turn on.
         from unittest import mock
         from cos import core
-        core.home("state", "app.nonce").write_text("n0nce")
-        with mock.patch.object(server.core, "app_running", lambda name: name == "ClaudeOS"):
-            with mock.patch.object(server.core, "run", self.answer_dialog(False)):
-                status, _, data = self.request("POST", "/api/settings/night", {"on": True})
-            self.assertEqual(json.loads(data)["night_shift"], False, "declined in the dialog")
-            self.assertFalse((core.config().get("autonomy") or {}).get("night_shift"))
-            with mock.patch.object(server.core, "run", self.answer_dialog(True)):
-                status, _, data = self.request("POST", "/api/settings/night", {"on": True})
-            self.assertEqual(json.loads(data)["night_shift"], True)
-            self.assertTrue(core.config()["autonomy"]["night_shift"])
-        status, _, data = self.request("POST", "/api/settings/night", {"on": False})
-        self.assertEqual(json.loads(data)["night_shift"], False, "turning it off needs no dialog")
-        with mock.patch.object(server.core, "app_running", lambda name: False):
-            reply = json.loads(self.request("POST", "/api/settings/night", {"on": True})[2])
-        self.assertFalse(reply["night_shift"])
-        self.assertIn("only be turned on in Ovenbird.app", reply["error"])
-        self.assertFalse(core.config()["autonomy"]["night_shift"])
-
-    def test_a_downloaded_copy_has_no_night_shift(self):
-        from unittest import mock
-        with mock.patch.object(server.core, "downloaded", lambda: True), \
-                mock.patch.object(server, "confirm_natively", lambda *a, **k: self.fail("never asks")):
-            reply = json.loads(self.request("POST", "/api/settings/night", {"on": True})[2])
-            self.assertTrue(json.loads(self.request("GET", "/api/settings")[2])["downloaded"])
-        self.assertFalse(reply["night_shift"])
-        self.assertIn("downloaded Ovenbird", reply["error"])
-        from cos import core
-        self.assertFalse((core.config().get("autonomy") or {}).get("night_shift"))
+        with mock.patch.object(server, "confirm_natively", lambda *a, **k: self.fail("never asks")):
+            self.assertEqual(self.request("POST", "/api/settings/night", {"on": True})[0], 404)
+        with mock.patch.object(server.core, "downloaded", lambda: True):
+            settings = json.loads(self.request("GET", "/api/settings")[2])
+        self.assertTrue(settings["downloaded"])
+        self.assertNotIn("night_shift", settings)
+        self.assertNotIn("night_shift", core.config()["autonomy"])
 
     def test_keeping_up_to_date_turns_on_only_in_the_dialog_and_pins_the_repository(self):
         from unittest import mock
@@ -380,14 +360,14 @@ class TestServerSecurity(TempHome):
         from unittest import mock
         from cos import core
         core.home("state", "app.nonce").write_text("n0nce")
-        core.save_json(core.home("state", "confirm-night.json"), {"rid": "old", "approved": True})
+        core.save_json(core.home("state", "confirm-catch-up.json"), {"rid": "old", "approved": True})
 
         def wrong_rid(cmd, **kw):
-            core.save_json(core.home("state", "confirm-night.json"), {"rid": "guessed", "approved": True})
+            core.save_json(core.home("state", "confirm-catch-up.json"), {"rid": "guessed", "approved": True})
             return core.Result(0, "", "")
         with mock.patch.object(server.core, "app_running", lambda name: True), \
                 mock.patch.object(server.core, "run", wrong_rid):
-            self.assertFalse(server.confirm_natively("night", wait=1.2))
+            self.assertFalse(server.confirm_natively("catch-up", wait=1.2))
 
     def test_docs_are_whitelisted(self):
         self.assertEqual(self.request("GET", "/api/doc?name=roadmap")[0], 200)
