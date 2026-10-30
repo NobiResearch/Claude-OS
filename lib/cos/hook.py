@@ -243,8 +243,9 @@ CONTINUED = re.compile(r"(?<!\\)((?:\\\\)*)\\\n")  # a backslash-newline whose b
 
 
 def _names_cos(text):
-    """Is cos one of the words, wherever it is: in quotes, `$( )` or braces too?"""
-    return any(_is_cos(piece) for piece in re.split(PIECES, text))
+    """Is cos one of the words, wherever it is: in quotes, `$( )` or braces, or given to a name
+    (`c=cos`)? Not a path like lib/cos."""
+    return any(_is_cos(piece) for piece in re.split(PIECES, text.replace("=", " ").replace(SUBSTITUTED, " ")))
 
 
 def _segments(text):
@@ -285,43 +286,51 @@ def cos_calls(command):
 
     A plain command is read one simple command at a time (_segments), so text in another one
     (a commit message's escaped quotes) can't make a cos call unreadable (friction #35). One
-    that has what the quote reading can't follow is read whole (_whole_cos_calls), and one that
-    starts a shell anywhere asks."""
+    that has what the quote reading can't follow is read whole (_whole_cos_calls). One that
+    names cos and starts a shell, or runs a variable, asks."""
     text = str(command or "")
     if not MENTIONS_COS.search(text):
         return []
     if len(text) > TOO_LONG:
         return None
-    bare = _bare(text)
-    if SHELLS.search(bare) or PIPED_TO_SHELL.search(bare) or FED_TO_SHELL.search(bare):
-        return None  # eval, sh -c, `| sh`, `zsh <<<`: a shell runs text it read as data, maybe cos
     text = CONTINUED.sub(r"\1", text).replace("\n", " ; ")  # line continuations, then one command a line
+    if _names_cos(text) and STARTS_SHELL.search(_bare(text)):
+        return None  # eval, sh -c, `| sh`, `zsh <<<`: a shell runs text it read as data, maybe cos
     plain = None if UNFOLLOWED.search(text) else _without_substitutions(text)
     if plain is None or COMMENT.search(_bare(plain)):
         return _whole_cos_calls(text)
+    try:
+        _tokens(plain, True)
+    except ValueError:
+        return _whole_cos_calls(text)  # no real command ends inside a quote: the reading drifted
+    if _names_cos(plain) and RUNS_VARIABLE.search(_bare(plain)):
+        return None  # `x='cos …'; $x` runs what the variable holds
     calls = []
     for segment in _segments(plain):
-        if MENTIONS_COS.search(segment):
-            found = _segment_cos_calls(segment)
-            if found is None or (found and SUBSTITUTED in segment):
-                return None  # what a substitution gives a cos call isn't known: `cos clean $(…) x`
-            calls += found
+        found = _segment_cos_calls(segment)
+        if found is None:
+            return None
+        calls += found
     return calls
 
 
 SUBSTITUTED = "\x00"  # what stands in for a substitution: no command has one of its own
+NOT_SIMPLE = re.compile(r"\bcase\b|[\\#]|\$\{")  # each can hide where a substitution really ends
 
 
 def _without_substitutions(text):
     """The text with each simple $( ), <( ) or backticks as one word, SUBSTITUTED: one that names
-    no cos, like "$(date '+%H:%M')" in a journal line, and whose first `)` or backtick is surely
-    its end (its quotes pair up, and no `case`, backslash or `#` could move it). None if one
-    names cos or isn't simple. cos_calls still asks when a cos call gets one."""
+    no cos and starts no shell, like "$(date '+%H:%M')" in a journal line, and whose first `)` or
+    backtick is surely its end (its quotes pair up, nothing NOT_SIMPLE could move it, and it's
+    not in single quotes, where it would shift the reading). None if any isn't."""
     if SUBSTITUTED in text:
         return None
-    for m in INNER.finditer(text):
+    found = list(INNER.finditer(text))
+    if [m.group(0) for m in INNER.finditer(_active(text))] != [m.group(0) for m in found]:
+        return None
+    for m in found:
         body = next(g for g in m.groups() if g is not None)
-        if _names_cos(body) or re.search(r"\bcase\b|[\\#]", body):
+        if _names_cos(body) or NOT_SIMPLE.search(body) or STARTS_SHELL.search(_bare(body)):
             return None
         try:
             shlex.split(body)
@@ -348,13 +357,20 @@ def _calls(cooked, raw):
 
 
 def _segment_cos_calls(text):
-    """cos_calls for one simple command with no shell, comment, heredoc, $'…' or substitution
-    in it (cos_calls reads those whole). A cos inside a commit message's quotes runs nothing,
-    and a quote around a plain word ('clean') changes nothing cos would see."""
+    """cos_calls for one simple command with no shell, comment, heredoc, $'…' or unsimple
+    substitution in it (cos_calls reads those whole). A cos inside a commit message's quotes runs
+    nothing, and a quote around a plain word ('clean') changes nothing cos would see."""
+    if not MENTIONS_COS.search(text.replace(SUBSTITUTED, "")):
+        return []
     try:
         cooked = _tokens(text, True)
     except ValueError:
-        return None if _names_cos(text) else []  # quotes that don't pair up: any cos word counts
+        return None
+    # What a substitution gives a cos call isn't known (`cos clean $(echo apply) x`), and it can
+    # give nothing at all (`$(true)cos clean`, `c$(true)os clean`).
+    if SUBSTITUTED in text and any(_is_cos(piece) for token in cooked
+                                   for piece in token.split(SUBSTITUTED) + [token.replace(SUBSTITUTED, "")]):
+        return None
     return _calls(cooked, cooked)
 
 
@@ -449,12 +465,18 @@ NAMES_PUBLISHING = re.compile(r"\b(?:pr|issue|discussion)\s+(?:create|new|edit|c
 # searched in _active text; a shell given a string or stdin, eval, source and `.` only run
 # outside all quotes, so they're searched in _bare text ("Open source the brief" is a title).
 SUBSTITUTES = re.compile(r"`|\$\(|<\(|>\(")
-_SHELL = r"(?:\S*/)?(?:ba|z|da|k)?sh"
+_SHELL = r"(?:[^\s;&|()]*/)?(?:ba|z|da|k)?sh"  # bounded at ( and ;, or a run of `(bin/sh` takes minutes
 SHELLS = re.compile(r"\beval\b|\bsource\b|(?:^|[;&|(]\s*)\.\s+\S"
                     r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*\s-[A-Za-z]*[cs][A-Za-z]*\b"  # sh -c, bash -lc, -o x -c
                     r"|\|\s*" + _SHELL + r"\b")
-PIPED_TO_SHELL = re.compile(r"\|&?\s*" + _SHELL + r"\b")  # across commands: cos_calls cuts at |
-FED_TO_SHELL = re.compile(r"(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*<")  # zsh <<<'…', bash < file
+# For cos_calls: a shell started anywhere in a command. eval and source only count as commands,
+# so `grep eval` and `git log --source` start nothing.
+_COMMAND = r"(?:^|[;&|({!]\s*|\b(?:then|do|else|elif|if|while|until|command|builtin|exec|time)\s+)"
+STARTS_SHELL = re.compile(_COMMAND + r"(?:eval|source)\b|(?:^|[;&|(]\s*)\.\s+\S"
+                          r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*\s-[A-Za-z]*[cs][A-Za-z]*\b"
+                          r"|\|&?\s*" + _SHELL + r"\b"
+                          r"|(?:^|[\s;&|(])" + _SHELL + r"\b[^;&|]*<")  # zsh <<<'…', bash < file
+RUNS_VARIABLE = re.compile(r"(?:^|[;&|(]\s*)\$")
 FLAG_LIKE = re.compile(r"--?[A-Za-z][\w-]*(?:=.*)?")
 REDIRECT = re.compile(r"\d*[<>]&(?:\d+|-)|&>>?")  # 2>&1, >&2, &>: one word, not a cut at `&`
 
