@@ -34,9 +34,9 @@ Mark anything you didn't verify as unverified. A clear "I couldn't find out" bea
 Read what would merge: the head commit `bin/cos hook check <PR>` prints (for a branch,
 `git rev-parse <branch>`), by ref from the repository root: `git show <sha>:<path>`,
 `git grep <pattern> <sha>`, `git ls-tree -r --name-only <sha>`, `git diff origin/main...<sha>`.
-A worktree's files can hold uncommitted edits. Before reading one with the Read tool, check
-that `git -C <worktree> rev-parse HEAD` is that sha and `git -C <worktree> diff HEAD --stat`
-is empty. Read, Grep and Glob don't ask inside the repository, and in `~/.claude-os/dev` once
+A worktree's files can hold uncommitted edits. Before reading one with the Read tool or
+running its tests, check that `git -C <worktree> rev-parse HEAD` is that sha and
+`git -C <worktree> status --porcelain` prints nothing. Read, Grep and Glob don't ask inside the repository, and in `~/.claude-os/dev` once
 the owner allows it; use them instead of `cat`, `grep`, `sed`, `stat`, `ls` or `find`.
 
 Use Bash only to run something, one plain command per call, in spellings the owner's allow
@@ -45,9 +45,11 @@ rules cover:
 - the tests of a `night/*` branch in its worktree under `~/.claude-os/dev`:
   `python3 -m unittest discover -s <worktree>/tests`;
 - from the repository root: `bin/cos hook check <branch|PR>` (a branch's private-data scan),
-  `bin/cos guard` (main's), `bin/cos doctor`, `bin/cos evolve` and `bin/cos evolve review
-  <branch>`. Others such as `config`, `startup --full`, `net --speed` and `app` still show a
-  card. `log`, `memory` and `music history` would pull private data into what you write.
+  `bin/cos guard --all` (the live checkout's files: main's, when it's clean), `bin/cos evolve`
+  and `bin/cos evolve review <branch>`. Others such as `config`, `startup --full`, `net
+  --speed` and `app` still show a card; `doctor` can talk to Music, which may raise a macOS
+  dialog. Commands such as `log`, `memory`, `music history`, `feeds`, `cal` and `brief` would
+  pull private data into what you write.
 
 Never run code that Claude didn't write in a session with the human:
 - Someone else's pull request (from a fork): not its tests and not its `bin/cos`. Its tests
