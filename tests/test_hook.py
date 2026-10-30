@@ -226,7 +226,9 @@ class TestMerge(TempHome):
         self.assertIn(".github/, lib/ (a module Python finds before the standard library's), lib/cos/hook.py", why)
         self.assertNotIn("IGNORE", why, "a fork's file names aren't printed")
         self.assertNotIn("README", why)
-        self.assertIn("fetch origin pull/31/head:fork-31", why)
+        self.assertIn("fetch origin +pull/31/head:fork-31", why)
+        self.assertIn("git rev-parse fork-31 is " + sha, why)
+        self.assertIn("git branch -D fork-31", why)
         self.assertIn("core.hooksPath=/dev/null", why)
         self.assertIn("evolve.test_commit('fork-31')", why)
         self.assertIn("never with gh pr checkout", why)
@@ -249,6 +251,39 @@ class TestMerge(TempHome):
                 mock.patch.object(hook, "_fork_paths", return_value=None), redirect_stdout(io.StringIO()) as out:
             self.assertEqual(hook.main(args), 1)
         self.assertTrue(out.getvalue().startswith("✗ waits: the human's yes (0014)"))
+
+    def test_a_name_git_would_quote_is_still_a_safety_file(self):
+        # Without -z, git prints ".github/workflows/ø.yml" in quotes with octal escapes, and the
+        # gate's prefixes don't match it: the push gate and a fork's file list both read changed().
+        import os
+        import subprocess
+        repo = os.path.join(self.tmp, "repo")
+        git = ["git", "-C", repo, "-c", "core.hooksPath=/dev/null", "-c", "user.name=Test", "-c", "user.email=test@example.com"]
+
+        def run(*args):
+            return subprocess.run(git + list(args), check=True, capture_output=True, text=True).stdout.strip()
+        subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+        run("commit", "-q", "--allow-empty", "-m", "base")
+        run("update-ref", "refs/remotes/origin/main", "main")
+        run("checkout", "-q", "-b", "night/x")
+        os.makedirs(os.path.join(repo, ".github", "workflows"))
+        with open(os.path.join(repo, ".github", "workflows", "ø.yml"), "w") as f:
+            f.write("on: push\n")
+        run("add", "-A")
+        run("commit", "-q", "-m", "a workflow")
+        sha = run("rev-parse", "HEAD")
+
+        def g(*args):
+            return core.run(["git", "-C", repo] + list(args), timeout=20)
+        paths = hook.changed(g, "origin/main", "night/x")
+        self.assertEqual(paths, [".github/workflows/ø.yml"])
+        ok, why = hook.decide_push("night/x", dict(GOOD, paths=paths))
+        self.assertFalse(ok)
+        self.assertIn(".github", why)
+        local = hook._fork_paths(sha, repo)
+        self.assertEqual(local, [".github/workflows/ø.yml"])
+        self.assertIn("safety files: .github/", hook.fork_pr(31, {"headRefOid": sha, "state": "OPEN"}, local))
+        self.assertEqual(hook._fork_paths("0" * 40, repo), "its head commit isn't here, and nothing was fetched")
 
     def test_a_fork_named_night_shows_as_a_number_only(self):
         # A fork can name its branch night/*: the night shift's list shows its number, never its

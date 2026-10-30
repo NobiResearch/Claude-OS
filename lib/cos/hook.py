@@ -76,9 +76,10 @@ def protected(path):
 def changed(git, base, branch):
     """Every path the branch touches, or None if git can't say. --no-renames: git lists a
     moved file under its new name only, so moving .claude/settings.json away would look
-    like a new file in docs/."""
-    r = git("diff", "--no-renames", "--name-only", "%s...%s" % (base, branch))
-    return r.out.splitlines() if r.ok else None
+    like a new file in docs/. -z: otherwise git quotes a name with a non-ASCII byte, a quote
+    or a backslash, and ".github/workflows/ø.yml" in quotes wouldn't look protected."""
+    r = git("diff", "--no-renames", "--name-only", "-z", "%s...%s" % (base, branch))
+    return [p for p in r.out.split("\0") if p] if r.ok else None
 
 
 def clean_main(base):
@@ -1091,30 +1092,31 @@ SAFE_GIT = "git -c core.hooksPath=/dev/null -c core.fsmonitor=false"  # a fork's
 
 def _fork_paths(sha, cwd):
     """Every path a fork's head commit changes, from local git with --no-renames (GitHub names
-    a moved file only by its new path), or None if that commit isn't here. Nothing is fetched."""
+    a moved file only by its new path), or why there's no list. Nothing is fetched."""
     def git(*args):
         return core.run(["git", "-C", cwd, "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
                         + list(args), timeout=20)
     if not SHA.fullmatch(sha) or not git("cat-file", "-e", sha + "^{commit}").ok:
-        return None
+        return "its head commit isn't here, and nothing was fetched"
     from . import evolve
-    return changed(git, "origin/" + evolve.main_branch(), sha)
+    paths = changed(git, "origin/" + evolve.main_branch(cwd), sha)
+    return paths if paths is not None else "its head commit is here, but git couldn't list what it changes"
 
 
 def fork_pr(number, pr, paths=None):
     """A pull request from someone else's fork (0014): never ready from here, it waits for the
     human's yes. Its checks ran the fork's own copy of the workflow, so a green check proves
-    nothing. Which safety files it touches comes from `paths` (local git, _fork_paths), or else
-    from GitHub's file list, trusted only when it's complete and renames nothing. Nothing of its
-    title, body, comments or file names is printed, and no merge command stands on its own:
-    it's in the text, after "only after the human's yes". decide_merge still refuses it.
-    -> why it waits."""
+    nothing. Which safety files it touches comes from `paths` (local git's list, _fork_paths), or
+    else, when that's a reason there's none, from GitHub's file list, trusted only when it's
+    complete and renames nothing. Nothing of its title, body, comments or file names is
+    printed, and no merge command stands on its own: it's in the text, after "only after the
+    human's yes". decide_merge still refuses it. -> why it waits."""
     sha = str(pr.get("headRefOid") or "")
     open_ = pr.get("state") == "OPEN"
     lines = ["the human's yes (0014): #%d is from a fork, so its checks ran the fork's own workflow and a "
              "green check proves nothing" % number if open_ else "#%d is from a fork and isn't open" % number]
-    if paths is None:
-        lines.append("its head commit isn't here, and nothing was fetched")
+    if not isinstance(paths, list):
+        lines.append(paths if isinstance(paths, str) else "its head commit isn't here, and nothing was fetched")
         files = pr.get("files") if isinstance(pr.get("files"), list) else []
         listed = [f for f in files if isinstance(f, dict) and f.get("path")]
         total = pr.get("changedFiles")
@@ -1132,11 +1134,13 @@ def fork_pr(number, pr, paths=None):
         lines.append("it changes Ovenbird's safety files: %s" % ", ".join(touched) if touched
                      else "it changes none of Ovenbird's safety files")
     lines.append("test it here before anyone says yes, from the live checkout and never with gh pr checkout: "
-                 "%s fetch origin pull/%d/head:fork-%d; %s diff --no-renames --stat origin/main...fork-%d; its "
-                 "tests in a fresh temp clone, sandboxed, with main's code: /usr/bin/python3 -c \"import sys; "
-                 "sys.path.insert(0, 'lib'); from cos import evolve; t = evolve.test_commit('fork-%d'); "
-                 "print('tests pass' if t and t.ok else 'tests fail or could not run')\"; no swift test or build "
-                 "of it without the human" % (SAFE_GIT, number, number, SAFE_GIT, number, number))
+                 "%s fetch origin +pull/%d/head:fork-%d; check that git rev-parse fork-%d is %s (a fork can be "
+                 "force-pushed); %s diff --no-renames --stat origin/main...fork-%d; its tests in a fresh temp "
+                 "clone, sandboxed, with main's code: /usr/bin/python3 -c \"import sys; sys.path.insert(0, 'lib'); "
+                 "from cos import evolve; t = evolve.test_commit('fork-%d'); print('tests pass' if t and t.ok "
+                 "else 'tests fail or could not run')\"; then git branch -D fork-%d; no swift test or build of it "
+                 "without the human" % (SAFE_GIT, number, number, number, sha or "the pinned commit",
+                                        SAFE_GIT, number, number, number))
     if open_ and SHA.fullmatch(sha):
         lines.append("only after the human's yes (0014): gh pr merge %d --squash --match-head-commit %s"
                      % (number, sha))
