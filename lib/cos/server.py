@@ -920,9 +920,9 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
     app.managed = exit_on_stdin_eof
-    if exit_on_stdin_eof:
+    if exit_on_stdin_eof:  # only the app passes it
         from . import music
-        music.app_server = True
+        os.environ[music.UNDER_THE_APP] = "1"
     print("COS_SERVE_READY port=%d token=%s" % (app.port, app.token), flush=True)
     if exit_on_stdin_eof:
         def watch():

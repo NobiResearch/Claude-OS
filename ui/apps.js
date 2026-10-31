@@ -599,7 +599,7 @@
           playBtn,
           h("button", { class: "np-btn", title: "Next", onclick: () => control("next") }, icon("next", 18)),
           h("button", { class: "np-btn", title: "Radio: keep going with similar music", onclick: () => play({ radio: true }, "a radio from this song") }, icon("radio", 17)),
-          h("button", { class: "np-btn", title: "Love", onclick: () => control("like").then(() => toast("♥ Saved to your favourites", "ok")) }, icon("heart", 16)),
+          h("button", { class: "np-btn", title: "Love", onclick: () => control("like").then((n) => { if (n && !n.error) toast("♥ Saved to your favourites", "ok"); }) }, icon("heart", 16)),
           vol)));
       const search = h("input", { class: "search", placeholder: "Search your library and Apple Music…" });
       const results = h("div", { class: "results" });
@@ -646,6 +646,7 @@
           paint(n);
           COS.refreshMusic();
           if (n.error) toast(refused(n.error), "bad");
+          return n;
         } catch (e) { toast(e.message, "bad"); }
       }
       async function play(body, label) {

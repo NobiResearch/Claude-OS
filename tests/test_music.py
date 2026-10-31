@@ -227,15 +227,22 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
         music._talked = True
         music._note_asked()
         self.assertTrue(music.asked(), "this terminal asked")
-        with mock.patch.object(music, "app_server", True):
-            self.assertFalse(music.asked(), "the app's server hasn't")
+        with mock.patch.dict(os.environ, {music.UNDER_THE_APP: "1"}):
+            self.assertFalse(music.asked(), "the app hasn't")
             music._note_asked()
             self.assertTrue(music.asked())
-        with mock.patch.dict(os.environ, {"CLAUDE_OS_APP": "1"}):
-            self.assertTrue(music.asked(), "the app's chat has the app's grant")
-        core_home = music.core.home
-        core_home(*music.ASKED_FILE).unlink()
+        music.core.home(*music.ASKED_FILE).unlink()
         self.assertFalse(music.asked(), "the app's click says nothing for a terminal")
+
+    def test_a_chat_goes_by_the_server_it_runs_under(self):
+        """A chat under a terminal's `cos serve` has CLAUDE_OS_APP, and the terminal's grant."""
+        import os
+        from unittest import mock
+        music._talked = True
+        with mock.patch.dict(os.environ, {"CLAUDE_OS_APP": "1"}):
+            music._note_asked()
+            self.assertTrue(music.core.home(*music.ASKED_FILE).is_file())
+            self.assertFalse(music.core.home(*music.APP_ASKED_FILE).is_file())
 
     def test_a_background_run_never_talks_to_music(self):
         import os

@@ -175,6 +175,21 @@ class TestServerSecurity(TempHome):
             self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2])["track"], "Weightless")
             osa.assert_called()
 
+    def test_only_the_apps_server_says_it_runs_under_the_app(self):
+        """What's started under it inherits this, so Music goes by the app's grant."""
+        import io
+        import os
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import music, server
+        for managed in (True, False):
+            with mock.patch.object(server, "pin_code"), mock.patch.object(server.threading, "Thread"), \
+                    mock.patch.object(server, "bind", return_value=mock.Mock(server_address=("127.0.0.1", 1))), \
+                    mock.patch.dict(os.environ), redirect_stdout(io.StringIO()):
+                os.environ.pop(music.UNDER_THE_APP, None)
+                server.serve(exit_on_stdin_eof=managed)
+                self.assertEqual(bool(os.environ.get(music.UNDER_THE_APP)), managed)
+
     def test_a_search_and_a_play_count_as_someone_asking(self):
         from unittest import mock
         from cos import core, music

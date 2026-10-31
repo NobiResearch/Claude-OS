@@ -40,13 +40,14 @@ def _tell(body, timeout=10):
 
 ASKED_FILE = ("state", "music-asked.flag")  # a suffix, or core.home makes it a folder
 APP_ASKED_FILE = ("state", "music-asked-app.flag")
-app_server = False  # Ovenbird.app started this process's server
+UNDER_THE_APP = "COS_UNDER_THE_APP"  # set by the server Ovenbird.app starts, and inherited by all it runs
 
 
 def _asked_path():
     """macOS grants Automation to the app responsible for a process (0003), so what a terminal was
-    allowed says nothing for Ovenbird.app, or the other way round: each keeps its own marker."""
-    return core.home(*(APP_ASKED_FILE if app_server or os.environ.get("CLAUDE_OS_APP") else ASKED_FILE))
+    allowed says nothing for Ovenbird.app, or the other way round: each keeps its own marker.
+    Not CLAUDE_OS_APP: a chat under a terminal's `cos serve` has that, and the terminal's grant."""
+    return core.home(*(APP_ASKED_FILE if os.environ.get(UNDER_THE_APP) else ASKED_FILE))
 
 
 def asked():
