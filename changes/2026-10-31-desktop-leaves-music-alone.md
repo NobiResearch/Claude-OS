@@ -1,0 +1,2 @@
+- Opening Ovenbird with Music open no longer brings up macOS's "control Music" dialog. The desktop leaves Music.app alone until you've clicked or searched in its Music window, or used `cos music` in the app's chat, and until then it shows only Ovenbird's own player. macOS asks per app, so a terminal's `cos music` counts for that terminal and not for the app. `cos doctor` waits too, and a background run never talks to Music.
+- If macOS is keeping Ovenbird from Music, the Music window says where to allow it.

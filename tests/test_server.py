@@ -154,6 +154,82 @@ class TestServerSecurity(TempHome):
         for body in ({"reviewed": True}, {"tip": "abc123"}, {"tip": sha.upper()}, {"tip": ["x"]}):
             self.assertEqual(self.request("POST", "/api/evolve/merge", dict(body, branch="evolve/x"))[0], 400, body)
 
+    def test_the_desktop_leaves_music_alone_until_someone_clicks(self):
+        """A new user with Music open: the poll and the Music window reopening show no macOS
+        dialog. A click does, and from then on the desktop shows Music.app's track."""
+        from unittest import mock
+        from cos import core, music
+        music._talked = False
+        self.addCleanup(setattr, music, "_talked", False)
+        played = core.Result(0, music.US.join(["playing", "Weightless", "Marconi Union", "", "480", "12", "40", "false", "off"]), "")
+        with mock.patch.object(music, "own_player_active", return_value=None), \
+                mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", return_value=played) as osa:
+            self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2]), {"running": False, "open": True})
+            self.assertEqual(json.loads(self.request("GET", "/api/music/playlists")[2]), [])
+            osa.assert_not_called()
+            self.assertFalse(music.asked())
+            self.assertEqual(self.request("POST", "/api/music/control", {"cmd": "next"})[0], 200)
+            self.assertTrue(music.asked(), "a click is someone asking")
+            osa.reset_mock()
+            self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2])["track"], "Weightless")
+            osa.assert_called()
+
+    def test_only_the_apps_server_says_it_runs_under_the_app(self):
+        """What's started under it inherits this, so Music goes by the app's grant."""
+        import io
+        import os
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import music, server
+        for managed in (True, False):
+            with mock.patch.object(server, "pin_code"), mock.patch.object(server.threading, "Thread"), \
+                    mock.patch.object(server, "bind", return_value=mock.Mock(server_address=("127.0.0.1", 1))), \
+                    mock.patch.dict(os.environ), redirect_stdout(io.StringIO()):
+                os.environ.pop(music.UNDER_THE_APP, None)
+                server.serve(exit_on_stdin_eof=managed)
+                self.assertEqual(bool(os.environ.get(music.UNDER_THE_APP)), managed)
+
+    def test_a_search_and_a_play_count_as_someone_asking(self):
+        from unittest import mock
+        from cos import core, music
+        self.addCleanup(setattr, music, "_talked", False)
+        for route, body in (("GET", "/api/music/search?q=x"), ("POST", "/api/music/play")):
+            music._talked = False
+            if music.asked():
+                core.home(*music.ASKED_FILE).unlink()
+            with mock.patch.object(music, "own_player_active", return_value=None), \
+                    mock.patch.object(music, "player_enabled", return_value=False), \
+                    mock.patch.object(music, "catalog_search", return_value={"results": []}), \
+                    mock.patch.object(core, "app_running", return_value=True), \
+                    mock.patch.object(core, "osascript", return_value=core.Result(0, "", "")):
+                self.request(route, body, {"q": "x", "source": "library"} if route == "POST" else None)
+            self.assertTrue(music.asked(), body)
+
+    def test_someone_slow_on_macos_dialog_still_counts(self):
+        """The click times out while the dialog waits, then they say yes, and the next call answers."""
+        from unittest import mock
+        from cos import core, music
+        music._talked = False
+        self.addCleanup(setattr, music, "_talked", False)
+        now = core.Result(0, music.US.join(["playing", "Weightless", "Marconi Union", "", "480", "12", "40", "false", "off"]), "")
+        with mock.patch.object(music, "own_player_active", return_value=None), \
+                mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", side_effect=[core.Result(1, "", "timed out"), now]):
+            self.request("POST", "/api/music/control", {"cmd": "next"})
+        self.assertTrue(music.asked())
+
+    def test_a_click_music_didnt_answer_asks_nothing_later(self):
+        from unittest import mock
+        from cos import core, music
+        music._talked = False
+        self.addCleanup(setattr, music, "_talked", False)
+        with mock.patch.object(music, "own_player_active", return_value=None), \
+                mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", return_value=core.Result(1, "", "not allowed")):
+            self.request("POST", "/api/music/control", {"cmd": "next"})
+            self.assertFalse(music.asked(), "macOS said no, or the click went nowhere")
+
     def test_radio_button_reaches_the_player_route(self):
         from cos import music
         orig = music.player_enabled

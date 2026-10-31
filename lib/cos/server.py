@@ -648,20 +648,24 @@ def make_handler(app):
         h._json({"rows": rows[-90:], "disk_per_week": status.disk_trend(rows)})
 
     def r_music_now(h, q, b):
+        """The desktop's poll: nobody clicked anything, so it leaves Music.app alone until someone
+        has (music.asked)."""
         from . import music
-        h._json(with_artwork(music.now()))
+        h._json(with_artwork(music.now(ask_music=music.asked())))
 
     def r_music_search(h, q, b):
         from . import music
         query = (q.get("q") or "").strip()
         if not query:
             return h._json({"library": [], "catalog": []})
-        h._json({"library": music.library_search(query, limit=8),
-                 "catalog": music.catalog_search(query, limit=10).get("results", [])})
+        library = music.library_search(query, limit=8)
+        music._note_asked()
+        h._json({"library": library, "catalog": music.catalog_search(query, limit=10).get("results", [])})
 
     def r_music_playlists(h, q, b):
+        """Asked when the Music window opens, which can be the desktop reopening it: see r_music_now."""
         from . import music
-        h._json(music.playlists())
+        h._json(music.playlists() if music.asked() else [])
 
     def r_music_play(h, q, b):
         from . import music
@@ -678,6 +682,7 @@ def make_handler(app):
             res["source"] = "catalog"
         else:
             res = music.play(b.get("q") or "", source=b.get("source") or "auto")
+        music._note_asked()
         if res.get("ok"):
             n = res.get("now") or {}
             song = "%s — %s" % (n.get("track") or b.get("name"), n.get("artist") or b.get("artist"))
@@ -713,7 +718,9 @@ def make_handler(app):
             captured(music.like)
         else:
             return h._error(400, "unknown control")
-        h._json(with_artwork(music.now()))
+        n = music.now()  # first: someone slow on macOS's dialog times the click out, and this answers
+        music._note_asked()
+        h._json(with_artwork(n))
 
     def r_feeds(h, q, b):
         from . import feeds
@@ -913,6 +920,9 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
     app.managed = exit_on_stdin_eof
+    if exit_on_stdin_eof:  # only the app passes it
+        from . import music
+        os.environ[music.UNDER_THE_APP] = "1"
     print("COS_SERVE_READY port=%d token=%s" % (app.port, app.token), flush=True)
     if exit_on_stdin_eof:
         def watch():
