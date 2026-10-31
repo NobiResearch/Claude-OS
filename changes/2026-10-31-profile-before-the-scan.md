@@ -1,0 +1,1 @@
+- The release build scans the app after the provisioning profile is in it, so nothing a downloader gets goes unread. The team's name in the profile is the one thing the scan lets through: the signature carries the same name, and a private term in `guard.json` still catches anything else.

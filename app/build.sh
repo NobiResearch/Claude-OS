@@ -156,6 +156,16 @@ plutil -lint "$APP/Contents/Info.plist" >/dev/null
 
 # --- release (decision 0015) -----------------------------------------------------------
 if [ "$RELEASE" = 1 ]; then
+    if [ -z "${COS_RELEASE_PROFILE:-}" ]; then
+        echo "build.sh: set COS_RELEASE_PROFILE to the release's Developer ID provisioning profile" >&2
+        exit 1
+    fi
+    echo "==> checking the provisioning profile"
+    /usr/bin/env python3 app/release.py profile "$COS_RELEASE_PROFILE" "$BUNDLE_ID" build/release-entitlements.plist
+    # -X: a downloaded profile carries the address it came from in its extended attributes.
+    cp -X "$COS_RELEASE_PROFILE" "$APP/Contents/embedded.provisionprofile"
+
+    # After the profile is in, so the scan reads all a downloader gets.
     echo "==> scanning the bundle for anything private (before it's signed)"
     /usr/bin/env python3 app/release.py scan "$APP"
 
@@ -168,15 +178,6 @@ if [ "$RELEASE" = 1 ]; then
         echo "build.sh: a release is signed with a Developer ID Application identity, and there's none to use" >&2
         exit 1
     fi
-
-    if [ -z "${COS_RELEASE_PROFILE:-}" ]; then
-        echo "build.sh: set COS_RELEASE_PROFILE to the release's Developer ID provisioning profile" >&2
-        exit 1
-    fi
-    echo "==> checking the provisioning profile"
-    /usr/bin/env python3 app/release.py profile "$COS_RELEASE_PROFILE" "$BUNDLE_ID" build/release-entitlements.plist
-    # -X: a downloaded profile carries the address it came from in its extended attributes.
-    cp -X "$COS_RELEASE_PROFILE" "$APP/Contents/embedded.provisionprofile"
 
     echo "==> signing with Developer ID ${SIGN_ID:0:8}…, the hardened runtime and a secure timestamp"
     codesign --force --options runtime --timestamp --entitlements build/release-entitlements.plist \
