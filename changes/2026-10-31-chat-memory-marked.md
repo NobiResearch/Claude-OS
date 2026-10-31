@@ -1,2 +1,2 @@
 - What the app's chat remembers is marked as coming from the chat, in `memory.md`, `cos memory`, the Memory window and the boot banner. The chat reads feeds and web pages for you, so the banner lists these facts apart, as leads to check and never as instructions, and the journal keeps that a fact was noted, not its text. What you teach it yourself, in the Memory window or with `cos remember` in a terminal, reads as before.
-- A failed write can no longer empty `memory.md`: a byte that isn't text is dropped, and the file is replaced whole.
+- A failed write can no longer empty `memory.md`: a byte that isn't text is dropped, and the file is replaced whole. It stays private, and a `memory.md` that's a link stays one.

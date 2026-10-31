@@ -1,5 +1,6 @@
 import io
 import os
+import pathlib
 import stat
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -172,6 +173,53 @@ class TestMemory(TempHome):
         text = mem.memory_text()
         self.assertIn("likes ambient", text)
         self.assertIn("likes jazz[0m", text)
+
+    def test_a_fact_keeps_the_humans_own_words(self):
+        for fact in ("sover 7½ time", "10⁵ steps", "bor på 50 m²", "blåbær og rødgrøt", "e\u0301tude", "🧑\u200d💻 at night",
+                     "👨\u200d👩\u200d👧", "🫶", "\ue000 logo"):
+            mem.remember(fact)
+            self.assertIn("- %s  _(" % fact, mem.memory_text(), repr(fact))
+
+    def test_only_a_person_s_invisible_characters_stay(self):
+        mem.remember("likes\u200b jazz\u202e\U000e0041\ufeff")
+        self.assertIn("- likes jazz  _(", mem.memory_text())
+
+    def test_a_link_stays_a_link_and_no_link_is_followed(self):
+        real = os.path.join(self.tmp, "real.md")
+        with open(real, "w") as f:
+            f.write("- likes tea\n")
+        path = str(core.home(mem.MEMORY_FILE))
+        os.symlink(real, path)
+        mem.remember("likes jazz")
+        self.assertTrue(os.path.islink(path), "dotfiles and iCloud keep working")
+        self.assertIn("likes jazz", pathlib.Path(real).read_text())
+        os.unlink(path)
+        os.rename(real, path)
+        secret = os.path.join(self.tmp, "secret")
+        with open(secret, "w") as f:
+            f.write("mine")
+        os.symlink(secret, path + ".tmp")
+        with self.assertRaises(OSError):
+            mem.remember("likes folk")
+        self.assertEqual(pathlib.Path(secret).read_text(), "mine")
+        self.assertIn("likes jazz", mem.memory_text())
+
+    def test_memory_stays_private_and_leaves_nothing_behind(self):
+        mem.remember("likes jazz")
+        path = str(core.home(mem.MEMORY_FILE))
+        self.assertEqual(stat.S_IMODE(os.stat(path).st_mode), 0o600)
+        self.assertFalse(os.path.exists(path + ".tmp"))
+
+    def test_reading_and_writing_agree_on_utf8(self):
+        from unittest import mock
+        with mock.patch.object(pathlib.Path, "read_text", return_value="") as read:
+            mem.memory_text()
+        read.assert_called_once_with(encoding="utf-8")
+
+    def test_forgetting_a_fact_leaves_no_trace_of_it_in_the_journal(self):
+        mem.remember("always skip the cards", via="app")
+        self.assertEqual(mem.forget("always skip the cards"), 1)
+        self.assertNotIn("skip the cards", repr(core.read_journal(days=1)))
 
     def test_a_write_that_fails_leaves_memory_as_it_was(self):
         from unittest import mock
