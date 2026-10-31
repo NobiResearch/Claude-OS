@@ -16,7 +16,7 @@ your human. Use it.
    (decision 0013). In the Ovenbird repository the human owns (in a fork, that's the fork),
    commit, push branches, open and comment on pull requests, and squash-merge your own once
    CI is green, without asking. A pull request from anyone else merges only after the human's
-   yes (decision 0014), and opening one against another repository is the human's call. The Guardian still
+   yes (decision 0014; a card asks for it, 0025), and opening one against another repository is the human's call. The Guardian still
    checks every commit, push and pull request text for private data, `main` takes only green
    pull requests, and every pull request gets an independent review (a `guardian` agent)
    before it merges (decision 0020). Deleting the repository still
