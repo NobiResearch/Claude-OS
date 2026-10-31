@@ -285,11 +285,9 @@ def run_sandboxed(cmd, cwd, timeout=600):
 LINK_OR_COMMAND = re.compile(r"[`$|]|://|www\.", re.I)
 
 
-def plain_line(text, fallback, limit=180):
-    """One line of model-written text, fit for a notification or the journal: compatibility
-    forms folded (a fullwidth colon is a colon), no control, format or line-separator
-    characters (bidi overrides, U+2028), and the fallback instead if it carries a command or a
-    link."""
+def clean_line(text):
+    """One line: compatibility forms folded (a fullwidth colon is a colon), and no control, format
+    or line-separator characters (bidi overrides, U+2028, a byte that isn't text)."""
     import unicodedata
     out = []
     for c in unicodedata.normalize("NFKC", text or ""):
@@ -298,7 +296,13 @@ def plain_line(text, fallback, limit=180):
             out.append(" ")
         elif not cat.startswith("C"):
             out.append(c)
-    line = " ".join("".join(out).split())[:limit]
+    return " ".join("".join(out).split())
+
+
+def plain_line(text, fallback, limit=180):
+    """One line of model-written text, fit for a notification or the journal, and the fallback
+    instead if it carries a command or a link."""
+    line = clean_line(text)[:limit]
     return fallback if not line or LINK_OR_COMMAND.search(line) else line
 
 
