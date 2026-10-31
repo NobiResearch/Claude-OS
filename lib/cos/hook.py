@@ -464,7 +464,8 @@ def _global_only(words):
 
 def gh_calls(command):
     """Every gh or gh-axi word followed by something that publishes -> [(subcommand, verb, raw
-    args, cooked args, cooked words before it, why it's refused or None)]. Found wherever it
+    args, cooked args, cooked words before it, why it's refused or None, gh's own words before
+    the verb)]. Found wherever it
     sits, so `env gh`, `command gh` and `{ gh …; }` count too. The subcommand and verb are
     found the way gh finds them, past flags, and any flag before the verb other than
     -R/--repo/--hostname is refused: it might be text this doesn't read. None when the command
@@ -519,7 +520,7 @@ def gh_calls(command):
             first -= 1
         if "xargs" in cooked[first:i]:
             why = why or "xargs adds words to this gh command that Ovenbird can't see: " + READABLE
-        calls.append((sub, verb, rargs[v + 1:], args[v + 1:], cooked[:i], why))
+        calls.append((sub, verb, rargs[v + 1:], args[v + 1:], cooked[:i], why, args[:v]))
     return calls
 
 
@@ -720,7 +721,7 @@ def gh_text_decision(command, cwd):
         calls = gh_calls(text)
         if calls is None:
             return ("Ovenbird can't read this command, and it publishes text through gh: " + READABLE) if publishes else None
-        for sub, verb, raw, cooked, before, refused in calls:
+        for sub, verb, raw, cooked, before, refused, _ in calls:
             if refused:
                 return refused
             texts, why = _gh_text(sub, verb, raw, cooked, before, cwd)
@@ -736,6 +737,70 @@ def gh_text_decision(command, cwd):
 
 
 DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny"}}
+
+
+# ---------------------------------------------------------------- someone else's pull request
+#
+# A pull request from anyone else merges, closes or gets a comment only after the human's yes
+# (0014, 0018), and its text is read in the one session that can do all of that. So that yes is
+# a card (0025). Claude's own pull requests never show one (0013). A lookup that fails is a deny,
+# not a card: Claude reads why and tries again, so it can't hold a night, and nothing goes out.
+
+ON_A_PR = {"merge", "close", "comment", "review", "edit"}
+NAMES_A_PR_VERB = re.compile(r"\bpr\b.*\b(?:%s)\b" % "|".join(sorted(ON_A_PR)), re.S)
+PR_LINK = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/pull/\d+/?")
+NAME_ONE_PR = ("name one pull request, by its number or link, and write any other number as --flag=value, so "
+               "Ovenbird can check whose it is: one from anyone else takes the human's yes (0014)")
+COULDNT_LOOK = "Ovenbird couldn't check whose pull request this is, so nothing was sent. Try again"
+
+
+def _named_repo(words):
+    """The value of gh's -R/--repo among these words, or None."""
+    for i, w in enumerate(words):
+        if w in ("-R", "--repo"):
+            return words[i + 1] if i + 1 < len(words) else None
+        if w.startswith("--repo="):
+            return w.split("=", 1)[1]
+        if w.startswith("-R") and len(w) > 2:
+            return w[2:]
+    return None
+
+
+def _someone_elses(pr, repo, cwd):
+    """Is this pull request from a fork, or by anyone but the signed-in account? None when GitHub
+    didn't say. Timed to stay inside the hook's 10 s: a hook that's killed shows no card."""
+    view = core.run(["gh", "pr", "view", pr] + (["-R", repo] if repo else []) + ["--json", "isCrossRepository,author"],
+                    timeout=4, cwd=cwd)
+    me = core.run(["gh", "api", "user", "--jq", ".login"], timeout=3, cwd=cwd).out.strip()
+    try:
+        facts = json.loads(view.out)
+        author = str(facts["author"]["login"])
+    except (ValueError, KeyError, TypeError):
+        return None
+    if not view.ok or not me or not author:
+        return None
+    return facts.get("isCrossRepository") is not False or author.lower() != me.lower()
+
+
+def pr_decision(command, cwd):
+    """-> ("ask", why) for acting on someone else's pull request, ("deny", why) when whose it is
+    can't be told, or None: for anything else, and for what gh_text_decision already denied."""
+    text = str(command or "")
+    if not (MENTIONS_GH.search(text) and NAMES_A_PR_VERB.search(text)):
+        return None
+    for sub, verb, _, cooked, _, _, ahead in gh_calls(text) or []:
+        if sub != "pr" or verb not in ON_A_PR:
+            continue
+        named = {w for w in cooked if w.isdigit() or PR_LINK.fullmatch(w)}
+        if len(named) != 1:
+            return "deny", NAME_ONE_PR
+        pr = named.pop()
+        anothers = _someone_elses(pr, _named_repo(ahead + cooked), cwd)
+        if anothers is None:
+            return "deny", COULDNT_LOOK
+        if anothers:
+            return "ask", "gh pr %s on %s: it's someone else's pull request, which takes your yes (0014, 0018)" % (verb, pr)
+    return None
 
 
 # ---------------------------------------------------------------- a downloaded copy and GitHub
@@ -886,8 +951,9 @@ def download_decision(command):
 
 def pretool():
     """The PreToolUse hook: print a deny, an ask, or nothing. A deny is the Guardian over what a
-    gh command would publish. An ask is a cos call that changes something. Any other error is
-    no opinion: the normal rules still apply, and they ask for the canonical spellings."""
+    gh command would publish. An ask is a cos call that changes something, or a gh pr verb on
+    someone else's pull request. Any other error is no opinion: the normal rules still apply,
+    and they ask for the canonical spellings."""
     try:
         request = json.loads(sys.stdin.read() or "{}")
         if request.get("tool_name") != "Bash":
@@ -902,12 +968,20 @@ def pretool():
         except Exception:
             denied = None  # only a gh text command is ever denied; gh_text_decision says so itself
         denied = in_download or denied
+        on_a_pr = None
+        if not denied:
+            try:
+                on_a_pr = pr_decision(command, request.get("cwd") or os.getcwd())
+            except Exception:
+                on_a_pr = ("deny", COULDNT_LOOK)  # only a gh pr verb gets this far
+            if on_a_pr and on_a_pr[0] == "deny":
+                denied = on_a_pr[1]
         if denied:
             out = json.loads(json.dumps(DENY))
             out["hookSpecificOutput"]["permissionDecisionReason"] = denied
             print(json.dumps(out))
             return 0
-        why = pretool_decision(command, ask_patterns())
+        why = on_a_pr[1] if on_a_pr else pretool_decision(command, ask_patterns())
         if why:
             out = json.loads(json.dumps(ASK))
             out["hookSpecificOutput"]["permissionDecisionReason"] = why

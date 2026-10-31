@@ -1,0 +1,1 @@
+- In a Claude Code session in this repository, merging, closing, commenting on, reviewing or editing someone else's pull request now shows a card, so the human's yes is more than a written rule. Claude's own pull requests show none. If GitHub can't say whose a pull request is, the command is refused with a reason rather than held on a card.

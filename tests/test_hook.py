@@ -302,6 +302,85 @@ class TestInspect(TempHome):
         self.assertEqual(facts["problems"], [])
 
 
+class TestSomeoneElsesPullRequest(TempHome):
+    """Decision 0025: the yes for someone else's pull request is a card, Claude's own never show
+    one, and a lookup that fails is a deny, so it can't hold a night."""
+
+    def lookup(self, cross=False, author="me", me="me", view_ok=True):
+        def run(cmd, **kw):
+            self.calls.append(cmd)
+            if cmd[:3] == ["gh", "pr", "view"]:
+                return core.Result(0 if view_ok else 1, json.dumps({"isCrossRepository": cross, "author": {"login": author}}), "")
+            if cmd[:3] == ["gh", "api", "user"]:
+                return core.Result(0 if me else 1, me or "", "")
+            self.fail("ran %r" % cmd)
+        self.calls = []
+        return mock.patch.object(core, "run", run)
+
+    def decide(self, command, **facts):
+        with self.lookup(**facts):
+            return hook.pr_decision(command, "/somewhere")
+
+    def test_claudes_own_pull_requests_show_no_card(self):
+        for cmd in ("gh pr merge 170 --squash --delete-branch --match-head-commit " + "a" * 40,
+                    "gh pr close 170", "gh pr comment 170 --body-file x.md", "gh pr review 170 --approve",
+                    "gh pr edit 170 --title x"):
+            self.assertIsNone(self.decide(cmd), cmd)
+        self.assertIsNone(self.decide("gh pr merge 1", author="Me"), "GitHub's logins don't care about case")
+
+    def test_a_fork_or_another_author_asks(self):
+        for verb in ("merge", "close", "comment", "review", "edit"):
+            self.assertEqual(self.decide("gh pr %s 144" % verb, cross=True)[0], "ask", verb)
+            self.assertEqual(self.decide("gh pr %s 144" % verb, author="someone")[0], "ask", verb)
+        for cmd in ("env gh pr merge 144", "gh-axi pr merge 144", "cd x && gh pr merge 144 --squash",
+                    "gh pr merge https://github.com/a/b/pull/144", "gh pr merge --squash 144"):
+            self.assertEqual(self.decide(cmd, cross=True)[0], "ask", cmd)
+        self.assertIn("144", self.decide("gh pr merge 144", cross=True)[1])
+
+    def test_it_looks_in_the_repository_the_command_names(self):
+        for cmd in ("gh pr merge 5 -R a/b", "gh pr merge 5 --repo a/b", "gh pr merge 5 --repo=a/b", "gh -R a/b pr merge 5",
+                    "gh pr -R a/b merge 5", "gh pr merge 5 -Ra/b"):
+            self.decide(cmd)
+            self.assertEqual(self.calls[0][:6], ["gh", "pr", "view", "5", "-R", "a/b"], cmd)
+
+    def test_a_lookup_that_fails_denies_and_never_shows_a_card(self):
+        for facts in ({"view_ok": False}, {"me": ""}):
+            self.assertEqual(self.decide("gh pr merge 170", **facts), ("deny", hook.COULDNT_LOOK), facts)
+        with mock.patch.object(core, "run", return_value=core.Result(0, "not json", "")):
+            self.assertEqual(hook.pr_decision("gh pr merge 170", "/x")[0], "deny")
+        with mock.patch.object(core, "run", return_value=core.Result(0, "{}", "")):
+            self.assertEqual(hook.pr_decision("gh pr merge 170", "/x")[0], "deny")
+
+    def test_it_has_to_know_which_pull_request(self):
+        for cmd in ("gh pr merge", "gh pr merge --squash", "gh pr merge night/x", "gh pr comment --body-file x.md",
+                    "gh pr merge 170 --subject 144"):
+            self.assertEqual(self.decide(cmd), ("deny", hook.NAME_ONE_PR), cmd)
+
+    def test_everything_else_costs_no_lookup(self):
+        for cmd in ("gh pr view 144", "gh pr list", "gh pr checks 144", "gh pr diff 144", "gh pr create --title x --body-file y",
+                    "gh issue comment 5 --body-file x.md", "git status", 'git commit -m "gh pr merge 144"', "bin/cos hook check 144", ""):
+            self.assertIsNone(self.decide(cmd), cmd)
+            self.assertEqual(self.calls, [], cmd)
+
+    def run_hook(self, command, **facts):
+        out = io.StringIO()
+        request = json.dumps({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": "/x"})
+        with self.lookup(**facts), mock.patch("sys.stdin", io.StringIO(request)), \
+                mock.patch.object(hook, "download_decision", return_value=None), \
+                mock.patch.object(hook, "gh_text_decision", return_value=None), redirect_stdout(out):
+            self.assertEqual(hook.pretool(), 0)
+        return json.loads(out.getvalue())["hookSpecificOutput"] if out.getvalue() else None
+
+    def test_the_hook_says_so(self):
+        said = self.run_hook("gh pr merge 144", cross=True)
+        self.assertEqual(said["permissionDecision"], "ask")
+        self.assertIn("someone else's", said["permissionDecisionReason"])
+        self.assertIsNone(self.run_hook("gh pr merge 170"))
+        self.assertEqual(self.run_hook("gh pr merge 170", view_ok=False)["permissionDecision"], "deny")
+        with mock.patch.object(hook, "pr_decision", side_effect=RuntimeError("odd")):
+            self.assertEqual(self.run_hook("gh pr merge 170")["permissionDecision"], "deny")
+
+
 class TestPretool(TempHome):
     """Decision 0017: a cos call that changes something gets a card however it's spelled,
     because the hook writes it the canonical way and matches the checked-in ask rules."""
