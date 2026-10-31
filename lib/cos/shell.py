@@ -152,8 +152,13 @@ def boot():
     memory = mem.memory_text().strip().splitlines()
     facts = [l for l in memory if l.startswith("- ")]
     if facts:
+        # Apart, each with its own limit: what the chat noted can't push out what the human said.
         lines.append("  memory (what you've learned about your human):")
-        lines += ["    " + f for f in facts[-40:]]
+        lines += ["    " + f for f in [f for f in facts if not mem.from_chat(f)][-40:]]
+        leads = [f for f in facts if mem.from_chat(f)][-20:]
+        if leads:
+            lines.append("  %s:" % mem.CHAT_LEADS)
+            lines += ["    " + f for f in leads]
     else:
         lines.append("  memory: empty — learn preferences as you go (cos remember \"...\")")
     if os.environ.get("CLAUDE_OS_APP"):
