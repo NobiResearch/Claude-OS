@@ -95,9 +95,14 @@ class TestRelease(TempHome):
         with security:
             problems = release.scan(app)
         self.assertTrue(any("embedded.provisionprofile" in p for p in problems), problems)
-        # Anywhere but the profile, the name is a problem like any other.
-        app = self.bundle({"CFBundleIdentifier": "x"}, resource=b"by A Team")
-        self.assertTrue(release.scan(app))
+        # With the term set, the name anywhere but the profile is a problem like any other.
+        app, security = self.embedded("<string>A Team</string>", "A Team")
+        with open(os.path.join(app, "Contents", "Resources", "AppIcon.icns"), "wb") as f:
+            f.write(b"made by A Team")
+        with security:
+            problems = release.scan(app)
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("AppIcon.icns", problems[0])
 
     def test_an_unreadable_profile_lets_nothing_through(self):
         with open(str(core.home("guard.json")), "w") as f:
