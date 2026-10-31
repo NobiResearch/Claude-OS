@@ -379,7 +379,7 @@ class TestPretool(TempHome):
                       "$(pwd)/sh -c %s", "$(brew --prefix)/bin/bash -c %s", "echo %s | $(pwd)/sh", 'd=$(date); "sh" -c %s'):
             self.assertIsNotNone(self.decide(shape % "'cos clean apply x --yes'"), shape)
         # An escaped backslash before a newline isn't a line continuation: the next line runs.
-        self.assertIsNotNone(self.decide("echo \\\\\ncos  clean apply x --yes"))
+        self.assertIsNotNone(self.decide("echo a\\\\\ncos  clean apply x --yes"))
 
     def test_reading_and_everything_else_has_no_opinion(self):
         for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",
@@ -423,10 +423,12 @@ class TestPretool(TempHome):
                     'echo "$(cos  clean apply x --yes)"', "sh -c 'cos clean apply x --yes'",
                     'eval "cos clean apply x --yes"', "bash -lc \"bin/cos update apply brew --yes\"",
                     "printf '%s' \"$(date)\"; cos clean apply x --yes",
+                    # a process substitution is one too, and it can run the shell
+                    '"bash" <(echo \'cos clean apply x --yes\')', "echo 'cos clean apply x --yes' > >(sh)",
                     # a cos call's own escaped quotes, and quotes glued to the cos word itself
                     'bin/cos friction add "a \\"b\\" c" --area hook', '"$x"cos clean apply x --yes',
                     "' 'bin/cos  clean apply x --yes", " eval 'cos clean apply x --yes'",
-                    "x='cos clean apply x --yes'; time $x", "x='cos clean apply x --yes'; env $x",
+                    "c=cos; time $c clean apply x --yes", "x='cos clean apply x --yes'; env $x",
                     "x='cos clean apply x --yes'; y=1 $x", "x='cos clean apply x --yes' eval 'cos clean apply x --yes'",
                     "export x='cos clean apply x --yes'; env $x",
                     # what a substitution hands a cos call isn't known, even if it names no cos,
