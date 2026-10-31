@@ -61,9 +61,10 @@ app/build.sh --release
 It refuses to run with uncommitted changes, off `origin/main`, or in a background job, CI or
 the evolve sandbox. It then:
 
-- builds the app with nothing machine-specific inside (no paths, a stripped binary), and scans
-  the whole bundle for anything private before signing;
+- builds the app with nothing machine-specific inside (no paths, a stripped binary);
 - checks the profile: Developer ID (any Mac), the release App ID, neutral names;
+- scans the whole bundle for anything private before signing, the embedded profile too, apart
+  from the team's name, which the signature carries as well;
 - signs with Developer ID, the hardened runtime, a secure timestamp and the allowlisted
   entitlements, with no fallback;
 - notarizes, staples and zips it to `build/Ovenbird-<version>.zip`.

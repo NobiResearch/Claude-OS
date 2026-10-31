@@ -89,6 +89,17 @@ def _run(cmd):
     return r.stdout if r.returncode == 0 else None
 
 
+EMBEDDED_PROFILE = os.path.join("Contents", "embedded.provisionprofile")
+
+
+def team_name(path):
+    """The name a provisioning profile gives its team, or "": then nothing is let through."""
+    try:
+        return str(plistlib.loads(_run(["security", "cms", "-D", "-i", path]).encode()).get("TeamName") or "")
+    except Exception:
+        return ""
+
+
 def bundle_texts(app):
     """(label, text) for everything a downloader gets that could hold a path or a name: the
     Info.plist, the executable's strings and symbols, and every resource."""
@@ -113,8 +124,14 @@ def bundle_texts(app):
 
 def scan(app):
     """Problems in a built bundle, before it's signed: anything the Guardian would block in the
-    repository, and the keys only a developer's own build may carry."""
+    repository, and the keys only a developer's own build may carry. The one thing let through
+    is the team's name in the embedded profile: the signature carries the same name, and that's
+    what the human said yes to (0015, step 2). The rest of the profile is scanned, so a term in
+    guard.json can't stop a release over that name, and still catches anything else."""
     texts, info = bundle_texts(app)
+    team = team_name(os.path.join(app, EMBEDDED_PROFILE))
+    if team:
+        texts = [(label, text.replace(team, "") if label == EMBEDDED_PROFILE else text) for label, text in texts]
     problems = ["couldn't read %s" % label for label, text in texts if text == "<couldn't read>"]
     patterns = guard.SECRET_PATTERNS + guard.personal_patterns()
     for label, text in texts:
