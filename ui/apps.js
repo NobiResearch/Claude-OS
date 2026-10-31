@@ -614,7 +614,11 @@
         now = n;
         const playing = n.running && n.state === "playing";
         clear(playBtn).appendChild(icon(playing ? "pause" : "play", 22));
-        if (!n.running) { title.textContent = "Music isn't open"; artist.textContent = "Search below, or let Claude pick."; times.textContent = ""; }
+        if (!n.running) {
+          title.textContent = n.open ? "Music is open" : "Music isn't open";
+          artist.textContent = n.open ? "Press play or search to connect it." : "Search below, or let Claude pick.";
+          times.textContent = "";
+        }
         else if (!n.track) { title.textContent = "Nothing loaded"; artist.textContent = ""; times.textContent = ""; }
         else {
           title.textContent = n.track;
@@ -634,14 +638,21 @@
         times.textContent = fmt.duration(now.position) + " / " + fmt.duration(now.duration);
       }
       async function refresh() { try { paint(await api("/api/music/now")); } catch (e) {} }
+      // -1743 is macOS saying no, and once it has, it doesn't ask again.
+      const refused = (e) => /-1743/.test(e || "") ? "macOS is keeping Ovenbird from Music. Allow it in System Settings › Privacy & Security › Automation." : e;
       async function control(cmd, extra) {
-        try { paint(await api("/api/music/control", { body: Object.assign({ cmd }, extra || {}) })); COS.refreshMusic(); } catch (e) { toast(e.message, "bad"); }
+        try {
+          const n = await api("/api/music/control", { body: Object.assign({ cmd }, extra || {}) });
+          paint(n);
+          COS.refreshMusic();
+          if (n.error) toast(refused(n.error), "bad");
+        } catch (e) { toast(e.message, "bad"); }
       }
       async function play(body, label) {
         toast("Starting " + label + "…");
         try {
           const r = await api("/api/music/play", { body });
-          if (r.ok) toast("▶ " + ((r.now && r.now.track) || label), "ok"); else toast(r.error || "Couldn't play that", "bad");
+          if (r.ok) toast("▶ " + ((r.now && r.now.track) || label), "ok"); else toast(refused(r.error) || "Couldn't play that", "bad");
           refresh(); COS.refreshMusic();
         } catch (e) { toast(e.message, "bad"); }
       }

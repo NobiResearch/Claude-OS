@@ -718,8 +718,9 @@ def make_handler(app):
             captured(music.like)
         else:
             return h._error(400, "unknown control")
+        n = music.now()  # first: someone slow on macOS's dialog times the click out, and this answers
         music._note_asked()
-        h._json(with_artwork(music.now()))
+        h._json(with_artwork(n))
 
     def r_feeds(h, q, b):
         from . import feeds
@@ -919,6 +920,9 @@ def serve(port=0, open_browser=False, exit_on_stdin_eof=False, token=None, demo=
     httpd.daemon_threads = True
     app.port = httpd.server_address[1]
     app.managed = exit_on_stdin_eof
+    if exit_on_stdin_eof:
+        from . import music
+        music.app_server = True
     print("COS_SERVE_READY port=%d token=%s" % (app.port, app.token), flush=True)
     if exit_on_stdin_eof:
         def watch():

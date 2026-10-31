@@ -165,7 +165,7 @@ class TestServerSecurity(TempHome):
         with mock.patch.object(music, "own_player_active", return_value=None), \
                 mock.patch.object(core, "app_running", return_value=True), \
                 mock.patch.object(core, "osascript", return_value=played) as osa:
-            self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2]), {"running": False})
+            self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2]), {"running": False, "open": True})
             self.assertEqual(json.loads(self.request("GET", "/api/music/playlists")[2]), [])
             osa.assert_not_called()
             self.assertFalse(music.asked())
@@ -174,6 +174,35 @@ class TestServerSecurity(TempHome):
             osa.reset_mock()
             self.assertEqual(json.loads(self.request("GET", "/api/music/now")[2])["track"], "Weightless")
             osa.assert_called()
+
+    def test_a_search_and_a_play_count_as_someone_asking(self):
+        from unittest import mock
+        from cos import core, music
+        self.addCleanup(setattr, music, "_talked", False)
+        for route, body in (("GET", "/api/music/search?q=x"), ("POST", "/api/music/play")):
+            music._talked = False
+            if music.asked():
+                core.home(*music.ASKED_FILE).unlink()
+            with mock.patch.object(music, "own_player_active", return_value=None), \
+                    mock.patch.object(music, "player_enabled", return_value=False), \
+                    mock.patch.object(music, "catalog_search", return_value={"results": []}), \
+                    mock.patch.object(core, "app_running", return_value=True), \
+                    mock.patch.object(core, "osascript", return_value=core.Result(0, "", "")):
+                self.request(route, body, {"q": "x", "source": "library"} if route == "POST" else None)
+            self.assertTrue(music.asked(), body)
+
+    def test_someone_slow_on_macos_dialog_still_counts(self):
+        """The click times out while the dialog waits, then they say yes, and the next call answers."""
+        from unittest import mock
+        from cos import core, music
+        music._talked = False
+        self.addCleanup(setattr, music, "_talked", False)
+        now = core.Result(0, music.US.join(["playing", "Weightless", "Marconi Union", "", "480", "12", "40", "false", "off"]), "")
+        with mock.patch.object(music, "own_player_active", return_value=None), \
+                mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", side_effect=[core.Result(1, "", "timed out"), now]):
+            self.request("POST", "/api/music/control", {"cmd": "next"})
+        self.assertTrue(music.asked())
 
     def test_a_click_music_didnt_answer_asks_nothing_later(self):
         from unittest import mock

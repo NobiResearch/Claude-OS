@@ -210,7 +210,7 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
         answered = core.Result(0, self.NOW, "")
         with mock.patch.object(core, "app_running", return_value=True), \
                 mock.patch.object(core, "osascript", return_value=answered) as osa:
-            self.assertEqual(music.now(ask_music=False), {"running": False})
+            self.assertEqual(music.now(ask_music=False), {"running": False, "open": True})
             osa.assert_not_called()
             own = {"status": "paused", "track": "Ours"}
             with mock.patch.object(music, "own_player_active", return_value=own), \
@@ -218,6 +218,40 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
                 self.assertEqual(music.now(ask_music=False)["track"], "Ours", "our own player needs no asking")
             osa.assert_not_called()
             self.assertEqual(music.now()["track"], "Weightless")
+
+    def test_a_terminal_and_the_app_each_keep_their_own_marker(self):
+        """macOS grants Automation per app: `cos music` in a terminal says nothing for Ovenbird.app,
+        whose first poll would then show the dialog at launch, or the other way round."""
+        import os
+        from unittest import mock
+        music._talked = True
+        music._note_asked()
+        self.assertTrue(music.asked(), "this terminal asked")
+        with mock.patch.object(music, "app_server", True):
+            self.assertFalse(music.asked(), "the app's server hasn't")
+            music._note_asked()
+            self.assertTrue(music.asked())
+        with mock.patch.dict(os.environ, {"CLAUDE_OS_APP": "1"}):
+            self.assertTrue(music.asked(), "the app's chat has the app's grant")
+        core_home = music.core.home
+        core_home(*music.ASKED_FILE).unlink()
+        self.assertFalse(music.asked(), "the app's click says nothing for a terminal")
+
+    def test_a_background_run_never_talks_to_music(self):
+        import os
+        from unittest import mock
+        from cos import core, shell
+        core.home(*music.ASKED_FILE).parent.mkdir(parents=True, exist_ok=True)
+        core.home(*music.ASKED_FILE).touch()
+        never = mock.Mock(side_effect=AssertionError("asked Music"))
+        with mock.patch.object(core, "app_running", return_value=True), mock.patch.object(core, "osascript", never), \
+                mock.patch.dict(os.environ, {"CLAUDE_OS_DAEMON": "morning"}):
+            self.assertFalse(music.asked(), "the marker is there, but nobody's there to answer")
+            self.assertIsNone(shell._music_now())
+            self.assertEqual(music.now().get("error"), "a background run doesn't talk to Music")
+            self.assertEqual(music.playlists(), [])
+            self.assertEqual(music.library_search("x"), [])
+        never.assert_not_called()
 
     def test_cos_doctor_never_asks_first(self):
         import io

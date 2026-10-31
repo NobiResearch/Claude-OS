@@ -31,21 +31,31 @@ _talked = False  # did this process get an answer from Music.app?
 
 def _tell(body, timeout=10):
     global _talked
+    if os.environ.get("CLAUDE_OS_DAEMON"):
+        return core.Result(1, "", "a background run doesn't talk to Music")  # macOS's dialog would wait for nobody
     r = core.osascript('tell application "Music"\n%s\nend tell' % body, timeout=timeout)
     _talked = _talked or r.ok
     return r
 
 
 ASKED_FILE = ("state", "music-asked.flag")  # a suffix, or core.home makes it a folder
+APP_ASKED_FILE = ("state", "music-asked-app.flag")
+app_server = False  # Ovenbird.app started this process's server
+
+
+def _asked_path():
+    """macOS grants Automation to the app responsible for a process (0003), so what a terminal was
+    allowed says nothing for Ovenbird.app, or the other way round: each keeps its own marker."""
+    return core.home(*(APP_ASKED_FILE if app_server or os.environ.get("CLAUDE_OS_APP") else ASKED_FILE))
 
 
 def asked():
-    """Has a person's `cos music`, or a click or search in the desktop, talked to Music.app on
-    this Mac? Only then do the boot banner, the status line, `cos doctor` and the desktop's own
-    polling ask Music anything: the first AppleScript to it makes macOS ask whether Ovenbird may
-    control Music, and that dialog should follow someone asking for music, not a session or the
-    desktop starting."""
-    return core.home(*ASKED_FILE).is_file()
+    """Has a person's `cos music`, or a click or search in the desktop, talked to Music.app from
+    this app or terminal? Only then do the boot banner, the status line, `cos doctor` and the
+    desktop's own polling ask Music anything: the first AppleScript to it makes macOS ask whether
+    Ovenbird may control Music, and that dialog should follow someone asking for music, not a
+    session or the desktop starting. Never in a background run: nobody's there to answer."""
+    return not os.environ.get("CLAUDE_OS_DAEMON") and _asked_path().is_file()
 
 
 def _note_asked():
@@ -54,7 +64,7 @@ def _note_asked():
     if not _talked or os.environ.get("CLAUDE_OS_DAEMON") or asked():
         return
     try:
-        path = core.home(*ASKED_FILE)
+        path = _asked_path()
         path.parent.mkdir(parents=True, exist_ok=True)
         path.touch()
     except OSError:
@@ -95,11 +105,12 @@ def _own_now(st):
 
 
 def now(ask_music=True):
-    """What's playing. ask_music False: Ovenbird's own player only (see asked)."""
+    """What's playing. ask_music False: Ovenbird's own player only (see asked), and whether Music
+    is open, which pgrep can say without asking it."""
     own = own_player_active()
     if own and own["status"] == "playing":
         return _own_now(own)
-    app = _music_app_now() if ask_music else {"running": False}
+    app = _music_app_now() if ask_music else {"running": False, "open": core.app_running("Music")}
     # Paused in Ovenbird is still the song on screen, unless Music is playing something else.
     if own and app.get("state") != "playing":
         return _own_now(own)
