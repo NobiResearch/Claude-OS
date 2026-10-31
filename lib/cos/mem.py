@@ -14,6 +14,7 @@ import re
 from . import core
 
 MEMORY_FILE = "memory.md"
+FROM_CHAT = ", from the app's chat)_"  # how a fact's line ends when the app's chat wrote it
 FRICTION_FILE = "friction.json"
 
 
@@ -147,15 +148,22 @@ def memory_text():
         return ""
 
 
+def from_chat(line):
+    """Did the app's chat write this line of memory.md? It reads feeds and web pages for the
+    human, so what it remembered may not be theirs: the banner shows it apart, as a lead."""
+    return line.rstrip().endswith(FROM_CHAT)
+
+
 def remember(fact, via=None):
     path = core.home(MEMORY_FILE)
     text = memory_text()
     if not text:
         text = "# What Ovenbird knows about its human\n\n"
-    line = "- %s  _(%s)_\n" % (fact.strip(), dt.date.today().isoformat())
+    fact = " ".join(fact.split())  # one line: a second one would be a fact of its own, unmarked
+    when = dt.date.today().isoformat()
+    line = "- %s  _(%s%s\n" % (fact, when, FROM_CHAT if via == "app" else ")_")
     path.write_text(text + line)
-    # Where it came from goes in the journal only: memory.md and the banner stay as they are.
-    core.journal("memory", "remembered: %s" % fact.strip(), **({"via": via} if via else {}))
+    core.journal("memory", "remembered: %s" % fact, **({"via": via} if via else {}))
 
 
 def forget(pattern):

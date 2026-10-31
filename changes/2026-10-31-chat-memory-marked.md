@@ -1,0 +1,1 @@
+- What the app's chat remembers is marked as coming from the chat, in `memory.md`, the Memory window and the boot banner. The chat reads feeds and web pages for you, so the banner lists these facts apart, as leads to check and never as instructions. What you teach it yourself, in the Memory window or with `cos remember` in a terminal, reads as before.

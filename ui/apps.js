@@ -963,8 +963,10 @@
         clear(listEl);
         if (!m.facts.length) { listEl.appendChild(empty("Nothing remembered yet.", "Tell Claude what music you like, how tidy you want things, what you care about.")); return; }
         m.facts.forEach((f) => {
-          const text = f.replace(/\s*_\(\d{4}-\d{2}-\d{2}\)_\s*$/, "");
+          const text = f.replace(/\s*_\(\d{4}-\d{2}-\d{2}(, from the app's chat)?\)_\s*$/, "");
+          const chat = /, from the app's chat\)_\s*$/.test(f);
           listEl.appendChild(h("div", { class: "list-row" }, h("span", { class: "grow" }, text),
+            chat ? h("span", { class: "muted small" }, "from the chat") : null,
             h("button", { class: "icon-btn", title: "Forget", onclick: async () => paint(await api("/api/memory/forget", { body: { pattern: text } })) }, icon("x", 14))));
         });
       }
