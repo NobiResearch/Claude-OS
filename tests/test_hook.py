@@ -328,6 +328,59 @@ class TestPretool(TempHome):
                     'git log "$(bin/cos  update apply brew --yes)"', 'echo don\\\'t "$(cos  clean apply x --yes)"'):
             self.assertIn("can't read", self.decide(cmd), cmd)
 
+    def test_quotes_it_would_misread_still_ask(self):
+        # The guardian's review of #170: where the quotes can't be read the way the shell reads
+        # them (a `don't` in a comment or a heredoc, $'…') or there's a substitution, any cos word
+        # asks, as it did before each command was read on its own.
+        for cmd in ("# don't forget\ncos clean apply x --yes", "true # it's fine\ncos  clean apply x --yes",
+                    "cat <<EOF > /dev/null\ndon't\nEOF\ncos  clean apply x --yes",
+                    "git commit -q -F - <<'EOF'\nIt's done\nEOF\nbin/cos  update apply brew --yes",
+                    "printf $'it\\'s\\n'; cos  clean apply x --yes", "printf $'it\\'s\n'; cos  clean apply x --yes",
+                    "echo $'a\\'b' ; cos  clean apply x --yes #'", "echo \\\\\n'true' ; cos  clean apply x --yes",
+                    'echo "$( (cos  clean apply x --yes) )"', 'echo "$( (cos security on firewall --yes) )"',
+                    'echo "$(cos  clean apply x --yes; echo $((1+1)))"',
+                    'echo "$(case x in x) cos  clean apply x --yes;; esac)"',
+                    'echo "$(echo "it\'s"; cos  clean apply x --yes)"', "$'cos' clean apply x --yes",
+                    "true # it's\ncos config autonomy.catch_up true",
+                    # piped to a shell, the text is a script; and too long to read in time
+                    "echo 'cos clean apply x --yes' | sh", "printf 'cos  clean apply x --yes' |& bash",
+                    "cos status # " + "x" * (64 * 1024), "cos status " + "x" * (16 * 1024),
+                    # the second review: quotes that pair up inside comments and heredocs, a ' in
+                    # "$( )", $' that moves the cut, and a shell started in another command
+                    "# Don't touch\ncos clean apply downloads-old --yes  # that's the one",
+                    "cos status # it's fine\ncos config autonomy.catch_up true # isn't it",
+                    "cat <<EOF > /dev/null\ndon't\nEOF\ncos clean apply x --yes\ncat <<EOF >/dev/null\nit's\nEOF",
+                    'echo "$(echo \' " \' ; cos clean apply x --yes ; echo \' " \' ; (true))"',
+                    "printf $'a\\'b' ; echo 'p; q' ; cos clean apply x --yes #'",
+                    'cmd="cos clean apply x --yes"; eval $cmd', "x='cos update apply brew --yes' && bash -c \"$x\"",
+                    "zsh <<<'bin/cos daemon install brief'", "bash <<<'cos clean apply x --yes'",
+                    "source <(echo 'cos clean apply x --yes')", "bash < cmds.txt; cos status",
+                    # the third review: a call held in a string and run, a substitution that gives
+                    # nothing or ends late, one that starts in quotes, a shell after a continuation
+                    "x='cos clean apply x --yes'; y=\"$(eval \"$x\")\"", "x='cos clean apply x --yes'; y=\"$(sh -c \"$x\")\"",
+                    "x='cos clean apply x --yes'; y=\"$(echo \"$x\" | sh)\"", "x='cos clean apply x --yes'; y=\"`eval \"$x\"`\"",
+                    "x='cos clean apply x --yes'; ${=x}", "x='cos clean apply x --yes'; $=x",
+                    "x='cos clean apply x --yes'; $x", "c=cos; $c clean apply x --yes",
+                    "$(true)cos clean apply x --yes", "cos$(true) clean apply x --yes",
+                    "$x$(true)cos clean apply x --yes", "echo 'cos'; c$(true)os clean apply x --yes",
+                    'y="$(echo ${x:-)} ; cos clean apply x --yes ; echo )"',
+                    "echo '$(\"'\")\" ; cos clean apply x --yes ; echo ' ; \"'",
+                    "echo \"\\$('\"'x)' ; cos clean apply x --yes ; echo '\" ; '",
+                    "echo \"${x%'\"'}\" ; cos clean apply x --yes ; echo ' ; \"'",
+                    "x='cos clean apply x --yes'; d=$(date); true && \\\neval \"$x\"",
+                    "d=$(date); echo 'cos clean apply x --yes' | \\\nsh"):
+            self.assertIsNotNone(self.decide(cmd), repr(cmd[:80]))
+        # The fourth review: a substitution can be the command itself, so a cos word in quotes
+        # asks next to one. Real shells ran these; the last `$(date)` is elsewhere in the command.
+        for shape in ("$(echo eval) %s", "$(true)eval %s", "ev$(true)al %s", "`echo eval` %s", 'x=%s; $(echo eval) "$x"',
+                      "$(true)sh -c %s", "s$(true)h -c %s", "`true`sh -c %s", "echo %s | $(dirname /bin/sh)/sh",
+                      '"$(which sh)" -c %s', '"$(command -v bash)" -c %s', 'echo %s | "$(which sh)"', "$(cat n) -c %s",
+                      "if true; then $(true)eval %s; fi", "( $(true)eval %s )", "env $(true)sh -c %s",
+                      "$(pwd)/sh -c %s", "$(brew --prefix)/bin/bash -c %s", "echo %s | $(pwd)/sh", 'd=$(date); "sh" -c %s'):
+            self.assertIsNotNone(self.decide(shape % "'cos clean apply x --yes'"), shape)
+        # An escaped backslash before a newline isn't a line continuation: the next line runs.
+        self.assertIsNotNone(self.decide("echo a\\\\\ncos  clean apply x --yes"))
+
     def test_reading_and_everything_else_has_no_opinion(self):
         for cmd in ("cos status", "cos clean", "bin/cos log add 'did a thing'", "cos daemon list", "cos music play x",
                     "git status", "cosmos clean apply", "ls -la", "cos evolve merge evolve/x --yes", "",
@@ -335,8 +388,54 @@ class TestPretool(TempHome):
                     "cos status 2>&1 | tail", "cos music play 'x y'",
                     # the night shift's own commands mention cos without running it: no card nobody answers
                     'git commit -m "$(cat msg)" lib/cos/x.py', "gh pr merge 1 --match-head-commit $(git -C x rev-parse HEAD)",
-                    "git ls-files lib/cos"):
+                    "git ls-files lib/cos", 'git commit -q -m "Open source the cos hook"',
+                    'bin/cos friction close 34 --note "see #35"', "bin/cos hook check night/x",
+                    # eval, source and a shell's name are only words here: they start nothing
+                    "grep -n eval lib/cos/hook.py", "git log -S eval --oneline -- lib/cos/hook.py",
+                    "git log --source --oneline -- lib/cos/hook.py", "cd ~/source/app && bin/cos status",
+                    "ls source lib/cos", "bin/cos log --days 1 | grep source", "grep -c bash < lib/cos/hook.py",
+                    "find lib/cos -name '*.py' -exec grep -l eval {} +", "grep -n source lib/cos/hook.py",
+                    "rg -n eval lib/cos", "bin/cos doctor | grep -i eval",
+                    "printf '%s\\n' 'eval done' >> log.md ; bin/cos log add x"):
             self.assertIsNone(self.decide(cmd), repr(cmd))
+
+    def test_a_long_command_is_read_inside_the_hooks_timeout(self):
+        # A hook that's killed prints nothing, and no card shows. The third review of #170 had
+        # one regex take 131 s on a run of `(bin/sh` at this size, and the fourth 11.6 s on a long
+        # flag word.
+        import time
+        shapes = [(body * (hook.TOO_LONG // len(body)))[:hook.TOO_LONG - 8] + " bin/cos" for body in ("(bin/sh", "sh ", "(/")]
+        for text in shapes + ["sh " * 20 + "-" + "c" * 15000 + "_ bin/cos"]:
+            start = time.time()
+            self.decide(text)
+            self.assertLess(time.time() - start, 5, text[:20])
+
+    def test_text_in_another_command_never_makes_a_cos_call_ask(self):
+        # Friction #35: one card like this stopped a night shift for eight hours. Each command
+        # is read on its own, and text a shell won't run (quotes, a commit message) runs no cos.
+        for cmd in ('bin/cos guard --all | tail -1; git add -A && git commit -q -m "a \\"quoted\\" cos word\\n\\nmore"',
+                    "printf -- '- %s: cos hook pretool asked' 'now' >> log.md; bin/cos log add x",
+                    'git commit -m "fix cos guard"; bin/cos status',
+                    "cd x && python3 -m unittest discover -s tests > out.log 2>&1; grep -E '^OK' out.log; bin/cos guard --all"):
+            self.assertIsNone(self.decide(cmd), repr(cmd))
+        # What runs cos still asks, wherever it sits.
+        for cmd in ('git commit -m "x \\"y\\""; cos  clean apply x --yes',
+                    'echo "$(cos  clean apply x --yes)"', "sh -c 'cos clean apply x --yes'",
+                    'eval "cos clean apply x --yes"', "bash -lc \"bin/cos update apply brew --yes\"",
+                    "printf '%s' \"$(date)\"; cos clean apply x --yes",
+                    # a process substitution is one too, and it can run the shell
+                    '"bash" <(echo \'cos clean apply x --yes\')', "echo 'cos clean apply x --yes' > >(sh)",
+                    # a cos call's own escaped quotes, and quotes glued to the cos word itself
+                    'bin/cos friction add "a \\"b\\" c" --area hook', '"$x"cos clean apply x --yes',
+                    "' 'bin/cos  clean apply x --yes", " eval 'cos clean apply x --yes'",
+                    "c=cos; time $c clean apply x --yes", "x='cos clean apply x --yes'; env $x",
+                    "x='cos clean apply x --yes'; y=1 $x", "x='cos clean apply x --yes' eval 'cos clean apply x --yes'",
+                    "export x='cos clean apply x --yes'; env $x",
+                    # what a substitution hands a cos call isn't known, even if it names no cos,
+                    # and one anywhere near a cos word asks: the price of keeping this simple
+                    "cos clean $(echo apply) x --yes", 'cos clean "$(echo apply)" x', "cos clean `echo apply` x",
+                    "printf '%s' \"$(date '+%H:%M')\" >> log.md; bin/cos log add x"):
+            self.assertIsNotNone(self.decide(cmd), repr(cmd))
 
     def test_the_hook_prints_an_ask_or_nothing(self):
         def run(command, tool="Bash"):
