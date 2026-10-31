@@ -158,13 +158,22 @@ def from_chat(line):
     return line.rstrip().endswith(FROM_CHAT)
 
 
+def _memory_to_change():
+    """memory.md's text, "" only when there's no file. memory_text forgives anything, for the
+    banner, but replacing a file it couldn't read would wipe it."""
+    try:
+        return core.home(MEMORY_FILE).read_text(encoding="utf-8")
+    except FileNotFoundError:
+        return ""
+
+
 def _one_line(fact):
     """A fact as one line, in the human's own words: every kind of line break folds to a space
     (a second line would be a fact with no mark), and control characters, invisible ones (bidi
     overrides, tag characters) and bytes that aren't text go. Nothing else changes: core.plain_line
     is for notifications, and would turn 7½ into 71⁄2."""
     return "".join(c for c in " ".join(fact.split())
-                   if c in JOINERS or unicodedata.category(c) not in ("Cc", "Cf", "Cs")).strip()
+                   if c in JOINERS or unicodedata.category(c) not in ("Cc", "Cf", "Cs")).strip(" " + JOINERS)
 
 
 def _write_memory(text):
@@ -193,7 +202,7 @@ def remember(fact, via=None):
     fact = _one_line(fact)[:MAX_CHAT_FACT if via == "app" else None]
     if not fact:
         return False
-    text = memory_text()
+    text = _memory_to_change()
     if not text:
         text = "# What Ovenbird knows about its human\n\n"
     if not text.endswith("\n"):
@@ -206,7 +215,7 @@ def remember(fact, via=None):
 
 
 def forget(pattern):
-    lines = memory_text().splitlines(True)
+    lines = _memory_to_change().splitlines(True)
     rx = re.compile(re.escape(pattern), re.I)
     kept = [l for l in lines if not (l.startswith("- ") and rx.search(l))]
     removed = len(lines) - len(kept)

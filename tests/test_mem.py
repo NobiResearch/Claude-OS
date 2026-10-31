@@ -230,9 +230,30 @@ class TestMemory(TempHome):
             with self.assertRaises(OSError):
                 mem.forget("ambient")
         self.assertIn("likes ambient", mem.memory_text())
+        self.assertFalse(os.path.exists(str(core.home(mem.MEMORY_FILE)) + ".tmp"))
+
+    def test_a_memory_it_cant_read_is_refused_never_replaced(self):
+        mem.remember("likes ambient")
+        mem.remember("likes jazz")
+        path = str(core.home(mem.MEMORY_FILE))
+        os.chmod(path, 0)
+        self.addCleanup(lambda: os.path.exists(path) and os.chmod(path, stat.S_IRUSR | stat.S_IWUSR))
+        for call in (lambda: mem.remember_main(SimpleNamespace(fact=["likes folk"])),
+                     lambda: mem.memory_main(SimpleNamespace(forget="nothing that matches"))):
+            err = io.StringIO()
+            with redirect_stderr(err), self.assertRaises(SystemExit) as ctx:
+                call()
+            self.assertEqual(ctx.exception.code, 1)
+            self.assertIn("can't write private state", err.getvalue())
+        os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+        text = mem.memory_text()
+        self.assertIn("likes ambient", text)
+        self.assertIn("likes jazz", text)
+        self.assertNotIn("likes folk", text)
 
     def test_nothing_is_not_a_fact(self):
         self.assertFalse(mem.remember(" \x1b\n "))
+        self.assertFalse(mem.remember("\u200d \u200c"), "it would be an empty row in the window")
         self.assertEqual(mem.memory_text(), "")
 
     def test_only_what_the_chat_writes_is_capped(self):
