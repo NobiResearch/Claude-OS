@@ -746,40 +746,74 @@ DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecisio
 # a card (0025). Claude's own pull requests never show one (0013). A lookup that fails is a deny,
 # not a card: Claude reads why and tries again, so it can't hold a night, and nothing goes out.
 
-ON_A_PR = {"merge", "close", "comment", "review", "edit"}
+ON_A_PR = {"merge", "close", "comment", "review", "edit", "reopen"}
 NAMES_A_PR_VERB = re.compile(r"\bpr\b.*\b(?:%s)\b" % "|".join(sorted(ON_A_PR)), re.S)
 PR_LINK = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/pull/\d+/?")
-NAME_ONE_PR = ("name one pull request, by its number or link, and write any other number as --flag=value, so "
-               "Ovenbird can check whose it is: one from anyone else takes the human's yes (0014)")
+HEREDOC = re.compile(r"(?<!<)<<-?\s*['\"]?(\w+)")
+ELSEWHERE = re.compile(r"(?<![\w-])(?:cd|pushd|popd|GH_REPO)(?![\w-])|(?<![\w-])env\s[^;&|]*-C\b")  # gh may run in another repo
+NAME_ONE_PR = ("name one pull request a command, by its number or link, and write any other number as --flag=value, "
+               "so Ovenbird can check whose it is: one from anyone else takes the human's yes (0014)")
+NAME_THE_REPO = ("this command moves before gh runs, so name the repository with -R owner/name or a link, so "
+                 "Ovenbird checks the right pull request: one from anyone else takes the human's yes (0014)")
+COULDNT_READ = "a shell reads this command's text, so run gh on its own, so Ovenbird can check whose pull request it is"
 COULDNT_LOOK = "Ovenbird couldn't check whose pull request this is, so nothing was sent. Try again"
 
 
+def _without_heredocs(text):
+    """The text without each heredoc's lines: they're data for a command, not commands."""
+    out, tag = [], None
+    for line in text.split("\n"):
+        if tag:
+            tag = None if line.strip() == tag else tag
+            continue
+        found = HEREDOC.search(_bare(line))
+        tag = found.group(1) if found else None
+        out.append(line)
+    return "\n".join(out)
+
+
+def _gh_commands(text):
+    """Each simple command in this text that runs gh or gh-axi. A mention isn't one: an `echo`'s
+    words, a commit message, a heredoc or a comment can name a pull request without acting on it."""
+    for segment in _segments(CONTINUED.sub(r"\1", _without_heredocs(text)).replace("\n", " ; ")):
+        try:
+            words = [w for w in _tokens(segment, True) if w not in ("(", ")")]
+        except ValueError:
+            continue  # gh_text_decision denies a publishing command it can't read
+        k = _command_word(words)
+        wrapped = words and words[0].rsplit("/", 1)[-1] in WRAPPERS  # env -C x gh: a flag's value isn't the command
+        if (k is not None and _is_gh(words[k])) or (wrapped and any(_is_gh(w) for w in words)):
+            yield segment
+
+
 def _named_repo(words):
-    """The value of gh's -R/--repo among these words, or None."""
+    """The value of gh's -R/--repo among these words, or None. gh takes the last."""
+    repo = None
     for i, w in enumerate(words):
         if w in ("-R", "--repo"):
-            return words[i + 1] if i + 1 < len(words) else None
-        if w.startswith("--repo="):
-            return w.split("=", 1)[1]
-        if w.startswith("-R") and len(w) > 2:
-            return w[2:]
-    return None
+            repo = words[i + 1] if i + 1 < len(words) else None
+        elif w.startswith("--repo="):
+            repo = w.split("=", 1)[1]
+        elif w.startswith("-R") and len(w) > 2:
+            repo = w[2:].lstrip("=")
+    return repo
 
 
 def _someone_elses(pr, repo, cwd):
     """Is this pull request from a fork, or by anyone but the signed-in account? None when GitHub
-    didn't say. Timed to stay inside the hook's 10 s: a hook that's killed shows no card."""
+    didn't say. At most 7 s for the hook's 10: a hook that's killed shows no card, so a command
+    gets one lookup. A pull request that doesn't say where it's from counts as someone else's."""
     view = core.run(["gh", "pr", "view", pr] + (["-R", repo] if repo else []) + ["--json", "isCrossRepository,author"],
                     timeout=4, cwd=cwd)
+    if not view.ok:
+        return None
     me = core.run(["gh", "api", "user", "--jq", ".login"], timeout=3, cwd=cwd).out.strip()
     try:
         facts = json.loads(view.out)
-        author = str(facts["author"]["login"])
-    except (ValueError, KeyError, TypeError):
+        author = str((facts.get("author") or {}).get("login") or "")
+    except (ValueError, AttributeError):
         return None
-    if not view.ok or not me or not author:
-        return None
-    return facts.get("isCrossRepository") is not False or author.lower() != me.lower()
+    return None if not me else facts.get("isCrossRepository") is not False or author.lower() != me.lower()
 
 
 def pr_decision(command, cwd):
@@ -788,18 +822,24 @@ def pr_decision(command, cwd):
     text = str(command or "")
     if not (MENTIONS_GH.search(text) and NAMES_A_PR_VERB.search(text)):
         return None
-    for sub, verb, _, cooked, _, _, ahead in gh_calls(text) or []:
-        if sub != "pr" or verb not in ON_A_PR:
-            continue
-        named = {w for w in cooked if w.isdigit() or PR_LINK.fullmatch(w)}
-        if len(named) != 1:
-            return "deny", NAME_ONE_PR
-        pr = named.pop()
-        anothers = _someone_elses(pr, _named_repo(ahead + cooked), cwd)
-        if anothers is None:
-            return "deny", COULDNT_LOOK
-        if anothers:
-            return "ask", "gh pr %s on %s: it's someone else's pull request, which takes your yes (0014, 0018)" % (verb, pr)
+    if STARTS_SHELL.search(_bare(text)):
+        return "deny", COULDNT_READ
+    acts = [call for segment in _gh_commands(text) for call in gh_calls(segment) or []
+            if call[0] == "pr" and call[1] in ON_A_PR]
+    if not acts:
+        return None
+    named = [{w for w in cooked if w.isdigit() or PR_LINK.fullmatch(w)} for _, _, _, cooked, _, _, _ in acts]
+    repos = {_named_repo(ahead + cooked) for _, _, _, cooked, _, _, ahead in acts}
+    if any(len(n) != 1 for n in named) or len(set.union(*named)) != 1 or len(repos) != 1:
+        return "deny", NAME_ONE_PR
+    pr, repo = named[0].pop(), repos.pop()
+    if not repo and not PR_LINK.fullmatch(pr) and ELSEWHERE.search(_bare(text)):
+        return "deny", NAME_THE_REPO
+    anothers = _someone_elses(pr, repo, cwd)
+    if anothers is None:
+        return "deny", COULDNT_LOOK
+    if anothers:
+        return "ask", "gh pr %s on %s: it's someone else's pull request, which takes your yes (0014, 0018)" % (acts[0][1], pr)
     return None
 
 

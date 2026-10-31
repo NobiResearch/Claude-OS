@@ -14,22 +14,28 @@ so text written to steer Claude lands exactly where it could act.
 
 ## Decision
 
-`cos hook pretool` looks up the pull request behind `gh pr merge|close|comment|review|edit` and
-shows a card when it's from a fork, or by anyone but the signed-in account.
+`cos hook pretool` looks up the pull request behind `gh pr merge|close|comment|review|edit|reopen`
+and shows a card when it's from a fork, or by anyone but the signed-in account. Only a command
+that runs `gh` counts: text that names one, in an `echo`, a commit message, a heredoc or a comment,
+does nothing.
 
 - **Claude's own pull requests show no card.** 0013 stands, so this isn't an ask rule for `gh`,
   which would stop every night.
 - **A lookup that fails is a deny, not a card.** A card on a GitHub hiccup could hold a night for
   hours; letting the command through would skip the check. A deny tells Claude why, sends nothing,
   and a retry costs seconds.
-- **The command has to name one pull request,** by number or link, or it's denied with the reason.
-  A current-branch or branch-name lookup could check a different pull request from the one `gh` acts
-  on, for instance after a `cd`.
+- **A command names one pull request,** by number or link, or it's denied with the reason. So it
+  gets one lookup, which fits the hook's 10 s, and a killed hook shows no card.
+- **A command that moves first names the repository.** After a `cd` or a `GH_REPO`, `gh` could act
+  on another repository's pull request with the same number, so it needs `-R` or a link, or it's
+  denied with the reason.
 
 ## Not caught
 
-This is a tripwire, like the rest of the hook. `gh api` writes, `gh issue comment` on a pull
-request's number and `gh pr reopen` show no card. CLAUDE.md's rule still covers them.
+This is a tripwire, like the rest of the hook. CLAUDE.md's rule still covers these, which show no
+card: `gh api` writes, `gh issue comment` on a pull request's number, `gh pr ready`, `update-branch`
+and `lock`, a flag's number standing in for the pull request (`gh pr comment --body 170`), a
+quote inside a word (`g''h`), and the human's own pull request in another repository.
 
 ## Not done
 
