@@ -204,6 +204,37 @@ class TestMusicOnlyAfterYouAsk(helpers.TempHome):
             self.assertEqual(shell._music_now()["track"], "Weightless")
         osa.assert_called()
 
+    def test_the_desktops_poll_never_asks_first(self):
+        from unittest import mock
+        from cos import core
+        answered = core.Result(0, self.NOW, "")
+        with mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", return_value=answered) as osa:
+            self.assertEqual(music.now(ask_music=False), {"running": False})
+            osa.assert_not_called()
+            own = {"status": "paused", "track": "Ours"}
+            with mock.patch.object(music, "own_player_active", return_value=own), \
+                    mock.patch.object(music, "_own_now", return_value={"running": True, "track": "Ours"}):
+                self.assertEqual(music.now(ask_music=False)["track"], "Ours", "our own player needs no asking")
+            osa.assert_not_called()
+            self.assertEqual(music.now()["track"], "Weightless")
+
+    def test_cos_doctor_never_asks_first(self):
+        import io
+        import types
+        from contextlib import redirect_stdout
+        from unittest import mock
+        from cos import core, system
+        with mock.patch.object(core, "app_running", return_value=True), \
+                mock.patch.object(core, "osascript", return_value=core.Result(0, "playing", "")) as osa, \
+                redirect_stdout(io.StringIO()):
+            system.doctor(types.SimpleNamespace(json=False))
+            self.assertFalse([c for c in osa.call_args_list if "Music" in str(c)], "asked Music")
+            core.home(*music.ASKED_FILE).parent.mkdir(parents=True, exist_ok=True)
+            core.home(*music.ASKED_FILE).touch()
+            system.doctor(types.SimpleNamespace(json=False))
+            self.assertTrue([c for c in osa.call_args_list if "Music" in str(c)])
+
     def test_not_from_a_background_run_or_when_music_didn_t_answer(self):
         import io
         import os

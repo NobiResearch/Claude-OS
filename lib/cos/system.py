@@ -187,7 +187,8 @@ def doctor(args):
     check(bool(core.which("mas")), "mas (App Store updates)", "brew install mas")
     fda = core.run(["ls", os.path.expanduser("~/.Trash")], timeout=5).ok
     check(fda, "Full Disk Access for your terminal", "optional: lets `cos clean` size the Trash. System Settings › Privacy & Security › Full Disk Access")
-    if core.app_running("Music"):
+    from . import music
+    if music.asked() and core.app_running("Music"):
         r = core.osascript('tell application "Music" to get player state', timeout=5)
         check(r.ok, "Automation access to Music", "System Settings › Privacy & Security › Automation › allow your terminal to control Music")
     rows = daemon.status(where=True)

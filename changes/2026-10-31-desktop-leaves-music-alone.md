@@ -1,0 +1,1 @@
+- The desktop leaves Music.app alone until you've clicked or searched in its Music window, or used `cos music`, so opening Ovenbird with Music open no longer brings up macOS's "control Music" dialog. Until then the desktop shows only Ovenbird's own player. `cos doctor` waits too.

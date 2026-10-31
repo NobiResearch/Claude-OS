@@ -40,15 +40,17 @@ ASKED_FILE = ("state", "music-asked.flag")  # a suffix, or core.home makes it a 
 
 
 def asked():
-    """Has a person's `cos music` talked to Music.app on this Mac? Only then do the boot banner
-    and the status line ask Music what's playing: the first AppleScript to it makes macOS ask
-    whether Ovenbird may control Music, and that dialog should follow someone asking for music,
-    not a session starting."""
+    """Has a person's `cos music`, or a click or search in the desktop, talked to Music.app on
+    this Mac? Only then do the boot banner, the status line, `cos doctor` and the desktop's own
+    polling ask Music anything: the first AppleScript to it makes macOS ask whether Ovenbird may
+    control Music, and that dialog should follow someone asking for music, not a session or the
+    desktop starting."""
     return core.home(*ASKED_FILE).is_file()
 
 
 def _note_asked():
-    """After a `cos music` command that Music.app answered, never in a background run."""
+    """After a person's command, click or search that Music.app answered, never in a background
+    run."""
     if not _talked or os.environ.get("CLAUDE_OS_DAEMON") or asked():
         return
     try:
@@ -92,11 +94,12 @@ def _own_now(st):
             "artwork": st.get("artwork") or None}
 
 
-def now():
+def now(ask_music=True):
+    """What's playing. ask_music False: Ovenbird's own player only (see asked)."""
     own = own_player_active()
     if own and own["status"] == "playing":
         return _own_now(own)
-    app = _music_app_now()
+    app = _music_app_now() if ask_music else {"running": False}
     # Paused in Ovenbird is still the song on screen, unless Music is playing something else.
     if own and app.get("state") != "playing":
         return _own_now(own)
