@@ -28,14 +28,16 @@ does nothing.
   gets one lookup, which fits the hook's 10 s, and a killed hook shows no card.
 - **A command that moves first names the repository.** After a `cd` or a `GH_REPO`, `gh` could act
   on another repository's pull request with the same number, so it needs `-R` or a link, or it's
-  denied with the reason.
+  denied with the reason. A `cd` after `gh` ran moves nothing.
 
 ## Not caught
 
 This is a tripwire, like the rest of the hook. CLAUDE.md's rule still covers these, which show no
 card: `gh api` writes, `gh issue comment` on a pull request's number, `gh pr ready`, `update-branch`
 and `lock`, a flag's number standing in for the pull request (`gh pr comment --body 170`), a
-quote inside a word (`g''h`), and the human's own pull request in another repository.
+quote inside a word (`g''h`), the human's own pull request in another repository, a wrapper it
+doesn't know (`noglob`, `script`, `op run`), `gh` in a function or a `case`, a redirection before
+it (`2>/dev/null gh`), and a rarer move (`chdir`, `env --chdir=x`, `sudo -D`).
 
 ## Not done
 

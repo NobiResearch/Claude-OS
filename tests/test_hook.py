@@ -338,7 +338,8 @@ class TestSomeoneElsesPullRequest(TempHome):
                     "(gh pr merge 144)", "{ gh pr merge 144; }", "if true; then gh pr merge 144; fi", "! gh pr merge 144",
                     "gh pr merge 144 2>&1 | tail -1", "gh pr merge \\\n  144 --squash", "command gh pr merge 144",
                     "sudo gh pr merge 144", "nice -n 5 gh pr merge 144", "/opt/homebrew/bin/gh pr merge 144",
-                    "sudo -u x gh pr merge 144"):
+                    "sudo -u x gh pr merge 144", "if sudo -u x gh pr merge 144; then true; fi", "! sudo -u x gh pr merge 144",
+                    "{ sudo -u x gh pr merge 144; }", "FOO=1 sudo -u x gh pr merge 144", "gtimeout 60 gh pr merge 144"):
             self.assertEqual(self.decide(cmd, cross=True)[0], "ask", cmd)
         self.assertIn("144", self.decide("gh pr merge 144", cross=True)[1])
 
@@ -356,7 +357,11 @@ class TestSomeoneElsesPullRequest(TempHome):
             self.assertEqual(self.decide(cmd), ("deny", hook.NAME_THE_REPO), cmd)
             self.assertEqual(self.calls, [], cmd)
         self.assertEqual(self.decide("cd /tmp && gh pr merge https://github.com/a/b/pull/1", cross=True)[0], "ask")
-        self.assertIsNone(self.decide('gh pr comment 1 --body "cd into it, GH_REPO too"'), "text in quotes moves nothing")
+        # What moves nothing, or moves only after gh ran, doesn't count.
+        for cmd in ('gh pr comment 1 --body "cd into it, GH_REPO too"', "gh pr edit 1 --add-label ci/cd", "# cd is not needed\ngh pr merge 1",
+                    'gh pr merge 170 --squash && cd "/some/where" && git pull --ff-only', "cat <<EOF\ncd x\nEOF\ngh pr merge 1",
+                    "git -C x status; gh pr merge 1"):
+            self.assertIsNone(self.decide(cmd), cmd)
 
     def test_what_only_names_a_pull_request_shows_nothing(self):
         # The false cards a review found: these write about gh, and none of them runs it.
@@ -369,8 +374,23 @@ class TestSomeoneElsesPullRequest(TempHome):
             self.assertEqual(self.calls, [], cmd)
 
     def test_what_comes_after_a_heredoc_still_runs(self):
-        for cmd in ("cat > x.md <<'EOF'\ntext\nEOF\ngh pr merge 144", "cat <<-EOF\n\ttext\n\tEOF\ngh pr merge 144"):
-            self.assertEqual(self.decide(cmd, cross=True)[0], "ask", cmd)
+        for tag, close in (("EOF", "EOF"), ("'EOF'", "EOF"), ('"EOF"', "EOF"), ("\\EOF", "EOF"), ("-EOF", "EOF"),
+                           ("END-OF-BODY", "END-OF-BODY"), ("E.O.F", "E.O.F"), ("'EOF' file.md", "EOF")):
+            cmd = "cat <<%s\ntext\n%s\ngh pr merge 144" % (tag, close)
+            self.assertEqual(self.decide(cmd, cross=True), self.decide("gh pr merge 144", cross=True), cmd)
+
+    def test_a_heredoc_body_runs_nothing_whatever_its_tag(self):
+        for tag in ("EOF", "'EOF'", '"EOF"', "\\EOF", "-EOF"):
+            for body in ("gh pr merge 144", "- gh pr close 144", "  gh pr merge 144"):
+                self.assertIsNone(self.decide("cat > x.md <<%s\n%s\nEOF" % (tag, body), cross=True), (tag, body))
+                self.assertEqual(self.calls, [], (tag, body))
+
+    def test_what_looks_like_a_heredoc_hides_nothing(self):
+        # None of these closes, so the lines after them are commands.
+        for first in ("(( n = 1 << 3 ))", "let x=1<<3", "# written with <<EOF", "# 1 << 3", "cat <<EOF",
+                      "python3 -c \"\n1 << 3\n\"", 'git commit -m "\n<<EOF\n"'):
+            self.assertEqual(self.decide("%s\ngh pr merge 144" % first, cross=True)[0], "ask", first)
+        self.assertEqual(self.decide('gh pr comment 144 --body "a\n1 << 3\nb"', cross=True)[0], "ask")
 
     def test_a_shell_reading_the_text_is_denied(self):
         for cmd in ("bash <<EOF\ngh pr merge 144\nEOF", "sh -c 'gh pr merge 144'", "echo 'gh pr merge 144' | sh",
@@ -387,8 +407,7 @@ class TestSomeoneElsesPullRequest(TempHome):
         self.assertEqual(len(self.calls), 1, "no second call when the first one failed")
 
     def test_one_that_doesnt_say_where_its_from_counts_as_someone_elses(self):
-        with mock.patch.object(core, "run", return_value=core.Result(0, json.dumps({"author": {"login": "{}"}}), "")):
-            self.assertEqual(hook.pr_decision("gh pr merge 170", "/x")[0], "ask")
+        self.assertEqual(self.decide("gh pr merge 170", cross=None)[0], "ask", "by the signed-in account, from who knows where")
 
     def test_one_lookup_fits_the_hooks_ten_seconds(self):
         self.decide("gh pr comment 170 --body-file x.md && gh pr merge 170")

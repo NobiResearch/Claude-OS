@@ -749,8 +749,8 @@ DENY = {"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecisio
 ON_A_PR = {"merge", "close", "comment", "review", "edit", "reopen"}
 NAMES_A_PR_VERB = re.compile(r"\bpr\b.*\b(?:%s)\b" % "|".join(sorted(ON_A_PR)), re.S)
 PR_LINK = re.compile(r"https://github\.com/[^/\s]+/[^/\s]+/pull/\d+/?")
-HEREDOC = re.compile(r"(?<!<)<<-?\s*['\"]?(\w+)")
-ELSEWHERE = re.compile(r"(?<![\w-])(?:cd|pushd|popd|GH_REPO)(?![\w-])|(?<![\w-])env\s[^;&|]*-C\b")  # gh may run in another repo
+HEREDOC = re.compile(r"(?<!<)<<-?\s*(?:'([^']+)'|\"([^\"]+)\"|\\?([\w.-]+))")
+MOVES = {"cd", "pushd", "popd"}
 NAME_ONE_PR = ("name one pull request a command, by its number or link, and write any other number as --flag=value, "
                "so Ovenbird can check whose it is: one from anyone else takes the human's yes (0014)")
 NAME_THE_REPO = ("this command moves before gh runs, so name the repository with -R owner/name or a link, so "
@@ -760,30 +760,36 @@ COULDNT_LOOK = "Ovenbird couldn't check whose pull request this is, so nothing w
 
 
 def _without_heredocs(text):
-    """The text without each heredoc's lines: they're data for a command, not commands."""
-    out, tag = [], None
-    for line in text.split("\n"):
-        if tag:
-            tag = None if line.strip() == tag else tag
-            continue
-        found = HEREDOC.search(_bare(line))
-        tag = found.group(1) if found else None
-        out.append(line)
+    """The text without each heredoc's lines: they're data for a command, not commands. Only one
+    that closes: a `1 << 3` or a comment that looks like one must not hide what follows it."""
+    lines, out, i = text.split("\n"), [], 0
+    while i < len(lines):
+        found = HEREDOC.search(lines[i]) if "<<" in _bare(lines[i]) else None
+        tag = next(g for g in found.groups() if g) if found else None
+        close = next((j for j in range(i + 1, len(lines)) if lines[j].strip() == tag), None) if tag else None
+        out.append(lines[i])
+        i = i + 1 if close is None else close + 1
     return "\n".join(out)
 
 
 def _gh_commands(text):
-    """Each simple command in this text that runs gh or gh-axi. A mention isn't one: an `echo`'s
-    words, a commit message, a heredoc or a comment can name a pull request without acting on it."""
+    """Each simple command in this text that runs gh or gh-axi -> [(its text, did a command up to
+    it move, so gh may act on another repository?)]. A mention isn't one: an `echo`'s words, a
+    commit message, a heredoc or a comment can name a pull request without acting on it."""
+    found, moved = [], False
     for segment in _segments(CONTINUED.sub(r"\1", _without_heredocs(text)).replace("\n", " ; ")):
         try:
             words = [w for w in _tokens(segment, True) if w not in ("(", ")")]
         except ValueError:
             continue  # gh_text_decision denies a publishing command it can't read
         k = _command_word(words)
-        wrapped = words and words[0].rsplit("/", 1)[-1] in WRAPPERS  # env -C x gh: a flag's value isn't the command
-        if (k is not None and _is_gh(words[k])) or (wrapped and any(_is_gh(w) for w in words)):
-            yield segment
+        # After a wrapper, a flag's value can read as the command: sudo -u x gh, env -C x gh.
+        wrapped = k is not None and any(w.rsplit("/", 1)[-1] in WRAPPERS for w in words[:k])
+        moved = moved or (k is not None and words[k] in MOVES) or any(w.startswith("GH_REPO=") for w in words) \
+            or (words[:1] == ["env"] and "-C" in words)
+        if k is not None and (_is_gh(words[k]) or (wrapped and any(_is_gh(w) for w in words[k:]))):
+            found.append((segment, moved))
+    return found
 
 
 def _named_repo(words):
@@ -824,7 +830,8 @@ def pr_decision(command, cwd):
         return None
     if STARTS_SHELL.search(_bare(text)):
         return "deny", COULDNT_READ
-    acts = [call for segment in _gh_commands(text) for call in gh_calls(segment) or []
+    commands = _gh_commands(text)
+    acts = [call for segment, _ in commands for call in gh_calls(segment) or []
             if call[0] == "pr" and call[1] in ON_A_PR]
     if not acts:
         return None
@@ -833,7 +840,7 @@ def pr_decision(command, cwd):
     if any(len(n) != 1 for n in named) or len(set.union(*named)) != 1 or len(repos) != 1:
         return "deny", NAME_ONE_PR
     pr, repo = named[0].pop(), repos.pop()
-    if not repo and not PR_LINK.fullmatch(pr) and ELSEWHERE.search(_bare(text)):
+    if not repo and not PR_LINK.fullmatch(pr) and any(moved for _, moved in commands):
         return "deny", NAME_THE_REPO
     anothers = _someone_elses(pr, repo, cwd)
     if anothers is None:
@@ -850,7 +857,8 @@ def pr_decision(command, cwd):
 # `sh -c 'gh …'` get past them. This is the same policy, read the way a shell reads a command.
 # A tripwire, not the wall: a download's origin has a push address that goes nowhere.
 
-WRAPPERS = {"env", "command", "exec", "nice", "nohup", "time", "timeout", "xargs", "sudo", "caffeinate"}
+WRAPPERS = {"env", "command", "exec", "nice", "nohup", "time", "timeout", "gtimeout", "stdbuf", "arch", "xargs", "sudo",
+            "caffeinate"}
 KEYWORDS = {"if", "then", "elif", "else", "fi", "do", "done", "while", "until", "!", "{", "}"}
 SHELL_WORD = re.compile(r"(?:\S*/)?(?:ba|z|da|k)?sh")
 GIT_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path", "--config-env"}
